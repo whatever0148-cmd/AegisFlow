@@ -2,15 +2,15 @@
 tags:
   - adapter
 status: verified
-latency_ms: 0.142834
-last_verified: 2026-10-25T15:28:03Z
-git_commit: 60fc826-dirty
+latency_ms: 0.144667
+last_verified: 2026-10-25T15:38:36Z
+git_commit: b3f6810
 crate: adapter_switch_mcp
 ---
 
 # Adapter-Switch-MCP
 
-**Status:** 🟢 verified · **p50:** 0.1428 ms · **commit:** `60fc826-dirty` · **bench run: PRELIMINARY**
+**Status:** 🟢 verified · **p50:** 0.1447 ms · **commit:** `b3f6810` · **bench run: PRELIMINARY**
 
 > MCP stdio server (branch / score / policy / commit / rollback / approval tools) and the Switch chat bridge that renders workspace-diff + team-approval cards for Mattermost and Slack webhooks.
 
@@ -23,14 +23,14 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T15:28:06Z · bench 2026-10-25T15:28:03Z · tests 2026-10-25T08:10:13Z · commit `60fc826-dirty`_
+_Synced 2026-10-25T15:38:39Z · bench 2026-10-25T15:38:36Z · tests 2026-10-25T08:10:13Z · commit `b3f6810`_
 
-> **PRELIMINARY: 1-min load average 11.47 at end above the busy threshold 4.** Only a quiet full-scale benchmark run decides the phase result.
+> **PRELIMINARY: 1-min load average 13.13 at end above the busy threshold 4.** Only a quiet full-scale benchmark run decides the phase result.
 
 | Metric | Measured |
 |---|---|
 | cargo test --release | 8 passed, 0 failed (3 suites) |
-| tools/call round-trip (in-process) | p50 142.8 µs · p95 180.2 µs · n=6000 |
+| tools/call round-trip (in-process) | p50 144.7 µs · p95 204.4 µs · n=6000 |
 | chat webhooks | not called · the benchmark never posts to chat; aegis_request_approval posts only to configured webhooks |
 <!-- aegis:telemetry:end -->
 

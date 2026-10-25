@@ -1,7 +1,7 @@
 {
   "project": "AegisFlow",
   "phase": "phase-2",
-  "updated_at": "2026-10-25T15:28:05Z",
+  "updated_at": "2026-10-25T15:38:39Z",
   "current_task": null,
   "tasks": {
     "total": 21,
@@ -11,12 +11,18 @@
     "pending": 0
   },
   "last_run": {
-    "started_at": "2026-10-25T15:20:43Z",
-    "finished_at": "2026-10-25T15:28:05Z",
-    "selected": "all",
+    "started_at": "2026-10-25T15:34:21Z",
+    "finished_at": "2026-10-25T15:38:39Z",
+    "selected": [
+      "T12",
+      "T13",
+      "T17",
+      "T18",
+      "T20"
+    ],
     "failed": [
       "T18"
     ]
   },
-  "git_commit": "60fc826"
+  "git_commit": "b3f6810"
 }

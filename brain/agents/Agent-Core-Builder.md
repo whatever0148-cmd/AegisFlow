@@ -4,12 +4,12 @@ tags:
 status: verified
 latency_ms: 103831.1
 last_verified: 2026-10-25T15:23:33Z
-git_commit: 60fc826-dirty
+git_commit: b3f6810
 ---
 
 # Agent-Core-Builder
 
-**Status:** 🟢 verified · **p50:** 103831.1 ms · **commit:** `60fc826-dirty`
+**Status:** 🟢 verified · **p50:** 103831.1 ms · **commit:** `b3f6810`
 
 > Implements the Rust + Swift crates under crates/ and the CoreML model builder, keeping `cargo test --release` green.
 
@@ -21,9 +21,9 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T15:28:06Z · bench 2026-10-25T15:28:03Z · tests 2026-10-25T08:10:13Z · commit `60fc826-dirty`_
+_Synced 2026-10-25T15:38:39Z · bench 2026-10-25T15:38:36Z · tests 2026-10-25T08:10:13Z · commit `b3f6810`_
 
-> **PRELIMINARY: 1-min load average 11.47 at end above the busy threshold 4.** Only a quiet full-scale benchmark run decides the phase result.
+> **PRELIMINARY: 1-min load average 13.13 at end above the busy threshold 4.** Only a quiet full-scale benchmark run decides the phase result.
 
 | Metric | Measured |
 |---|---|
