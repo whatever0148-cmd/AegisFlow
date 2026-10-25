@@ -1,16 +1,16 @@
 ---
 tags:
   - adapter
-status: pending
-latency_ms: null
-last_verified: null
-git_commit: null
+status: verified
+latency_ms: 0.042416
+last_verified: 2026-10-25T08:06:37Z
+git_commit: a29112b
 crate: adapter_nebius_nemotron
 ---
 
 # Adapter-Nebius-Nemotron
 
-**Status:** ⚪ pending · **p50:** — · **commit:** `uncommitted-dirty`
+**Status:** 🟢 verified · **p50:** 0.0424 ms · **commit:** `a29112b`
 
 > 3-tier build-recovery router. Tier 0: local ANE score + Cedar. Tier 1: nvidia/Llama-3_3-Nemotron-Super-49B-v1 on Nebius. Tier 2: Tavily docs search + nvidia/Llama-3_1-Nemotron-Ultra-253B-v1. Every patch is verified inside a fresh APFS CoW branch.
 
@@ -23,13 +23,13 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T07:12:43Z · bench not run yet · tests not run yet · commit `uncommitted-dirty`_
+_Synced 2026-10-25T08:11:35Z · bench 2026-10-25T08:06:37Z · tests 2026-10-25T08:10:13Z · commit `a29112b`_
 
 | Metric | Measured |
 |---|---|
-| cargo test --release | no `cargo test --release` run recorded yet |
-| tier-0 route (ANE + Cedar) | — |
-| live Nebius / Tavily calls | — |
+| cargo test --release | 7 passed, 0 failed (2 suites) |
+| tier-0 route (ANE + Cedar) | p50 42.416 µs · p95 50.875 µs · n=5000 |
+| live Nebius / Tavily calls | not called · NEBIUS_API_KEY not set |
 <!-- aegis:telemetry:end -->
 
 ## Notes

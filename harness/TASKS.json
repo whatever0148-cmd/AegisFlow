@@ -18,9 +18,19 @@
         "every node note carries status, latency_ms, last_verified and git_commit frontmatter"
       ],
       "verify": "python3 harness/sync_obsidian_brain.py --check",
-      "requirements": ["R8.1", "R8.2"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R8.1",
+        "R8.2"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 141.4,
+        "finished_at": "2026-10-25T08:04:42Z",
+        "output_tail": [
+          "check: OK"
+        ]
+      }
     },
     {
       "id": "T01",
@@ -32,9 +42,21 @@
         ".claude/hooks/verify_no_stubs.sh and post_task_brain_sync.sh parse and are wired in .claude/settings.json"
       ],
       "verify": "bash -n .claude/hooks/verify_no_stubs.sh && bash -n .claude/hooks/post_task_brain_sync.sh && python3 -c \"import json; s=json.load(open('.claude/settings.json')); assert s['hooks']['PostToolUse'] and s['hooks']['SubagentStop']\" && ls .claude/agents/systems-architect.md .claude/agents/core-builder.md .claude/agents/qa-reviewer.md .claude/agents/telemetry-ui.md",
-      "requirements": ["R8.3"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R8.3"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 73.2,
+        "finished_at": "2026-10-25T08:04:42Z",
+        "output_tail": [
+          ".claude/agents/core-builder.md",
+          ".claude/agents/qa-reviewer.md",
+          ".claude/agents/systems-architect.md",
+          ".claude/agents/telemetry-ui.md"
+        ]
+      }
     },
     {
       "id": "T02",
@@ -46,9 +68,20 @@
         "compiled .mlmodelc present; CoreML FP16 output matches the NumPy FP32 reference within 1.0 score point"
       ],
       "verify": ".venv/bin/python models/build_model.py --verify-only",
-      "requirements": ["R3.1", "R3.2"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R3.1",
+        "R3.2"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 1014.7,
+        "finished_at": "2026-10-25T08:04:43Z",
+        "output_tail": [
+          "verify: 256 vectors, CoreML FP16 vs NumPy FP32 max |diff| 0.1155, mean 0.0283; batch model max |diff| 0.3448 (tolerance 1.0)",
+          "verify: input features shape [1, 64] dataType 65552; output risk_score; mlmodelc present: True"
+        ]
+      }
     },
     {
       "id": "T03",
@@ -61,9 +94,42 @@
         "dropping an uncommitted branch leaves the live tree byte-identical"
       ],
       "verify": "cargo test --release -p aegis-storage",
-      "requirements": ["R1.1", "R1.2", "R2.1", "R2.2", "R2.3"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R1.1",
+        "R1.2",
+        "R2.1",
+        "R2.2",
+        "R2.3"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 628.1,
+        "finished_at": "2026-10-25T08:04:44Z",
+        "output_tail": [
+          "running 9 tests",
+          "test tests::explicit_rollback_reports_timings ... ok",
+          "test tests::branch_is_isolated_copy ... ok",
+          "test tests::stale_branch_commit_is_a_conflict ... ok",
+          "test tests::dropped_branch_rolls_back_and_leaves_live_identical ... ok",
+          "test tests::restore_brings_back_an_earlier_version ... ok",
+          "test tests::workspace_is_on_apfs ... ok",
+          "test tests::commit_swaps_atomically_and_keeps_previous_version ... ok",
+          "test tests::changes_report_added_modified_deleted ... ok",
+          "test tests::retention_prunes_old_versions ... ok",
+          "",
+          "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "    Finished `release` profile [optimized] target(s) in 0.12s",
+          "     Running unittests src/lib.rs (target/release/deps/aegis_storage-dc6008f076516029)",
+          "   Doc-tests aegis_storage"
+        ]
+      }
     },
     {
       "id": "T04",
@@ -76,126 +142,418 @@
         "c2pa:ed25519 receipts verify and fail on tampered payloads"
       ],
       "verify": "cargo test --release -p aegis-governance",
-      "requirements": ["R4.1", "R4.2", "R4.3", "R4.4"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R4.1",
+        "R4.2",
+        "R4.3",
+        "R4.4"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 37402.4,
+        "finished_at": "2026-10-25T08:05:21Z",
+        "output_tail": [
+          "test tests::orders_over_fifty_dollars_need_verified_receipt ... ok",
+          "test tests::high_impact_commit_needs_team_approval ... ok",
+          "test tests::low_risk_commit_is_permitted ... ok",
+          "test tests::risk_scores_are_clamped ... ok",
+          "test tests::order_of_exactly_fifty_dollars_is_standard ... ok",
+          "test time::tests::formats_known_instants ... ok",
+          "test tests::invalid_policy_update_is_rejected ... ok",
+          "test tests::sensitive_fields_block_low_risk_commit ... ok",
+          "",
+          "test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "   Compiling psm v0.1.32",
+          "   Compiling stacker v0.1.25",
+          "   Compiling cedar-policy-core v4.14.0",
+          "   Compiling cedar-policy-formatter v4.14.0",
+          "   Compiling cedar-policy v4.14.0",
+          "   Compiling aegis-governance v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-governance)",
+          "    Finished `release` profile [optimized] target(s) in 36.86s",
+          "     Running unittests src/lib.rs (target/release/deps/aegis_governance-a158579a36c2232c)",
+          "   Doc-tests aegis_governance"
+        ]
+      }
     },
     {
       "id": "T05",
       "title": "aegis-ane-scorer: Swift @_cdecl CoreML bridge + feature extraction",
       "owner": "core-builder",
-      "deps": ["T02", "T03", "T04"],
+      "deps": [
+        "T02",
+        "T03",
+        "T04"
+      ],
       "acceptance": [
         "aegis_ane_score_workflow scores a 64-feature vector through CoreML with .cpuAndNeuralEngine",
         "scores match models/parity_vectors.json within 1.0 point; MLComputePlan report is readable"
       ],
       "verify": "cargo test --release -p aegis-ane-scorer",
-      "requirements": ["R3.2", "R3.3"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R3.2",
+        "R3.3"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 1699.0,
+        "finished_at": "2026-10-25T08:05:23Z",
+        "output_tail": [
+          "test features::tests::commerce_features_cover_budget_and_receipt ... ok",
+          "test tests::missing_model_is_reported ... ok",
+          "test features::tests::rust_table_matches_feature_schema_json ... ok",
+          "test features::tests::test_and_doc_ratios ... ok",
+          "test features::tests::env_secret_change_lights_up_risk_features ... ok",
+          "test tests::neural_engine_is_reported_on_apple_silicon ... ok",
+          "test tests::rejects_wrong_length ... ok",
+          "test tests::scores_are_bounded_and_deterministic ... ok",
+          "test tests::risky_change_outscores_benign_change ... ok",
+          "test tests::matches_numpy_reference_on_parity_vectors ... ok",
+          "test tests::compute_plan_lists_dispatched_operations ... ok",
+          "test tests::concurrent_scoring_is_consistent ... ok",
+          "test tests::batch_model_matches_online_model ... ok",
+          "",
+          "test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "   Compiling aegis-ane-scorer v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-ane-scorer)",
+          "    Finished `release` profile [optimized] target(s) in 1.16s",
+          "     Running unittests src/lib.rs (target/release/deps/aegis_ane_scorer-79945c06b6b7c25e)",
+          "   Doc-tests aegis_ane_scorer"
+        ]
+      }
     },
     {
       "id": "T06",
       "title": "adapter-nebius-nemotron: 3-tier build recovery router",
       "owner": "core-builder",
-      "deps": ["T05"],
+      "deps": [
+        "T05"
+      ],
       "acceptance": [
         "tier-0 routing uses ANE + Cedar only",
         "patches are applied and verified inside a fresh CoW branch; failures roll back",
         "Nebius/Tavily are called only when NEBIUS_API_KEY / TAVILY_API_KEY are set"
       ],
       "verify": "cargo test --release -p adapter-nebius-nemotron",
-      "requirements": ["R5.1", "R5.2", "R5.3"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R5.1",
+        "R5.2",
+        "R5.3"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 42426.7,
+        "finished_at": "2026-10-25T08:06:05Z",
+        "output_tail": [
+          "test tests::unified_diff_applies ... ok",
+          "test tests::triage_is_local_and_routes ... ok",
+          "test tests::without_key_remote_tiers_are_unavailable ... ok",
+          "test tests::recovers_through_local_openai_compatible_endpoint ... ok",
+          "",
+          "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "   Compiling ring v0.17.14",
+          "   Compiling cedar-policy-core v4.14.0",
+          "   Compiling rustls v0.23.46",
+          "   Compiling rustls-webpki v0.103.16",
+          "   Compiling ureq v2.12.1",
+          "   Compiling cedar-policy-formatter v4.14.0",
+          "   Compiling cedar-policy v4.14.0",
+          "   Compiling aegis-governance v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-governance)",
+          "   Compiling aegis-ane-scorer v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-ane-scorer)",
+          "   Compiling adapter-nebius-nemotron v0.1.0 (/Users/ahmed/AegisFlow/crates/adapter-nebius-nemotron)",
+          "    Finished `release` profile [optimized] target(s) in 41.90s",
+          "     Running unittests src/lib.rs (target/release/deps/adapter_nebius_nemotron-3a0cc69c58d81035)",
+          "   Doc-tests adapter_nebius_nemotron"
+        ]
+      }
     },
     {
       "id": "T07",
       "title": "adapter-paypal: Sandbox Orders v2 middleware + dashboard rows",
       "owner": "core-builder",
-      "deps": ["T05"],
+      "deps": [
+        "T05"
+      ],
       "acceptance": [
         "outbound order bodies contain [REDACTED] instead of sensitive strings",
         "custom_id carries a verifiable c2pa:ed25519 signature; Cedar budget rules gate submission",
         "AG Grid and Bryntum row exports are produced"
       ],
       "verify": "cargo test --release -p adapter-paypal",
-      "requirements": ["R6.1", "R6.2", "R6.3"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R6.1",
+        "R6.2",
+        "R6.3"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 2111.0,
+        "finished_at": "2026-10-25T08:06:07Z",
+        "output_tail": [
+          "running 8 tests",
+          "test tests::over_fifty_dollars_without_verified_receipt_is_forbidden ... ok",
+          "test tests::unredacted_payload_is_blocked ... ok",
+          "test tests::nothing_is_sent_without_credentials ... ok",
+          "test tests::sensitive_customer_strings_are_redacted_before_signing ... ok",
+          "test tests::standard_order_follows_risk_policy ... ok",
+          "test tests::dashboard_exports_have_expected_shapes ... ok",
+          "test tests::custom_id_signature_verifies_and_detects_tampering ... ok",
+          "test tests::submits_to_local_orders_v2_mock ... ok",
+          "",
+          "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "   Compiling adapter-paypal v0.1.0 (/Users/ahmed/AegisFlow/crates/adapter-paypal)",
+          "    Finished `release` profile [optimized] target(s) in 1.48s",
+          "     Running unittests src/lib.rs (target/release/deps/adapter_paypal-acf2f041c52f14cb)",
+          "   Doc-tests adapter_paypal"
+        ]
+      }
     },
     {
       "id": "T08",
       "title": "adapter-switch-mcp: MCP server + Mattermost/Slack approval cards",
       "owner": "core-builder",
-      "deps": ["T05"],
+      "deps": [
+        "T05"
+      ],
       "acceptance": [
         "aegis-mcp answers initialize, tools/list and tools/call over stdio JSON-RPC",
         "approval cards render the workspace diff for Mattermost and Slack; posting happens only with configured webhooks"
       ],
       "verify": "cargo test --release -p adapter-switch-mcp && bash harness/mcp_smoke.sh",
-      "requirements": ["R7.1", "R7.2"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R7.1",
+        "R7.2"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 3457.8,
+        "finished_at": "2026-10-25T08:06:11Z",
+        "output_tail": [
+          "test cards::tests::excerpt_is_redacted ... ok",
+          "test cards::tests::posts_to_a_local_webhook ... ok",
+          "test mcp::tests::initialize_negotiates_version ... ok",
+          "test mcp::tests::errors_follow_json_rpc ... ok",
+          "test mcp::tests::lists_tools_and_evaluates_policy ... ok",
+          "test mcp::tests::branch_diff_approve_commit_and_rollback ... ok",
+          "",
+          "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "mcp smoke: 9 tools; $120 order without verified receipt -> Deny (forbid-order-over-50-usd-without-receipt)",
+          "   Compiling adapter-switch-mcp v0.1.0 (/Users/ahmed/AegisFlow/crates/adapter-switch-mcp)",
+          "    Finished `release` profile [optimized] target(s) in 1.61s",
+          "     Running unittests src/lib.rs (target/release/deps/adapter_switch_mcp-da9b49fb2b93373b)",
+          "     Running unittests src/bin/aegis-mcp.rs (target/release/deps/aegis_mcp-2d74be95ca71c5e9)",
+          "   Doc-tests adapter_switch_mcp"
+        ]
+      }
     },
     {
       "id": "T09",
       "title": "Kiro specs: requirements, design, implementation plan",
       "owner": "systems-architect",
-      "deps": [],
+      "deps": [
+        "T13"
+      ],
       "acceptance": [
         ".kiro/specs/aegisflow-phase1/requirements.md uses EARS acceptance criteria",
-        "tasks.md mirrors TASKS.json verification state"
+        "tasks.md is generated by the brain sync (T13) and mirrors TASKS.json verification state"
       ],
       "verify": "test -s .kiro/specs/aegisflow-phase1/requirements.md && test -s .kiro/specs/aegisflow-phase1/design.md && test -s .kiro/specs/aegisflow-phase1/tasks.md",
-      "requirements": ["R8.4"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R8.4"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 5.3,
+        "finished_at": "2026-10-25T08:08:53Z",
+        "output_tail": []
+      }
     },
     {
       "id": "T10",
       "title": "No-stub gate: zero TODO/FIXME/unimplemented!/hardcoded metrics",
       "owner": "qa-reviewer",
-      "deps": ["T03", "T04", "T05", "T06", "T07", "T08"],
-      "acceptance": ["verify_no_stubs.sh exits 0 on the whole tree"],
+      "deps": [
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T08"
+      ],
+      "acceptance": [
+        "verify_no_stubs.sh exits 0 on the whole tree"
+      ],
       "verify": ".claude/hooks/verify_no_stubs.sh",
-      "requirements": ["R8.3"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R8.3"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 134.9,
+        "finished_at": "2026-10-25T08:06:11Z",
+        "output_tail": [
+          "verify_no_stubs: clean"
+        ]
+      }
     },
     {
       "id": "T11",
       "title": "Release test suite",
       "owner": "qa-reviewer",
-      "deps": ["T10"],
-      "acceptance": ["cargo test --release --workspace exits 0"],
+      "deps": [
+        "T10"
+      ],
+      "acceptance": [
+        "cargo test --release --workspace exits 0"
+      ],
       "verify": "cargo test --release --workspace",
-      "requirements": ["R8.3"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R8.3"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 3340.3,
+        "finished_at": "2026-10-25T08:06:14Z",
+        "output_tail": [
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "",
+          "running 0 tests",
+          "",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "",
+          "   Compiling aegis-ane-scorer v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-ane-scorer)",
+          "   Compiling aegis-governance v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-governance)",
+          "   Compiling aegis-bench v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-bench)",
+          "    Finished `release` profile [optimized] target(s) in 1.75s",
+          "     Running unittests src/lib.rs (target/release/deps/adapter_nebius_nemotron-3a0cc69c58d81035)",
+          "     Running unittests src/lib.rs (target/release/deps/adapter_paypal-acf2f041c52f14cb)",
+          "     Running unittests src/lib.rs (target/release/deps/adapter_switch_mcp-da9b49fb2b93373b)",
+          "     Running unittests src/bin/aegis-mcp.rs (target/release/deps/aegis_mcp-2d74be95ca71c5e9)",
+          "     Running unittests src/lib.rs (target/release/deps/aegis_ane_scorer-89770e08ef3f7d50)",
+          "     Running unittests src/main.rs (target/release/deps/aegis_bench-eab1a7bef3268bac)",
+          "     Running unittests src/lib.rs (target/release/deps/aegis_governance-3905ed9c4c87ae38)",
+          "     Running unittests src/lib.rs (target/release/deps/aegis_storage-765c53e0cc718e35)",
+          "   Doc-tests adapter_nebius_nemotron",
+          "   Doc-tests adapter_paypal",
+          "   Doc-tests adapter_switch_mcp",
+          "   Doc-tests aegis_ane_scorer",
+          "   Doc-tests aegis_governance",
+          "   Doc-tests aegis_storage"
+        ]
+      }
     },
     {
       "id": "T12",
       "title": "Hardware benchmark suite",
       "owner": "qa-reviewer",
-      "deps": ["T11"],
-      "acceptance": ["artifacts/aegis_phase1_telemetry.json written from measured runs on this Mac"],
+      "deps": [
+        "T11"
+      ],
+      "acceptance": [
+        "artifacts/aegis_phase1_telemetry.json written from measured runs on this Mac"
+      ],
       "verify": "cargo run --release -q -p aegis-bench -- --out artifacts/aegis_phase1_telemetry.json",
-      "requirements": ["R8.1"],
-      "status": "pending",
-      "last_result": null,
+      "requirements": [
+        "R8.1"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 23770.3,
+        "finished_at": "2026-10-25T08:06:38Z",
+        "output_tail": [
+          "wrote /Users/ahmed/AegisFlow/artifacts/aegis_phase1_telemetry.json",
+          "  [PASS] clonefile branch \u00b7 tiny (9 files) \u2014 0.1653 ms (target < 0.5 ms)",
+          "  [MISS] clonefile branch \u00b7 small (129 files) \u2014 1.1165 ms (target < 0.5 ms)",
+          "  [MISS] clonefile branch \u00b7 medium (1025 files) \u2014 10.3190 ms (target < 0.5 ms)",
+          "  [MISS] clonefile branch \u00b7 aegisflow_src (61 files) \u2014 0.8968 ms (target < 0.5 ms)",
+          "  [PASS] renameatx_np RENAME_SWAP \u00b7 small \u2014 0.1253 ms (target < 0.5 ms)",
+          "  [PASS] rollback detach \u00b7 small \u2014 0.0894 ms (target < 0.5 ms)",
+          "  [MISS] rollback detach + reclaim \u00b7 small \u2014 5.1518 ms (target < 0.5 ms)",
+          "  [PASS] CoreML FP16 inference \u00b7 online \u00b7 cpuAndNeuralEngine \u2014 0.0395 ms (target < 0.6 ms)",
+          "  [MISS] online model executes on the Neural Engine (MLComputePlan) \u2014 {\"neural_engine\":0,\"cpu\":7,\"gpu\":0} (target all ops on ANE)",
+          "  [PASS] batch model executes on the Neural Engine (MLComputePlan) \u2014 {\"neural_engine\":7,\"cpu\":0,\"gpu\":0} (target all ops on ANE)",
+          "  [PASS] tier-0 route (ANE + Cedar) \u2014 0.0424 ms (target < 0.4 ms)",
+          "aegis-bench: APFS branching / commit / rollback",
+          "  apfs \u00b7 tiny (9 files)",
+          "  apfs \u00b7 small (129 files)",
+          "  apfs \u00b7 medium (1025 files)",
+          "  apfs \u00b7 aegisflow_src",
+          "aegis-bench: CoreML FP16 + MLComputePlan",
+          "aegis-bench: Cedar",
+          "aegis-bench: end-to-end transactions",
+          "aegis-bench: PayPal receipts",
+          "aegis-bench: tier-0 routing + MCP"
+        ]
+      },
       "timeout_s": 3600
     },
     {
       "id": "T13",
       "title": "Sync telemetry into the Obsidian brain",
       "owner": "telemetry-ui",
-      "deps": ["T12"],
-      "acceptance": ["brain notes, canvas and Telemetry-Log reflect artifacts/aegis_phase1_telemetry.json"],
+      "deps": [
+        "T12"
+      ],
+      "acceptance": [
+        "brain notes, canvas and Telemetry-Log reflect artifacts/aegis_phase1_telemetry.json"
+      ],
       "verify": "python3 harness/sync_obsidian_brain.py",
-      "requirements": ["R8.1", "R8.2"],
-      "status": "pending",
-      "last_result": null
+      "requirements": [
+        "R8.1",
+        "R8.2"
+      ],
+      "status": "passed",
+      "last_result": {
+        "exit_code": 0,
+        "duration_ms": 168.7,
+        "finished_at": "2026-10-25T08:06:38Z",
+        "output_tail": [
+          "brain sync: failing=1, pending=2, target-missed=2, verified=11 \u00b7 commit a29112b \u00b7 log row added"
+        ]
+      }
     }
   ]
 }

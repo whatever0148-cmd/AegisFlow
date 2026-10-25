@@ -308,9 +308,10 @@ class State:
                  notes: Optional[List[str]] = None) -> None:
         self.status = status
         self.latency_ms = latency_ms
-        self.rows = rows or []
+        # Keep the caller's list object: state_for() keeps appending to it after construction.
+        self.rows = rows if rows is not None else []
         self.verified_at = verified_at
-        self.notes = notes or []
+        self.notes = notes if notes is not None else []
 
 
 def worst(*statuses: Optional[str]) -> str:
@@ -358,7 +359,7 @@ def state_for(node: Dict[str, Any], ctx: Ctx) -> State:
     elif nid == "Core-ANE-Classifier":
         ane = bench.get("ane", {})
         rows.append(("inference · cpuAndNeuralEngine", fmt_stats(dig(ane, "runs", "cpu_and_neural_engine"), "ms")))
-        rows.append(("parity max |Δ| vs NumPy FP32", num(dig(ane, "parity", "max_abs_diff"))))
+        rows.append(("parity max abs diff vs NumPy FP32 (points)", num(dig(ane, "parity", "max_abs_diff"))))
         if ane.get("placement_note"):
             rows.append(("device placement (MLComputePlan)", ane["placement_note"]))
         st.latency_ms = p50(dig(ane, "runs", "cpu_and_neural_engine"))
@@ -433,7 +434,7 @@ def state_for(node: Dict[str, Any], ctx: Ctx) -> State:
                          f"ANE {num(pref.get('neural_engine'))} · CPU {num(pref.get('cpu'))} · GPU {num(pref.get('gpu'))} "
                          f"of {num(plan.get('operations'))} ops"))
         rows.append(("Neural Engine cores (MLNeuralEngineComputeDevice)", num(ane.get("neural_engine_cores"))))
-        rows.append(("parity max |Δ| (score points)", num(dig(ane, "parity", "max_abs_diff"))))
+        rows.append(("parity max abs diff vs NumPy FP32 (points)", num(dig(ane, "parity", "max_abs_diff"))))
         batch = ane.get("batch", {})
         if batch:
             size = batch.get("batch_size")
@@ -616,26 +617,31 @@ def write_index(states: Dict[str, State], ctx: Ctx) -> None:
 
 
 def append_log(ctx: Ctx) -> bool:
-    if not ctx.bench_time:
-        rows: List[str] = []
-    else:
-        rows = []
+    """Adds the row for the current benchmark run, or refreshes it when more data (e.g. test results)
+    arrived later. Returns True when the table changed."""
     existing = LOG_NOTE.read_text() if LOG_NOTE.exists() else ""
     kept = between(existing, LOG_START, LOG_END) or ""
-    rows = [ln for ln in kept.strip().splitlines() if ln.startswith("| 2")]
-    added = False
-    if ctx.bench_time and not any(ln.startswith(f"| {ctx.bench_time} ") for ln in rows):
+    rows: List[str] = [ln for ln in kept.strip().splitlines() if ln.startswith("| 2")]
+    changed = False
+    if ctx.bench_time:
         b = ctx.bench
         small = ctx.fixture("small") or {}
         tests = ctx.tel.get("tests") or {}
-        rows.append("| {t} | `{c}` | {tp}/{tf} | {clone} | {swap} | {rb} | {ane} | {cedar} | {e2e} |".format(
+        row = "| {t} | `{c}` | {tp}/{tf} | {clone} | {swap} | {rb} | {ane} | {cedar} | {e2e} |".format(
             t=ctx.bench_time, c=ctx.commit, tp=num(tests.get("passed")), tf=num(tests.get("failed")),
             clone=num(p50(small.get("clonefile_ms"))), swap=num(p50(small.get("renameatx_swap_ms"))),
             rb=num(p50(small.get("rollback_detach_ms"))),
             ane=num(p50(dig(b, "ane", "runs", "cpu_and_neural_engine"))),
             cedar=num(p50(dig(b, "cedar", "is_authorized_us"))),
-            e2e=num(p50(dig(b, "end_to_end", "rollback_path_ms")))))
-        added = True
+            e2e=num(p50(dig(b, "end_to_end", "rollback_path_ms"))))
+        same_run = [i for i, ln in enumerate(rows) if ln.startswith(f"| {ctx.bench_time} ")]
+        if not same_run:
+            rows.append(row)
+            changed = True
+        elif rows[same_run[0]] != row:
+            rows[same_run[0]] = row
+            changed = True
+    added = changed
     header = ["---", "tags:", "  - benchmark-log", "---", "", "# Telemetry log", "",
               "One row per `aegis-bench` run (p50 values; `small` APFS fixture). Source: `artifacts/aegis_phase1_telemetry.json`.",
               "", "Back to [[00-AegisFlow-Index]]", "", LOG_START,
@@ -806,7 +812,7 @@ def main() -> int:
     for st in states.values():
         counts[st.status] = counts.get(st.status, 0) + 1
     print("brain sync: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
-          + f" · commit {ctx.commit} · log row {'added' if added else 'unchanged'}")
+          + f" · commit {ctx.commit} · log {'updated' if added else 'unchanged'}")
     problems = check_vault()
     for p in problems:
         print(f"check: {p}")

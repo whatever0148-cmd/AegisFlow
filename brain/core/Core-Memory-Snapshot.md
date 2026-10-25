@@ -1,16 +1,16 @@
 ---
 tags:
   - core
-status: pending
-latency_ms: null
-last_verified: null
-git_commit: null
+status: verified
+latency_ms: 0.125333
+last_verified: 2026-10-25T08:06:37Z
+git_commit: a29112b
 crate: aegis_storage
 ---
 
 # Core-Memory-Snapshot
 
-**Status:** ⚪ pending · **p50:** — · **commit:** `uncommitted-dirty`
+**Status:** 🟢 verified · **p50:** 0.1253 ms · **commit:** `a29112b`
 
 > Atomic commit + version memory: `renameatx_np(..., RENAME_SWAP)` exchanges branch and live trees in one syscall; the previous live tree is kept as a CoW version snapshot that `restore()` can bring back. Phase 1 snapshots workspace state on disk only (no process-memory snapshots).
 
@@ -23,11 +23,15 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T07:12:43Z · bench not run yet · tests not run yet · commit `uncommitted-dirty`_
+_Synced 2026-10-25T08:11:35Z · bench 2026-10-25T08:06:37Z · tests 2026-10-25T08:10:13Z · commit `a29112b`_
 
 | Metric | Measured |
 |---|---|
-| cargo test --release | no `cargo test --release` run recorded yet |
+| cargo test --release | 9 passed, 0 failed (2 suites) |
+| renameatx_np swap · tiny | p50 0.1223 ms · p95 0.1497 ms · n=400 |
+| renameatx_np swap · small | p50 0.1253 ms · p95 0.1447 ms · n=300 |
+| renameatx_np swap · medium | p50 0.1319 ms · p95 0.1687 ms · n=60 |
+| renameatx_np swap · aegisflow_src | p50 0.1268 ms · p95 0.1504 ms · n=200 |
 <!-- aegis:telemetry:end -->
 
 ## Notes

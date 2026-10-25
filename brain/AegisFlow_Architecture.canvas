@@ -203,7 +203,7 @@
     {
       "id": "live-telemetry",
       "type": "text",
-      "text": "# AegisFlow · live telemetry\ncommit `uncommitted-dirty` · bench `not run` · tests — passed / — failed\n\n| Node | Status | p50 |\n|---|---|---|\n| [[Core-APFS-Clonefile]] | ⚪ pending | — |\n| [[Core-Memory-Snapshot]] | ⚪ pending | — |\n| [[Core-ANE-Classifier]] | ⚪ pending | — |\n| [[Core-Cedar-Rules]] | ⚪ pending | — |\n| [[Adapter-Nebius-Nemotron]] | ⚪ pending | — |\n| [[Adapter-PayPal-Commerce]] | ⚪ pending | — |\n| [[Adapter-Switch-MCP]] | ⚪ pending | — |\n| [[Adapter-Kiro-Specs]] | ⚪ pending | — |\n| [[Bench-APFS-Latency]] | ⚪ pending | — |\n| [[Bench-ANE-FP16]] | ⚪ pending | — |\n| [[Bench-Cedar-Eval]] | ⚪ pending | — |\n| [[Bench-EndToEnd-Rollback]] | ⚪ pending | — |",
+      "text": "# AegisFlow · live telemetry\ncommit `a29112b` · bench `2026-10-25T08:06:37Z` · tests 66 passed / 0 failed\n\n| Node | Status | p50 |\n|---|---|---|\n| [[Core-APFS-Clonefile]] | 🟢 verified | 1.116 ms |\n| [[Core-Memory-Snapshot]] | 🟢 verified | 0.1253 ms |\n| [[Core-ANE-Classifier]] | 🟢 verified | 0.0395 ms |\n| [[Core-Cedar-Rules]] | 🟢 verified | 0.0043 ms |\n| [[Adapter-Nebius-Nemotron]] | 🟢 verified | 0.0424 ms |\n| [[Adapter-PayPal-Commerce]] | 🟢 verified | 0.1165 ms |\n| [[Adapter-Switch-MCP]] | 🟢 verified | 0.0315 ms |\n| [[Adapter-Kiro-Specs]] | 🟢 verified | — |\n| [[Bench-APFS-Latency]] | 🟡 target missed | 1.116 ms |\n| [[Bench-ANE-FP16]] | 🟡 target missed | 0.0395 ms |\n| [[Bench-Cedar-Eval]] | 🟢 verified | 0.0043 ms |\n| [[Bench-EndToEnd-Rollback]] | 🟢 verified | 9.035 ms |",
       "x": -30,
       "y": -620,
       "width": 2240,

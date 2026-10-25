@@ -16,8 +16,8 @@
   "repelStrength": 12,
   "linkStrength": 1,
   "linkDistance": 220,
-  "scale": 1,
-  "close": false,
+  "scale": 2.6200253100751976,
+  "close": true,
   "colorGroups": [
     {
       "query": "tag:#agent",

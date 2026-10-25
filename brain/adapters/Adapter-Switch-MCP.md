@@ -1,16 +1,16 @@
 ---
 tags:
   - adapter
-status: pending
-latency_ms: null
-last_verified: null
-git_commit: null
+status: verified
+latency_ms: 0.031459
+last_verified: 2026-10-25T08:06:37Z
+git_commit: a29112b
 crate: adapter_switch_mcp
 ---
 
 # Adapter-Switch-MCP
 
-**Status:** ⚪ pending · **p50:** — · **commit:** `uncommitted-dirty`
+**Status:** 🟢 verified · **p50:** 0.0315 ms · **commit:** `a29112b`
 
 > MCP stdio server (branch / score / policy / commit / rollback / approval tools) and the Switch chat bridge that renders workspace-diff + team-approval cards for Mattermost and Slack webhooks.
 
@@ -23,13 +23,13 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T07:12:43Z · bench not run yet · tests not run yet · commit `uncommitted-dirty`_
+_Synced 2026-10-25T08:11:35Z · bench 2026-10-25T08:06:37Z · tests 2026-10-25T08:10:13Z · commit `a29112b`_
 
 | Metric | Measured |
 |---|---|
-| cargo test --release | no `cargo test --release` run recorded yet |
-| tools/call round-trip (in-process) | — |
-| chat webhooks | — |
+| cargo test --release | 8 passed, 0 failed (3 suites) |
+| tools/call round-trip (in-process) | p50 31.459 µs · p95 40.250 µs · n=6000 |
+| chat webhooks | not called · the benchmark never posts to chat; aegis_request_approval posts only to configured webhooks |
 <!-- aegis:telemetry:end -->
 
 ## Notes

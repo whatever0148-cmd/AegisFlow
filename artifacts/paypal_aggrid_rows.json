@@ -1,0 +1,190 @@
+{
+  "columnDefs": [
+    {
+      "field": "timestamp",
+      "headerName": "Time (UTC)",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "reference",
+      "headerName": "Order",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "merchant",
+      "headerName": "Merchant",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "amount",
+      "headerName": "Amount",
+      "sortable": true,
+      "filter": true,
+      "type": "numericColumn"
+    },
+    {
+      "field": "currency",
+      "headerName": "Ccy",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "risk_score",
+      "headerName": "ANE risk",
+      "sortable": true,
+      "filter": true,
+      "type": "numericColumn"
+    },
+    {
+      "field": "decision",
+      "headerName": "Cedar",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "policies",
+      "headerName": "Determining policies",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "receipt_verified",
+      "headerName": "Receipt verified",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "redactions",
+      "headerName": "Redactions",
+      "sortable": true,
+      "filter": true,
+      "type": "numericColumn"
+    },
+    {
+      "field": "submission",
+      "headerName": "Submission",
+      "sortable": true,
+      "filter": true
+    },
+    {
+      "field": "total_us",
+      "headerName": "Pipeline µs",
+      "sortable": true,
+      "filter": true,
+      "type": "numericColumn"
+    }
+  ],
+  "rowData": [
+    {
+      "id": "bench-042-147304ed54bf",
+      "timestamp": "2026-10-25T08:06:37Z",
+      "reference": "bench-042",
+      "merchant": "sandbox-lab-supplies",
+      "agent": "procurement-agent",
+      "amount_cents": 4200,
+      "amount": "42.00",
+      "currency": "USD",
+      "risk_score": 11.88,
+      "decision": "Allow",
+      "policies": "permit-low-risk",
+      "receipt_sha256": "147304ed54bf863a15f8838650c58341ab74777bce7d12634da6a4d3a6976294",
+      "signature": "c2pa:ed25519:3FCUarM3DygHiCBYiNnRmiUU_-Pf2Ol5hxp77GE4h9Okxp8-9_Mkt7LanpGe5t4uhhO0PQgrhvETbKg7bjc7CQ",
+      "receipt_verified": true,
+      "redactions": 2,
+      "unformatted_sensitive_fields": false,
+      "submission": "not_sent",
+      "submission_detail": "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set",
+      "paypal_order_id": null,
+      "redact_us": 134.0,
+      "sign_us": 23.63,
+      "verify_us": 54.71,
+      "score_us": 43.42,
+      "cedar_us": 17.75,
+      "total_us": 291.75
+    },
+    {
+      "id": "bench-120-e4ab063a69ea",
+      "timestamp": "2026-10-25T08:06:37Z",
+      "reference": "bench-120",
+      "merchant": "sandbox-lab-supplies",
+      "agent": "procurement-agent",
+      "amount_cents": 12000,
+      "amount": "120.00",
+      "currency": "USD",
+      "risk_score": 28.31,
+      "decision": "Allow",
+      "policies": "permit-low-risk",
+      "receipt_sha256": "e4ab063a69eaf5b5dd600d123405ce0d32986d80adc8436184fbf05b094d2def",
+      "signature": "c2pa:ed25519:8fu_-J_w6Sq5y4LFfhA_PlcgWl1d7Y4pQeFHonbt5mQRTKvJ9jT9_qUShUCCoy905ph91-ShGeE26Ek7AQ_SCA",
+      "receipt_verified": true,
+      "redactions": 0,
+      "unformatted_sensitive_fields": false,
+      "submission": "not_sent",
+      "submission_detail": "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set",
+      "paypal_order_id": null,
+      "redact_us": 15.13,
+      "sign_us": 20.63,
+      "verify_us": 42.71,
+      "score_us": 32.63,
+      "cedar_us": 12.25,
+      "total_us": 123.79
+    },
+    {
+      "id": "bench-480-fec128d73217",
+      "timestamp": "2026-10-25T08:06:37Z",
+      "reference": "bench-480",
+      "merchant": "sandbox-lab-supplies",
+      "agent": "procurement-agent",
+      "amount_cents": 48000,
+      "amount": "480.00",
+      "currency": "USD",
+      "risk_score": 99.63,
+      "decision": "Deny",
+      "policies": "",
+      "receipt_sha256": "fec128d732178d5bdb685341d59f85a47aee8ebecb8d642707c99fb5cff69696",
+      "signature": "c2pa:ed25519:ZMIq5cpU0P2DS8-66vfUpOVnWFr6y8MxmepUPJOaWabtzwmxwSQPK7RlMSW6UZuCMzyasU8emdB_OO0uoE0LCQ",
+      "receipt_verified": true,
+      "redactions": 0,
+      "unformatted_sensitive_fields": false,
+      "submission": "blocked",
+      "submission_detail": "Cedar denied: default deny (no permit matched)",
+      "paypal_order_id": null,
+      "redact_us": 12.08,
+      "sign_us": 18.5,
+      "verify_us": 40.46,
+      "score_us": 31.0,
+      "cedar_us": 13.21,
+      "total_us": 115.58
+    },
+    {
+      "id": "bench-pii-eca4ae5e11d7",
+      "timestamp": "2026-10-25T08:06:37Z",
+      "reference": "bench-pii",
+      "merchant": "sandbox-lab-supplies",
+      "agent": "procurement-agent",
+      "amount_cents": 2500,
+      "amount": "25.00",
+      "currency": "USD",
+      "risk_score": 80.25,
+      "decision": "Deny",
+      "policies": "",
+      "receipt_sha256": "eca4ae5e11d7c98e3a705269890a6784ce90ffd721f60103aad477c214e01c50",
+      "signature": "c2pa:ed25519:QIcN49aij8inzXednLbm2KcyFY-dYnBo-nUDoExy35Ns7ohi4l0dRTBCjrmfik7EIT89Et3ZDFIMpk77FXpZBA",
+      "receipt_verified": true,
+      "redactions": 0,
+      "unformatted_sensitive_fields": true,
+      "submission": "blocked",
+      "submission_detail": "Cedar denied: default deny (no permit matched)",
+      "paypal_order_id": null,
+      "redact_us": 57.54,
+      "sign_us": 18.96,
+      "verify_us": 40.67,
+      "score_us": 29.42,
+      "cedar_us": 13.0,
+      "total_us": 160.0
+    }
+  ]
+}

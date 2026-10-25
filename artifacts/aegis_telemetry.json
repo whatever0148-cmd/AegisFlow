@@ -1,0 +1,1086 @@
+{
+  "schema": "aegisflow.telemetry.v1",
+  "generated_at": "2026-10-25T08:10:13Z",
+  "git": {
+    "commit": "a29112b",
+    "dirty": false
+  },
+  "tests": {
+    "command": "cargo test --release --workspace",
+    "exit_code": 0,
+    "finished_at": "2026-10-25T08:10:13Z",
+    "duration_s": 50.0,
+    "passed": 66,
+    "failed": 0,
+    "ignored": 0,
+    "suites": [
+      {
+        "crate": "adapter_nebius_nemotron",
+        "target": "adapter_nebius_nemotron",
+        "source": "src/lib.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.05
+      },
+      {
+        "crate": "adapter_paypal",
+        "target": "adapter_paypal",
+        "source": "src/lib.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.04
+      },
+      {
+        "crate": "adapter_switch_mcp",
+        "target": "adapter_switch_mcp",
+        "source": "src/lib.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.04
+      },
+      {
+        "crate": "adapter_switch_mcp",
+        "target": "aegis_mcp",
+        "source": "src/bin/aegis-mcp.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      },
+      {
+        "crate": "aegis_ane_scorer",
+        "target": "aegis_ane_scorer",
+        "source": "src/lib.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 14,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.07
+      },
+      {
+        "crate": "aegis_bench",
+        "target": "aegis_bench",
+        "source": "src/main.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      },
+      {
+        "crate": "aegis_governance",
+        "target": "aegis_governance",
+        "source": "src/lib.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.01
+      },
+      {
+        "crate": "aegis_storage",
+        "target": "aegis_storage",
+        "source": "src/lib.rs",
+        "kind": "unittests",
+        "result": "ok",
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.01
+      },
+      {
+        "crate": "adapter_nebius_nemotron",
+        "target": "adapter_nebius_nemotron",
+        "source": "doc-tests",
+        "kind": "doctests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      },
+      {
+        "crate": "adapter_paypal",
+        "target": "adapter_paypal",
+        "source": "doc-tests",
+        "kind": "doctests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      },
+      {
+        "crate": "adapter_switch_mcp",
+        "target": "adapter_switch_mcp",
+        "source": "doc-tests",
+        "kind": "doctests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      },
+      {
+        "crate": "aegis_ane_scorer",
+        "target": "aegis_ane_scorer",
+        "source": "doc-tests",
+        "kind": "doctests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      },
+      {
+        "crate": "aegis_governance",
+        "target": "aegis_governance",
+        "source": "doc-tests",
+        "kind": "doctests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      },
+      {
+        "crate": "aegis_storage",
+        "target": "aegis_storage",
+        "source": "doc-tests",
+        "kind": "doctests",
+        "result": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "duration_s": 0.0
+      }
+    ],
+    "failed_tests": [],
+    "compiled": true
+  },
+  "bench": {
+    "schema": "aegisflow.phase1.telemetry.v1",
+    "generated_at": "2026-10-25T08:06:37Z",
+    "git": {
+      "commit": "a29112b",
+      "dirty": false
+    },
+    "host": {
+      "model": "Mac14,2",
+      "cpu": "Apple M2",
+      "performance_cores": 4,
+      "efficiency_cores": 4,
+      "memory_gb": 16.0,
+      "macos": "27.0.1",
+      "macos_build": "26A434",
+      "kernel": "27.0.0",
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "swiftc": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)",
+      "coremltools": "9.0"
+    },
+    "benchmark_seconds": 20.988033,
+    "scale": 1.0,
+    "targets": {
+      "clonefile_branch_ms": 0.5,
+      "renameatx_swap_ms": 0.5,
+      "rollback_ms": 0.5,
+      "ane_inference_ms": 0.6,
+      "tier0_route_ms": 0.4
+    },
+    "apfs": {
+      "filesystem": "apfs",
+      "stat_type": "/",
+      "fixtures": [
+        {
+          "name": "tiny",
+          "files": 9,
+          "dirs": 3,
+          "entries": 12,
+          "bytes": 17829,
+          "iterations": 400,
+          "clonefile_ms": {
+            "n": 400,
+            "min": 0.142917,
+            "p50": 0.165333,
+            "p95": 0.234791,
+            "p99": 0.31125,
+            "max": 0.363375,
+            "mean": 0.173872
+          },
+          "branch_total_ms": {
+            "n": 400,
+            "min": 0.168791,
+            "p50": 0.20125,
+            "p95": 0.281875,
+            "p99": 0.375542,
+            "max": 0.430875,
+            "mean": 0.209248
+          },
+          "renameatx_swap_ms": {
+            "n": 400,
+            "min": 0.104917,
+            "p50": 0.122292,
+            "p95": 0.149666,
+            "p99": 0.243083,
+            "max": 2.118583,
+            "mean": 0.131186
+          },
+          "commit_total_ms": {
+            "n": 400,
+            "min": 0.227,
+            "p50": 0.283083,
+            "p95": 0.338334,
+            "p99": 0.649583,
+            "max": 2.302125,
+            "mean": 0.300668
+          },
+          "rollback_detach_ms": {
+            "n": 400,
+            "min": 0.071792,
+            "p50": 0.088375,
+            "p95": 0.111791,
+            "p99": 0.119208,
+            "max": 0.134792,
+            "mean": 0.08811
+          },
+          "rollback_reclaim_ms": {
+            "n": 400,
+            "min": 0.528541,
+            "p50": 0.601291,
+            "p95": 0.748125,
+            "p99": 0.844,
+            "max": 0.914958,
+            "mean": 0.613921
+          },
+          "live_tree_unchanged_after_rollback": true
+        },
+        {
+          "name": "small",
+          "files": 129,
+          "dirs": 9,
+          "entries": 138,
+          "bytes": 1128190,
+          "iterations": 300,
+          "clonefile_ms": {
+            "n": 300,
+            "min": 0.862583,
+            "p50": 1.116458,
+            "p95": 1.512333,
+            "p99": 1.878791,
+            "max": 8.380542,
+            "mean": 1.195528
+          },
+          "branch_total_ms": {
+            "n": 300,
+            "min": 0.891709,
+            "p50": 1.15875,
+            "p95": 1.5525,
+            "p99": 1.918166,
+            "max": 8.416125,
+            "mean": 1.235346
+          },
+          "renameatx_swap_ms": {
+            "n": 300,
+            "min": 0.1105,
+            "p50": 0.125333,
+            "p95": 0.144667,
+            "p99": 0.205833,
+            "max": 0.295875,
+            "mean": 0.128234
+          },
+          "commit_total_ms": {
+            "n": 300,
+            "min": 0.239875,
+            "p50": 0.288,
+            "p95": 0.3485,
+            "p99": 0.478084,
+            "max": 3.455167,
+            "mean": 0.302576
+          },
+          "rollback_detach_ms": {
+            "n": 300,
+            "min": 0.074666,
+            "p50": 0.089417,
+            "p95": 0.101417,
+            "p99": 0.112958,
+            "max": 0.228916,
+            "mean": 0.089317
+          },
+          "rollback_reclaim_ms": {
+            "n": 300,
+            "min": 4.560292,
+            "p50": 5.062375,
+            "p95": 5.560417,
+            "p99": 7.555792,
+            "max": 16.369542,
+            "mean": 5.17758
+          },
+          "live_tree_unchanged_after_rollback": true
+        },
+        {
+          "name": "medium",
+          "files": 1025,
+          "dirs": 33,
+          "entries": 1058,
+          "bytes": 8975511,
+          "iterations": 60,
+          "clonefile_ms": {
+            "n": 60,
+            "min": 7.088583,
+            "p50": 10.319041,
+            "p95": 12.125083,
+            "p99": 13.862708,
+            "max": 13.862708,
+            "mean": 10.195816
+          },
+          "branch_total_ms": {
+            "n": 60,
+            "min": 7.130625,
+            "p50": 10.389542,
+            "p95": 12.182167,
+            "p99": 13.921125,
+            "max": 13.921125,
+            "mean": 10.248731
+          },
+          "renameatx_swap_ms": {
+            "n": 60,
+            "min": 0.114917,
+            "p50": 0.131917,
+            "p95": 0.168666,
+            "p99": 0.291333,
+            "max": 0.291333,
+            "mean": 0.138307
+          },
+          "commit_total_ms": {
+            "n": 60,
+            "min": 0.246666,
+            "p50": 0.288291,
+            "p95": 0.345542,
+            "p99": 0.488208,
+            "max": 0.488208,
+            "mean": 0.297689
+          },
+          "rollback_detach_ms": {
+            "n": 60,
+            "min": 0.084041,
+            "p50": 0.112834,
+            "p95": 0.223375,
+            "p99": 0.244792,
+            "max": 0.244792,
+            "mean": 0.12631
+          },
+          "rollback_reclaim_ms": {
+            "n": 60,
+            "min": 35.543792,
+            "p50": 39.805417,
+            "p95": 51.706166,
+            "p99": 75.990667,
+            "max": 75.990667,
+            "mean": 41.239681
+          },
+          "live_tree_unchanged_after_rollback": true
+        },
+        {
+          "name": "aegisflow_src",
+          "files": 61,
+          "dirs": 40,
+          "entries": 101,
+          "bytes": 535073,
+          "iterations": 200,
+          "clonefile_ms": {
+            "n": 200,
+            "min": 0.711167,
+            "p50": 0.89675,
+            "p95": 1.754166,
+            "p99": 3.93975,
+            "max": 17.765292,
+            "mean": 1.099143
+          },
+          "branch_total_ms": {
+            "n": 200,
+            "min": 0.740833,
+            "p50": 0.936083,
+            "p95": 1.7895,
+            "p99": 3.973959,
+            "max": 17.799583,
+            "mean": 1.137966
+          },
+          "renameatx_swap_ms": {
+            "n": 200,
+            "min": 0.109875,
+            "p50": 0.126792,
+            "p95": 0.150375,
+            "p99": 0.1795,
+            "max": 0.208791,
+            "mean": 0.12986
+          },
+          "commit_total_ms": {
+            "n": 200,
+            "min": 0.241583,
+            "p50": 0.288209,
+            "p95": 0.352916,
+            "p99": 0.400792,
+            "max": 0.441541,
+            "mean": 0.294723
+          },
+          "rollback_detach_ms": {
+            "n": 200,
+            "min": 0.077375,
+            "p50": 0.091334,
+            "p95": 0.109042,
+            "p99": 0.13125,
+            "max": 0.185791,
+            "mean": 0.092838
+          },
+          "rollback_reclaim_ms": {
+            "n": 200,
+            "min": 4.728625,
+            "p50": 5.341375,
+            "p95": 9.330959,
+            "p99": 27.304375,
+            "max": 187.685541,
+            "mean": 6.964492
+          },
+          "live_tree_unchanged_after_rollback": true
+        }
+      ],
+      "clonefile_us_per_entry": 9.82025,
+      "clonefile_fixed_us": -89.281275
+    },
+    "ane": {
+      "model": "models/AegisWorkflowFP16.mlmodelc",
+      "precision": "float16",
+      "feature_count": 64,
+      "neural_engine_cores": 16,
+      "runs": {
+        "cpu_and_neural_engine": {
+          "n": 3000,
+          "min": 0.023208,
+          "p50": 0.039458,
+          "p95": 0.048209,
+          "p99": 0.064083,
+          "max": 0.103625,
+          "mean": 0.039994
+        },
+        "cpu_only": {
+          "n": 3000,
+          "min": 0.022625,
+          "p50": 0.038916,
+          "p95": 0.048167,
+          "p99": 0.063833,
+          "max": 0.185916,
+          "mean": 0.038947
+        },
+        "all": {
+          "n": 3000,
+          "min": 0.022292,
+          "p50": 0.03925,
+          "p95": 0.048292,
+          "p99": 0.063708,
+          "max": 0.109917,
+          "mean": 0.040158
+        }
+      },
+      "compute_plan": {
+        "compute_units": "cpuAndNeuralEngine",
+        "operations": 7,
+        "operations_total": 14,
+        "preferred": {
+          "neural_engine": 0,
+          "cpu": 7,
+          "gpu": 0
+        },
+        "ops": [
+          {
+            "operator": "ios17.linear",
+            "preferred": "cpu",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ]
+          },
+          {
+            "operator": "ios16.relu",
+            "preferred": "cpu",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ]
+          },
+          {
+            "operator": "ios17.linear",
+            "preferred": "cpu",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ]
+          },
+          {
+            "operator": "ios16.relu",
+            "preferred": "cpu",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ]
+          },
+          {
+            "operator": "ios17.linear",
+            "preferred": "cpu",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ]
+          },
+          {
+            "operator": "ios16.sigmoid",
+            "preferred": "cpu",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ]
+          },
+          {
+            "operator": "ios17.mul",
+            "preferred": "cpu",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ]
+          }
+        ]
+      },
+      "parity": {
+        "vectors": 256,
+        "max_abs_diff": 0.11548,
+        "mean_abs_diff": 0.028251,
+        "reference": "NumPy FP32 forward pass of the same weights (models/parity_vectors.json)"
+      },
+      "batch": {
+        "model": "models/AegisWorkflowFP16Batch.mlmodelc",
+        "batch_size": 16384,
+        "compute_plan": {
+          "compute_units": "cpuAndNeuralEngine",
+          "operations": 7,
+          "operations_total": 29,
+          "preferred": {
+            "neural_engine": 7,
+            "cpu": 0,
+            "gpu": 0
+          },
+          "ops": [
+            {
+              "operator": "ios17.conv",
+              "preferred": "neural_engine",
+              "supported": [
+                "cpu",
+                "neural_engine"
+              ]
+            },
+            {
+              "operator": "ios16.relu",
+              "preferred": "neural_engine",
+              "supported": [
+                "cpu",
+                "neural_engine"
+              ]
+            },
+            {
+              "operator": "ios17.conv",
+              "preferred": "neural_engine",
+              "supported": [
+                "cpu",
+                "neural_engine"
+              ]
+            },
+            {
+              "operator": "ios16.relu",
+              "preferred": "neural_engine",
+              "supported": [
+                "cpu",
+                "neural_engine"
+              ]
+            },
+            {
+              "operator": "ios17.conv",
+              "preferred": "neural_engine",
+              "supported": [
+                "cpu",
+                "neural_engine"
+              ]
+            },
+            {
+              "operator": "ios16.sigmoid",
+              "preferred": "neural_engine",
+              "supported": [
+                "cpu",
+                "neural_engine"
+              ]
+            },
+            {
+              "operator": "ios17.mul",
+              "preferred": "neural_engine",
+              "supported": [
+                "cpu",
+                "neural_engine"
+              ]
+            }
+          ]
+        },
+        "runs": {
+          "cpu_and_neural_engine": {
+            "batch_ms": {
+              "n": 40,
+              "min": 4.80275,
+              "p50": 4.871167,
+              "p95": 4.923916,
+              "p99": 4.962083,
+              "max": 4.962083,
+              "mean": 4.87421
+            },
+            "amortized_us_per_operation_p50": 0.297312
+          },
+          "cpu_only": {
+            "batch_ms": {
+              "n": 40,
+              "min": 4.335125,
+              "p50": 4.514916,
+              "p95": 4.571625,
+              "p99": 8.153125,
+              "max": 8.153125,
+              "mean": 4.598551
+            },
+            "amortized_us_per_operation_p50": 0.275569
+          }
+        },
+        "parity_max_abs_diff": 0.34484
+      },
+      "placement_note": "MLComputePlan (.cpuAndNeuralEngine) placed online-model ops as ANE 0 / CPU 7 / GPU 0 of 7; batch model (16384 operations per prediction) as ANE 7 / CPU 0 / GPU 0 of 7."
+    },
+    "cedar": {
+      "policies": 5,
+      "schema_validated": true,
+      "is_authorized_us": {
+        "n": 20000,
+        "min": 3.584,
+        "p50": 4.291,
+        "p95": 4.917,
+        "p99": 6.167,
+        "max": 133.416,
+        "mean": 4.325143
+      },
+      "build_request_and_authorize_us": {
+        "n": 20000,
+        "min": 6.875,
+        "p50": 7.667,
+        "p95": 8.25,
+        "p99": 10.625,
+        "max": 72.167,
+        "mean": 7.740189
+      },
+      "decision_matrix": [
+        {
+          "case": "speculative commit, risk 12",
+          "expected": "Allow",
+          "actual": "Allow",
+          "policies": [
+            "permit-low-risk"
+          ]
+        },
+        {
+          "case": "commit with unredacted sensitive fields, risk 5",
+          "expected": "Deny",
+          "actual": "Deny",
+          "policies": []
+        },
+        {
+          "case": "high-impact commit without approval, risk 61",
+          "expected": "Deny",
+          "actual": "Deny",
+          "policies": [
+            "forbid-high-impact-without-team-approval"
+          ]
+        },
+        {
+          "case": "high-impact commit with team approval, risk 61",
+          "expected": "Allow",
+          "actual": "Allow",
+          "policies": [
+            "permit-approved-high-impact-commit"
+          ]
+        },
+        {
+          "case": "order $42.00, risk 20",
+          "expected": "Allow",
+          "actual": "Allow",
+          "policies": [
+            "permit-low-risk"
+          ]
+        },
+        {
+          "case": "order $120.00, receipt unverified, risk 20",
+          "expected": "Deny",
+          "actual": "Deny",
+          "policies": [
+            "forbid-order-over-50-usd-without-receipt"
+          ]
+        },
+        {
+          "case": "order $120.00, receipt verified, risk 20",
+          "expected": "Allow",
+          "actual": "Allow",
+          "policies": [
+            "permit-low-risk"
+          ]
+        },
+        {
+          "case": "order $20.00, risk 80",
+          "expected": "Deny",
+          "actual": "Deny",
+          "policies": []
+        },
+        {
+          "case": "branch, risk 99 with sensitive fields",
+          "expected": "Allow",
+          "actual": "Allow",
+          "policies": [
+            "permit-branch-and-rollback"
+          ]
+        },
+        {
+          "case": "rollback, risk 99",
+          "expected": "Allow",
+          "actual": "Allow",
+          "policies": [
+            "permit-branch-and-rollback"
+          ]
+        }
+      ],
+      "decision_matrix_passed": 10,
+      "decision_matrix_total": 10
+    },
+    "end_to_end": {
+      "fixture_files": 131,
+      "iterations": 200,
+      "rollback_path_ms": {
+        "n": 200,
+        "min": 7.0375,
+        "p50": 9.035375,
+        "p95": 10.716042,
+        "p99": 11.880458,
+        "max": 12.582541,
+        "mean": 9.09431
+      },
+      "commit_path_ms": {
+        "n": 200,
+        "min": 3.415792,
+        "p50": 9.273583,
+        "p95": 10.119208,
+        "p99": 10.425417,
+        "max": 10.502542,
+        "mean": 9.073537
+      },
+      "stage_p50_us": {
+        "branch": 1202.75,
+        "agent_edit": 144.708,
+        "diff": 2401.167,
+        "features": 4.708,
+        "ane_score": 40.25,
+        "cedar": 17.625,
+        "rollback": 4998.5
+      },
+      "live_integrity_verified": true,
+      "rollback_case": {
+        "denied": 200,
+        "risk_score": {
+          "n": 200,
+          "min": 99.875,
+          "p50": 99.875,
+          "p95": 99.875,
+          "p99": 99.875,
+          "max": 99.875,
+          "mean": 99.875
+        }
+      },
+      "commit_case": {
+        "allowed": 200,
+        "risk_score": {
+          "n": 200,
+          "min": 1.142578,
+          "p50": 1.145508,
+          "p95": 1.145508,
+          "p99": 1.145508,
+          "max": 1.145508,
+          "mean": 1.145361
+        }
+      }
+    },
+    "paypal_receipt": {
+      "prepare_order_us": {
+        "n": 2000,
+        "min": 105.417,
+        "p50": 116.458,
+        "p95": 121.959,
+        "p99": 130.75,
+        "max": 159.333,
+        "mean": 116.568569
+      },
+      "redact_us": {
+        "n": 2000,
+        "min": 10.791,
+        "p50": 14.542,
+        "p95": 14.875,
+        "p99": 15.208,
+        "max": 23.166,
+        "mean": 14.559056
+      },
+      "ed25519_sign_us": {
+        "n": 2000,
+        "min": 18.708,
+        "p50": 19.042,
+        "p95": 21.75,
+        "p99": 30.0,
+        "max": 94.042,
+        "mean": 19.67428
+      },
+      "ed25519_verify_us": {
+        "n": 2000,
+        "min": 39.042,
+        "p50": 39.458,
+        "p95": 45.792,
+        "p99": 60.625,
+        "max": 251.083,
+        "mean": 40.962193
+      },
+      "cases": [
+        {
+          "case": "$42.00 known payee",
+          "amount_cents": 4200,
+          "risk_score": 11.875,
+          "decision": "Allow",
+          "policies": [
+            "permit-low-risk"
+          ],
+          "redactions": 2,
+          "unformatted_sensitive_fields": false,
+          "receipt_verified": true,
+          "receipt_reverified": true,
+          "submission": {
+            "outcome": "not_sent",
+            "reason": "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set"
+          }
+        },
+        {
+          "case": "$120.00 known payee",
+          "amount_cents": 12000,
+          "risk_score": 28.3125,
+          "decision": "Allow",
+          "policies": [
+            "permit-low-risk"
+          ],
+          "redactions": 0,
+          "unformatted_sensitive_fields": false,
+          "receipt_verified": true,
+          "receipt_reverified": true,
+          "submission": {
+            "outcome": "not_sent",
+            "reason": "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set"
+          }
+        },
+        {
+          "case": "$480.00 new payee, high-risk country",
+          "amount_cents": 48000,
+          "risk_score": 99.625,
+          "decision": "Deny",
+          "policies": [],
+          "redactions": 0,
+          "unformatted_sensitive_fields": false,
+          "receipt_verified": true,
+          "receipt_reverified": true,
+          "submission": {
+            "outcome": "blocked",
+            "reason": "Cedar denied: default deny (no permit matched)"
+          }
+        },
+        {
+          "case": "$25.00 with redaction disabled",
+          "amount_cents": 2500,
+          "risk_score": 80.25,
+          "decision": "Deny",
+          "policies": [],
+          "redactions": 0,
+          "unformatted_sensitive_fields": true,
+          "receipt_verified": true,
+          "receipt_reverified": true,
+          "submission": {
+            "outcome": "blocked",
+            "reason": "Cedar denied: default deny (no permit matched)"
+          }
+        }
+      ],
+      "sandbox_submission": {
+        "attempted": false,
+        "reason": "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set"
+      }
+    },
+    "nebius_router": {
+      "tier0_route_us": {
+        "n": 5000,
+        "min": 33.875,
+        "p50": 42.416,
+        "p95": 50.875,
+        "p99": 68.667,
+        "max": 180.166,
+        "mean": 43.259334
+      },
+      "triage": {
+        "risk_score": 13.78125,
+        "compile_errors": 2,
+        "compile_warnings": 1,
+        "start_tier": "NemotronSuper",
+        "autonomous_commit_allowed": true,
+        "determining_policies": [
+          "permit-low-risk"
+        ],
+        "elapsed_us": 38.75
+      },
+      "live_calls": {
+        "attempted": false,
+        "reason": "NEBIUS_API_KEY not set"
+      },
+      "models": {
+        "tier1": "nvidia/Llama-3_3-Nemotron-Super-49B-v1",
+        "tier2": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+        "base_url": "https://api.studio.nebius.ai/v1"
+      }
+    },
+    "mcp": {
+      "tools": 9,
+      "tools_call_roundtrip_us": {
+        "n": 6000,
+        "min": 13.667,
+        "p50": 31.459,
+        "p95": 40.25,
+        "p99": 100.375,
+        "max": 1241.0,
+        "mean": 29.952083
+      },
+      "policy_evaluate_roundtrip_us": {
+        "n": 3000,
+        "min": 13.667,
+        "p50": 19.375,
+        "p95": 19.959,
+        "p99": 20.416,
+        "max": 33.959,
+        "mean": 19.235645
+      },
+      "score_features_roundtrip_us": {
+        "n": 3000,
+        "min": 30.459,
+        "p50": 36.209,
+        "p95": 44.417,
+        "p99": 149.458,
+        "max": 1241.0,
+        "mean": 40.668522
+      },
+      "webhooks": {
+        "attempted": false,
+        "reason": "the benchmark never posts to chat; aegis_request_approval posts only to configured webhooks"
+      }
+    },
+    "external_services": {
+      "nebius": "see nebius_router.live_calls",
+      "paypal_sandbox": "see paypal_receipt.sandbox_submission",
+      "chat_webhooks": "see mcp.webhooks"
+    },
+    "targets_summary": [
+      {
+        "metric": "clonefile branch \u00b7 tiny (9 files)",
+        "target": "< 0.5 ms",
+        "measured_p50_ms": 0.165333,
+        "pass": true
+      },
+      {
+        "metric": "clonefile branch \u00b7 small (129 files)",
+        "target": "< 0.5 ms",
+        "measured_p50_ms": 1.116458,
+        "pass": false
+      },
+      {
+        "metric": "clonefile branch \u00b7 medium (1025 files)",
+        "target": "< 0.5 ms",
+        "measured_p50_ms": 10.319041,
+        "pass": false
+      },
+      {
+        "metric": "clonefile branch \u00b7 aegisflow_src (61 files)",
+        "target": "< 0.5 ms",
+        "measured_p50_ms": 0.89675,
+        "pass": false
+      },
+      {
+        "metric": "renameatx_np RENAME_SWAP \u00b7 small",
+        "target": "< 0.5 ms",
+        "measured_p50_ms": 0.125333,
+        "pass": true
+      },
+      {
+        "metric": "rollback detach \u00b7 small",
+        "target": "< 0.5 ms",
+        "measured_p50_ms": 0.089417,
+        "pass": true
+      },
+      {
+        "metric": "rollback detach + reclaim \u00b7 small",
+        "target": "< 0.5 ms",
+        "measured_p50_ms": 5.151792,
+        "pass": false
+      },
+      {
+        "metric": "CoreML FP16 inference \u00b7 online \u00b7 cpuAndNeuralEngine",
+        "target": "< 0.6 ms",
+        "measured_p50_ms": 0.039458,
+        "pass": true
+      },
+      {
+        "metric": "online model executes on the Neural Engine (MLComputePlan)",
+        "target": "all ops on ANE",
+        "measured": {
+          "neural_engine": 0,
+          "cpu": 7,
+          "gpu": 0
+        },
+        "pass": false
+      },
+      {
+        "metric": "batch model executes on the Neural Engine (MLComputePlan)",
+        "target": "all ops on ANE",
+        "measured": {
+          "neural_engine": 7,
+          "cpu": 0,
+          "gpu": 0
+        },
+        "pass": true
+      },
+      {
+        "metric": "tier-0 route (ANE + Cedar)",
+        "target": "< 0.4 ms",
+        "measured_p50_ms": 0.042416,
+        "pass": true
+      }
+    ]
+  }
+}
