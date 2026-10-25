@@ -8,12 +8,14 @@ members = [
     "crates/adapter-paypal",
     "crates/adapter-switch-mcp",
     "crates/aegis-bench",
+    "crates/aegis-config",
+    "crates/aegis-daemon",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.89"
 publish = false
 
 [workspace.dependencies]
@@ -23,6 +25,9 @@ aegis-ane-scorer = { path = "crates/aegis-ane-scorer" }
 adapter-nebius-nemotron = { path = "crates/adapter-nebius-nemotron" }
 adapter-paypal = { path = "crates/adapter-paypal" }
 adapter-switch-mcp = { path = "crates/adapter-switch-mcp" }
+aegis-config = { path = "crates/aegis-config" }
+aegis-daemon = { path = "crates/aegis-daemon" }
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "query", "tokio", "ws"] }
 base64 = "0.22"
 cedar-policy = "4"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -33,4 +38,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 thiserror = "2"
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "fs"] }
+tower = { version = "=0.5.3", features = ["util"] }
+tower-http = { version = "=0.6.11", features = ["fs"] }
 ureq = { version = "2", features = ["json"] }

@@ -1,4 +1,7 @@
 //! Raw Darwin system calls used by the storage engine.
+//!
+//! Public so that examples and benchmarks measure exactly the wrappers the engine calls
+//! (for instance `examples/clone_scaling.rs` times [`clone_tree`] directly).
 
 use std::ffi::{CStr, CString};
 use std::fs::{File, OpenOptions};
@@ -6,13 +9,16 @@ use std::io;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
+use std::time::Duration;
 
 /// `<sys/clonefile.h>`: do not follow a symlink at `src`.
 pub const CLONE_NOFOLLOW: u32 = 0x0001;
 /// `<sys/clonefile.h>`: do not copy ownership; the clone is owned by the caller.
 pub const CLONE_NOOWNERCOPY: u32 = 0x0002;
-/// `<stdio.h>`: atomically exchange `from` and `to`.
+/// `<sys/stdio.h>`: atomically exchange `from` and `to`.
 pub const RENAME_SWAP: libc::c_uint = 0x0000_0002;
+/// `<sys/stdio.h>`: fail with `EEXIST` instead of replacing an existing `to`.
+pub const RENAME_EXCL: libc::c_uint = 0x0000_0004;
 
 extern "C" {
     fn clonefile(src: *const libc::c_char, dst: *const libc::c_char, flags: u32) -> libc::c_int;
@@ -54,6 +60,54 @@ pub fn swap(a: &Path, b: &Path) -> io::Result<()> {
     } else {
         Err(io::Error::last_os_error())
     }
+}
+
+/// Moves `from` to `to` without ever replacing an existing `to`:
+/// `renameatx_np(AT_FDCWD, from, AT_FDCWD, to, RENAME_EXCL)`.
+///
+/// Plain `rename(2)` silently replaces an empty directory at `to`; this fails with `EEXIST`
+/// instead, so a mis-generated destination name can never clobber another tree.
+pub fn rename_excl(from: &Path, to: &Path) -> io::Result<()> {
+    let (from, to) = (c_path(from)?, c_path(to)?);
+    // SAFETY: valid NUL-terminated strings that outlive the call; AT_FDCWD resolves them like open(2).
+    let rc = unsafe { renameatx_np(libc::AT_FDCWD, from.as_ptr(), libc::AT_FDCWD, to.as_ptr(), RENAME_EXCL) };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+/// True unless `kill(pid, 0)` reports `ESRCH` (no such process). `EPERM` means the process
+/// exists but belongs to another user, which counts as alive.
+pub fn process_alive(pid: i32) -> bool {
+    if pid <= 0 {
+        return false;
+    }
+    // SAFETY: signal 0 performs only the existence and permission check; no signal is delivered.
+    let rc = unsafe { libc::kill(pid, 0) };
+    rc == 0 || io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+}
+
+/// User and system CPU time consumed so far by this process (all threads), from
+/// `getrusage(RUSAGE_SELF)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CpuTimes {
+    pub user: Duration,
+    pub system: Duration,
+}
+
+pub fn process_cpu_times() -> io::Result<CpuTimes> {
+    // SAFETY: getrusage only writes into the zero-initialised struct we pass by pointer.
+    let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+    let rc = unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) };
+    if rc != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let to_duration = |tv: libc::timeval| {
+        Duration::from_secs(tv.tv_sec.max(0) as u64) + Duration::from_micros(tv.tv_usec.max(0) as u64)
+    };
+    Ok(CpuTimes { user: to_duration(usage.ru_utime), system: to_duration(usage.ru_stime) })
 }
 
 /// File system type name reported by `statfs(2)` (e.g. "apfs").

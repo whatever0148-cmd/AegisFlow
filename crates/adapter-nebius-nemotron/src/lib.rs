@@ -3,15 +3,18 @@
 //! * **Tier 0 — local.** Features from the failure (errors, warnings, retries) are scored by the
 //!   CoreML model and checked against Cedar; this picks the starting tier and whether a verified
 //!   fix may be committed without a human.
-//! * **Tier 1 — `nvidia/Llama-3_3-Nemotron-Super-49B-v1`** on Nebius (OpenAI-compatible
-//!   `/chat/completions`), reasoning off, for low-risk failures.
+//! * **Tier 1 — `nvidia/Llama-3_3-Nemotron-Super-49B-v1`** on Nebius Token Factory (formerly
+//!   Nebius AI Studio; OpenAI-compatible `/chat/completions` under [`DEFAULT_BASE_URL`]),
+//!   reasoning off, for low-risk failures.
 //! * **Tier 2 — Tavily documentation search + `nvidia/Llama-3_1-Nemotron-Ultra-253B-v1`**,
 //!   reasoning on, for high-risk failures or when tier 1's patch does not verify.
 //!
 //! Every proposed patch (and optional Cedar policy update) is applied inside a fresh APFS CoW
 //! branch, the failing command is re-run there, and the result is committed only if the build
 //! passes and Cedar allows it; otherwise the branch rolls back. Remote tiers run only when
-//! `NEBIUS_API_KEY` is set, and tier-2 search only when `TAVILY_API_KEY` is set.
+//! `NEBIUS_API_KEY` is set and the base URL passes [`aegis_config::validate_base_url`] (https, or
+//! http only to a loopback host; see [`endpoint_problem`]), and tier-2 search only when
+//! `TAVILY_API_KEY` is set. The key is never sent to, or printed with, a refused endpoint.
 
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
@@ -26,7 +29,9 @@ use aegis_storage::Workspace;
 use regex::Regex;
 use serde_json::{json, Value};
 
-pub const DEFAULT_BASE_URL: &str = "https://api.studio.nebius.ai/v1";
+/// OpenAI-compatible base URL of Nebius Token Factory (the service formerly called Nebius AI Studio,
+/// whose `api.studio.nebius.ai` host this replaces). Override with `NEBIUS_BASE_URL`.
+pub const DEFAULT_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1";
 pub const TIER1_MODEL: &str = "nvidia/Llama-3_3-Nemotron-Super-49B-v1";
 pub const TIER2_MODEL: &str = "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1";
 pub const TAVILY_URL: &str = "https://api.tavily.com/search";
@@ -55,6 +60,9 @@ pub enum RouterError {
     Patch(String),
     #[error("{0} is not configured")]
     NotConfigured(&'static str),
+    /// The endpoint an API key would be sent to fails the base-URL rule; nothing was sent.
+    #[error("{0}")]
+    Endpoint(String),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -73,8 +81,12 @@ pub struct RouterConfig {
 }
 
 impl RouterConfig {
-    /// `NEBIUS_API_KEY`, `NEBIUS_BASE_URL`, `NEBIUS_TIER1_MODEL`, `NEBIUS_TIER2_MODEL`,
-    /// `TAVILY_API_KEY`, `TAVILY_URL`, `AEGIS_AGENT_ID`.
+    /// `NEBIUS_API_KEY`, `NEBIUS_BASE_URL` (default [`DEFAULT_BASE_URL`]), `NEBIUS_TIER1_MODEL`,
+    /// `NEBIUS_TIER2_MODEL`, `TAVILY_API_KEY`, `TAVILY_URL`, `AEGIS_AGENT_ID`.
+    ///
+    /// A `NEBIUS_BASE_URL` that fails [`endpoint_problem`] is kept as configured but disables the
+    /// remote tiers: [`RouterConfig::remote_unavailable`] gives the reason, and no request carrying
+    /// the key is made to it (the check is repeated before every call, whoever built the config).
     pub fn from_env() -> Self {
         let var = |key: &str| std::env::var(key).ok().filter(|v| !v.trim().is_empty());
         Self {
@@ -89,6 +101,24 @@ impl RouterConfig {
             verify_timeout: Duration::from_secs(600),
         }
     }
+
+    /// Why tiers 1-2 will not run, if they will not: no `NEBIUS_API_KEY`, or a base URL the key
+    /// may not be sent to. Never contains the key or the URL.
+    pub fn remote_unavailable(&self) -> Option<String> {
+        if self.nebius_api_key.is_none() {
+            return Some("NEBIUS_API_KEY not set".to_string());
+        }
+        endpoint_problem(&self.base_url)
+    }
+}
+
+/// Why an API key may not be sent to `base_url`, if it may not
+/// ([`aegis_config::validate_base_url`]: `https://`, or `http://` only for `127.0.0.1`,
+/// `localhost` or `[::1]`). The message states the rule and never repeats the URL.
+pub fn endpoint_problem(base_url: &str) -> Option<String> {
+    aegis_config::validate_base_url(base_url)
+        .err()
+        .map(|why| format!("NEBIUS_BASE_URL rejected: {why}; the API key is not sent"))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -263,7 +293,9 @@ pub fn parse_reply(text: &str) -> ModelReply {
 }
 
 /// Applies a unified diff inside `dir` with `/usr/bin/patch -p1`, refusing absolute paths and
-/// `..` components. Returns the paths named in the diff headers.
+/// `..` components. Returns the paths named in the diff headers. Backups are disabled (`-V none`):
+/// patch's default `--backup-if-mismatch` would leave `<file>.orig` next to every hunk applied
+/// with fuzz, and the branch, backups included, may be committed.
 pub fn apply_patch(dir: &Path, patch: &str) -> Result<Vec<PathBuf>, RouterError> {
     let mut touched: Vec<PathBuf> = Vec::new();
     for line in patch.lines() {
@@ -285,7 +317,7 @@ pub fn apply_patch(dir: &Path, patch: &str) -> Result<Vec<PathBuf>, RouterError>
         return Err(RouterError::Patch("diff has no file headers".into()));
     }
     let mut child = Command::new("/usr/bin/patch")
-        .args(["-p1", "-N", "-t", "-s", "-d"])
+        .args(["-p1", "-N", "-t", "-s", "-V", "none", "-d"])
         .arg(dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -328,8 +360,12 @@ pub struct Attempt {
     pub decision: Option<Decision>,
     pub committed: bool,
     pub detail: String,
-    /// Wall time of the attempt; `None` until it has finished.
+    /// Wall time of the whole attempt, measured the same way on every path: the tier-2
+    /// documentation search, the model call, then patch verification in a branch and the commit or
+    /// rollback. `None` until it has finished.
     pub elapsed_ms: Option<f64>,
+    /// Duration of the model call alone (included in `elapsed_ms`); `None` until it has returned.
+    pub model_ms: Option<f64>,
 }
 
 impl Attempt {
@@ -346,6 +382,7 @@ impl Attempt {
             committed: false,
             detail: String::new(),
             elapsed_ms: None,
+            model_ms: None,
         }
     }
 }
@@ -425,8 +462,8 @@ impl RecoveryRouter {
     pub fn recover(&self, ws: &Workspace, failure: &BuildFailure) -> Result<RecoveryOutcome, RouterError> {
         let triage = self.triage(failure)?;
         let mut outcome = RecoveryOutcome { triage: triage.clone(), attempts: Vec::new(), recovered: false, unavailable: Vec::new() };
-        if self.cfg.nebius_api_key.is_none() {
-            outcome.unavailable.push("tiers 1-2: NEBIUS_API_KEY not set".to_string());
+        if let Some(reason) = self.cfg.remote_unavailable() {
+            outcome.unavailable.push(format!("tiers 1-2: {reason}"));
             return Ok(outcome);
         }
         let tiers: &[Tier] = match triage.start_tier {
@@ -434,6 +471,8 @@ impl RecoveryRouter {
             _ => &[Tier::TavilyNemotronUltra],
         };
         for &tier in tiers {
+            // One timer for the whole attempt, read once on every path (failure or not).
+            let started = Instant::now();
             let model = if tier == Tier::NemotronSuper { self.cfg.tier1_model.clone() } else { self.cfg.tier2_model.clone() };
             let docs = if tier == Tier::TavilyNemotronUltra {
                 if self.cfg.tavily_api_key.is_some() {
@@ -452,18 +491,23 @@ impl RecoveryRouter {
                 None
             };
             let (system, user) = build_prompt(tier, ws.live(), failure, docs.as_deref());
-            let started = Instant::now();
-            let reply = match self.chat(&model, &system, &user, if tier == Tier::NemotronSuper { 2048 } else { 4096 }) {
+            let model_started = Instant::now();
+            let chat = self.chat(&model, &system, &user, if tier == Tier::NemotronSuper { 2048 } else { 4096 });
+            let model_ms = Some(millis(model_started.elapsed()));
+            let reply = match chat {
                 Ok(text) => parse_reply(&text),
                 Err(e) => {
                     let mut attempt = Attempt::new(tier, &model);
                     attempt.detail = format!("model call failed: {e}");
-                    attempt.elapsed_ms = Some(started.elapsed().as_secs_f64() * 1e3);
+                    attempt.model_ms = model_ms;
+                    attempt.elapsed_ms = Some(millis(started.elapsed()));
                     outcome.attempts.push(attempt);
                     continue;
                 }
             };
-            let attempt = self.verify_in_branch(ws, failure, &reply, tier, &model)?;
+            let mut attempt = self.verify_in_branch(ws, failure, &reply, tier, &model)?;
+            attempt.model_ms = model_ms;
+            attempt.elapsed_ms = Some(millis(started.elapsed()));
             let passed = attempt.build_passed;
             outcome.recovered = attempt.committed;
             outcome.attempts.push(attempt);
@@ -474,6 +518,8 @@ impl RecoveryRouter {
         Ok(outcome)
     }
 
+    /// Applies the reply in a fresh branch, re-runs the failing command there and commits if Cedar
+    /// allows it. The caller times the attempt (see [`Attempt::elapsed_ms`]).
     fn verify_in_branch(
         &self,
         ws: &Workspace,
@@ -482,21 +528,16 @@ impl RecoveryRouter {
         tier: Tier,
         model: &str,
     ) -> Result<Attempt, RouterError> {
-        let started = Instant::now();
         let mut attempt = Attempt::new(tier, model);
         attempt.patch = reply.patch.clone();
-        let finish = |mut a: Attempt| {
-            a.elapsed_ms = Some(started.elapsed().as_secs_f64() * 1e3);
-            a
-        };
         let branch = ws.branch(&format!("recovery-t{}", tier.level()))?;
         let Some(patch) = &reply.patch else {
             attempt.detail = "model returned no ```diff block".to_string();
-            return Ok(finish(attempt));
+            return Ok(attempt);
         };
         if let Err(e) = apply_patch(branch.path(), patch) {
             attempt.detail = e.to_string();
-            return Ok(finish(attempt));
+            return Ok(attempt);
         }
         attempt.patch_applied = true;
         if let Some(policy) = &reply.cedar_policy {
@@ -512,14 +553,14 @@ impl RecoveryRouter {
                 Err(e) => {
                     attempt.policy_update_valid = Some(false);
                     attempt.detail = format!("proposed Cedar policy rejected: {e}");
-                    return Ok(finish(attempt));
+                    return Ok(attempt);
                 }
             }
         }
         let out = run_command(&failure.command, branch.path(), self.cfg.verify_timeout)?;
         if out.exit_code != 0 || out.timed_out {
             attempt.detail = format!("build still failing in branch (exit {}, timed out: {})", out.exit_code, out.timed_out);
-            return Ok(finish(attempt));
+            return Ok(attempt);
         }
         attempt.build_passed = true;
         let changes = branch.changes()?;
@@ -553,11 +594,14 @@ impl RecoveryRouter {
             );
         }
         attempt.decision = Some(decision);
-        Ok(finish(attempt))
+        Ok(attempt)
     }
 
     fn chat(&self, model: &str, system: &str, user: &str, max_tokens: u32) -> Result<String, RouterError> {
         let key = self.cfg.nebius_api_key.as_deref().ok_or(RouterError::NotConfigured("NEBIUS_API_KEY"))?;
+        if let Some(problem) = endpoint_problem(&self.cfg.base_url) {
+            return Err(RouterError::Endpoint(problem));
+        }
         let url = format!("{}/chat/completions", self.cfg.base_url.trim_end_matches('/'));
         let body = json!({
             "model": model,
@@ -604,6 +648,10 @@ impl RecoveryRouter {
     }
 }
 
+fn millis(d: Duration) -> f64 {
+    d.as_secs_f64() * 1e3
+}
+
 fn read_json(response: Result<ureq::Response, ureq::Error>, url: &str) -> Result<Value, RouterError> {
     match response {
         Ok(r) => r.into_json::<Value>().map_err(|e| RouterError::Response { url: url.to_string(), message: e.to_string() }),
@@ -614,6 +662,25 @@ fn read_json(response: Result<ureq::Response, ureq::Error>, url: &str) -> Result
         }),
         Err(ureq::Error::Transport(t)) => Err(RouterError::Transport { url: url.to_string(), message: t.to_string() }),
     }
+}
+
+/// Model ids served at `{base_url}/models` (OpenAI-compatible `GET /models`, `data[].id`).
+///
+/// A cheap authenticated call, used to check that a Nebius Token Factory key and base URL work
+/// without spending tokens. A `base_url` that fails [`endpoint_problem`] is refused with
+/// [`RouterError::Endpoint`] before any connection is made.
+pub fn list_models(base_url: &str, api_key: &str, timeout: Duration) -> Result<Vec<String>, RouterError> {
+    if let Some(problem) = endpoint_problem(base_url) {
+        return Err(RouterError::Endpoint(problem));
+    }
+    let url = format!("{}/models", base_url.trim_end_matches('/'));
+    let agent = ureq::AgentBuilder::new().timeout(timeout).build();
+    let response = agent.get(&url).set("Authorization", &format!("Bearer {api_key}")).call();
+    let value = read_json(response, &url)?;
+    let data = value["data"]
+        .as_array()
+        .ok_or_else(|| RouterError::Response { url: url.clone(), message: "no data[] array".into() })?;
+    Ok(data.iter().filter_map(|m| m["id"].as_str().map(str::to_owned)).collect())
 }
 
 fn tail_chars(text: &str, max: usize) -> String {
@@ -730,12 +797,22 @@ mod tests {
         vec!["sh".into(), "-c".into(), "grep -q fixed status.txt || { echo 'error: status.txt:1 is broken' >&2; exit 1; }".into()]
     }
 
-    /// Serves one HTTP request on 127.0.0.1 with `body` and returns the raw request text.
-    fn serve_once(body: String) -> (String, std::thread::JoinHandle<String>) {
+    /// One request served by [`serve_once`].
+    struct Served {
+        request: String,
+        /// When the connection was accepted (the client is already inside its call).
+        accepted: Instant,
+        /// Just before the response was written (the client cannot have it earlier).
+        responding: Instant,
+    }
+
+    /// Serves one HTTP request on 127.0.0.1 with `body`; returns the raw request and its timing.
+    fn serve_once(body: String) -> (String, std::thread::JoinHandle<Served>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let handle = std::thread::spawn(move || {
             let (stream, _) = listener.accept().unwrap();
+            let accepted = Instant::now();
             let mut reader = BufReader::new(stream.try_clone().unwrap());
             let mut request = String::new();
             let mut length = 0usize;
@@ -754,6 +831,7 @@ mod tests {
             reader.read_exact(&mut payload).unwrap();
             request.push_str(&String::from_utf8_lossy(&payload));
             let mut stream = stream;
+            let responding = Instant::now();
             write!(
                 stream,
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -761,9 +839,61 @@ mod tests {
                 body
             )
             .unwrap();
-            request
+            Served { request, accepted, responding }
         });
         (format!("http://{addr}/v1"), handle)
+    }
+
+    #[test]
+    fn default_base_url_is_token_factory() {
+        assert_eq!(DEFAULT_BASE_URL, "https://api.tokenfactory.nebius.com/v1");
+        let cfg = RouterConfig { base_url: DEFAULT_BASE_URL.to_string(), ..RouterConfig::from_env() };
+        assert!(cfg.base_url.starts_with("https://api.tokenfactory.nebius.com/"));
+        assert!(!DEFAULT_BASE_URL.contains("studio.nebius.ai"));
+    }
+
+    #[test]
+    fn list_models_reads_openai_compatible_listing() {
+        let body = json!({"object": "list", "data": [{"id": TIER1_MODEL, "object": "model"}, {"id": TIER2_MODEL, "object": "model"}]}).to_string();
+        let (base_url, server) = serve_once(body);
+        let models = list_models(&base_url, "test-key", Duration::from_secs(10)).unwrap();
+        let request = server.join().unwrap().request;
+        assert!(request.starts_with("GET /v1/models "), "{request}");
+        assert!(request.contains("Bearer test-key"));
+        assert_eq!(models, vec![TIER1_MODEL.to_string(), TIER2_MODEL.to_string()]);
+    }
+
+    #[test]
+    fn disallowed_base_urls_are_refused_before_any_connection() {
+        // A listener that must never be contacted: http:// to a non-loopback name resolves nowhere
+        // useful, and the check happens before resolution. The loopback listener below proves the
+        // refusal is about the rule, not reachability.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let key = "nb-unit-test-key-3c9d";
+        for url in [
+            format!("http://example.invalid:{port}/v1"),
+            format!("ftp://127.0.0.1:{port}/v1"),
+            format!("http://user@127.0.0.1:{port}/v1"),
+            "api.tokenfactory.nebius.com/v1".to_string(),
+        ] {
+            let err = list_models(&url, key, Duration::from_secs(2)).unwrap_err();
+            assert!(matches!(err, RouterError::Endpoint(_)), "{url}: {err}");
+            let text = err.to_string();
+            assert!(text.contains("NEBIUS_BASE_URL rejected") && !text.contains(key) && !text.contains(&url), "{text}");
+            let cfg = RouterConfig { nebius_api_key: Some(key.into()), base_url: url.clone(), ..RouterConfig::from_env() };
+            let reason = cfg.remote_unavailable().expect("remote tiers disabled");
+            assert!(reason.contains("NEBIUS_BASE_URL rejected") && !reason.contains(key), "{reason}");
+        }
+        assert!(listener.accept().is_err(), "no connection was made to the loopback listener");
+        for ok in [DEFAULT_BASE_URL.to_string(), format!("http://127.0.0.1:{port}/v1"), format!("http://localhost:{port}/v1"), format!("http://[::1]:{port}/v1")] {
+            assert_eq!(endpoint_problem(&ok), None, "{ok}");
+            let cfg = RouterConfig { nebius_api_key: Some(key.into()), base_url: ok.clone(), ..RouterConfig::from_env() };
+            assert_eq!(cfg.remote_unavailable(), None, "{ok}");
+        }
+        let cfg = RouterConfig { nebius_api_key: None, base_url: DEFAULT_BASE_URL.to_string(), ..RouterConfig::from_env() };
+        assert_eq!(cfg.remote_unavailable().as_deref(), Some("NEBIUS_API_KEY not set"));
     }
 
     #[test]
@@ -794,6 +924,21 @@ mod tests {
         let patch = "--- a/status.txt\n+++ b/status.txt\n@@ -1 +1 @@\n-broken\n+fixed\n";
         assert_eq!(apply_patch(&fx.live(), patch).unwrap(), vec![PathBuf::from("status.txt")]);
         assert_eq!(std::fs::read_to_string(fx.live().join("status.txt")).unwrap(), "fixed\n");
+    }
+
+    #[test]
+    fn fuzzy_patch_leaves_no_backup_file() {
+        let fx = Fixture::new("fuzz");
+        std::fs::write(fx.live().join("report.rs"), "one\ntwo\nthree\nfour\nfive\n").unwrap();
+        // The last context line does not match ("FOUR" vs "four"), so the hunk needs fuzz, which
+        // makes patch's default --backup-if-mismatch write report.rs.orig.
+        let patch = "--- a/report.rs\n+++ b/report.rs\n@@ -1,4 +1,4 @@\n one\n-two\n+TWO\n three\n FOUR\n";
+        apply_patch(&fx.live(), patch).unwrap();
+        assert_eq!(std::fs::read_to_string(fx.live().join("report.rs")).unwrap(), "one\nTWO\nthree\nfour\nfive\n");
+        let mut names: Vec<String> =
+            std::fs::read_dir(fx.live()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        assert_eq!(names, vec!["report.rs".to_string(), "status.txt".to_string()]);
     }
 
     #[test]
@@ -831,8 +976,10 @@ mod tests {
         let body = json!({"choices": [{"message": {"role": "assistant", "content": content}}]}).to_string();
         let (base_url, server) = serve_once(body);
         let cfg = RouterConfig { nebius_api_key: Some("test-key".into()), base_url, tavily_api_key: None, ..RouterConfig::from_env() };
-        let outcome = router(cfg).recover(&ws, &failure).unwrap();
-        let request = server.join().unwrap();
+        let router = router(cfg);
+        let outcome = router.recover(&ws, &failure).unwrap();
+        let returned = Instant::now();
+        let Served { request, accepted, responding } = server.join().unwrap();
         assert!(request.starts_with("POST /v1/chat/completions"), "{request}");
         assert!(request.contains("Bearer test-key"));
         assert!(request.contains(TIER1_MODEL) || request.contains(TIER2_MODEL));
@@ -841,5 +988,19 @@ mod tests {
         assert!(attempt.committed, "low-risk verified fix should commit: {attempt:?}");
         assert!(outcome.recovered);
         assert_eq!(std::fs::read_to_string(fx.live().join("status.txt")).unwrap(), "fixed\n");
+
+        // Timing is checked against causal order, not against a delay: the model timer runs from
+        // before the connection until after the response, so it covers accept..responding.
+        let (elapsed_ms, model_ms) = (attempt.elapsed_ms.unwrap(), attempt.model_ms.unwrap());
+        assert!(model_ms >= millis(responding - accepted), "model_ms {model_ms} misses the served request");
+        assert!(elapsed_ms >= model_ms, "elapsed_ms {elapsed_ms} must include the model call ({model_ms})");
+        // The attempt ended before recover() returned, so if elapsed_ms covered only the
+        // verification (which starts after the response arrived) it would be shorter than
+        // returned - responding. Covering the model call makes it longer.
+        assert!(
+            elapsed_ms >= millis(returned - responding),
+            "elapsed_ms {elapsed_ms} starts after the model answered (returned - responding = {})",
+            millis(returned - responding)
+        );
     }
 }

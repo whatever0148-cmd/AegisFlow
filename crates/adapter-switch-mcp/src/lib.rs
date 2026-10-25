@@ -10,4 +10,4 @@ pub mod cards;
 pub mod mcp;
 
 pub use cards::{mattermost_card, post_webhook, slack_card, ApprovalRequest, CardError, ChatConfig};
-pub use mcp::McpServer;
+pub use mcp::{McpServer, ShutdownReport};

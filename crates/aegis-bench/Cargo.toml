@@ -1,6 +1,6 @@
 [package]
 name = "aegis-bench"
-description = "AegisFlow phase-1 hardware benchmark; writes artifacts/aegis_phase1_telemetry.json"
+description = "AegisFlow hardware benchmark (phase 2); writes artifacts/aegis_phase1_telemetry.json"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,7 @@ adapter-nebius-nemotron.workspace = true
 adapter-paypal.workspace = true
 adapter-switch-mcp.workspace = true
 aegis-ane-scorer.workspace = true
+aegis-config.workspace = true
 aegis-governance.workspace = true
 aegis-storage.workspace = true
 serde_json.workspace = true

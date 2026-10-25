@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Quality gate: no stubs and no hand-typed metrics in AegisFlow sources.
 #
-#   .claude/hooks/verify_no_stubs.sh          scan crates/ harness/ models/ policies/
+#   .claude/hooks/verify_no_stubs.sh          scan crates/ harness/ models/ policies/, and apps/
+#                                             (.js .mjs .html .md; apps/aegis-console/vendor/ excluded)
 #   .claude/hooks/verify_no_stubs.sh --hook   Claude Code PostToolUse mode: read the hook JSON on
 #                                             stdin and scan only the file that was just written
 #
@@ -23,9 +24,25 @@ import json, os, re, sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-scan_dirs = ["crates", "harness", "models", "policies"]
-exts = {".rs", ".swift", ".py", ".sh", ".cedar", ".cedarschema", ".toml"}
-skip_parts = {"target", ".venv", "__pycache__", ".build"}
+source_exts = {".rs", ".swift", ".py", ".sh", ".cedar", ".cedarschema", ".toml"}
+# Top-level directory -> file suffixes scanned there.
+scan_exts = {
+    "crates": source_exts, "harness": source_exts, "models": source_exts, "policies": source_exts,
+    "apps": {".js", ".mjs", ".html", ".md"},
+}
+scan_dirs = list(scan_exts)
+skip_parts = {"target", ".venv", "__pycache__", ".build", "node_modules"}
+# Third-party bundles, not AegisFlow sources.
+skip_prefixes = [("apps", "aegis-console", "vendor")]
+
+def wanted(rel):
+    """rel: path relative to the repo root."""
+    parts = rel.parts
+    if not parts or parts[0] not in scan_exts or rel.suffix not in scan_exts[parts[0]]:
+        return False
+    if set(parts) & skip_parts:
+        return False
+    return not any(parts[:len(pre)] == pre for pre in skip_prefixes)
 
 stub = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b|\bunimplemented!\s*\(|\btodo!\s*\(|raise\s+NotImplementedError")
 fake = re.compile(
@@ -49,14 +66,14 @@ def candidates():
             rel = p.resolve().relative_to(root.resolve())
         except ValueError:
             return []
-        if rel.parts and rel.parts[0] in scan_dirs and p.suffix in exts and p.is_file():
+        if wanted(rel) and p.is_file():
             return [p]
         return []
     files = []
     for d in scan_dirs:
         base = root / d
         if base.exists():
-            files += [p for p in base.rglob("*") if p.is_file() and p.suffix in exts and not (set(p.parts) & skip_parts)]
+            files += [p for p in base.rglob("*") if p.is_file() and wanted(p.relative_to(root))]
     return sorted(files)
 
 violations = []

@@ -4,11 +4,21 @@
 // symbol is `@_cdecl`; strings returned to Rust are malloc'd and must be released with
 // `aegis_ane_free_string`. Errors are kept per thread and read with `aegis_ane_last_error`.
 //
-// Two input layouts are supported:
-//   (1, C)        one operation per prediction (online scoring)
-//   (1, C, 1, N)  N operations per prediction as columns (batch scoring, 1x1 convolutions)
+// Input layouts. 4-D layouts are never inferred from the shape: the model must declare them in its
+// user-defined metadata under `aegis_input_layout` (models/build_model.py writes it).
+//   vector        (1, C)        one event per prediction, 1 output
+//   columns       (1, C, 1, N)  N independent events as columns, N outputs (phase-1 batch layout)
+//   window        (1, C, 1, W)  one session: the last W events, oldest -> newest along the width,
+//                               zero-padded on the left, 1 output
+//   window_batch  (B, C, 1, W)  B independent sessions along the batch axis, B outputs
+// A model without the key is accepted only when its input is (1, C).
+//
+// Everything is scored through `scoreWindows`: a list of sessions, each given as `length` events of
+// C floats (oldest -> newest). Window layouts see the newest W events of each session; vector and
+// columns layouts see only the newest event (their window length is 1).
 
 import CoreML
+import CoreVideo
 import Foundation
 
 private struct BridgeError: Error, CustomStringConvertible {
@@ -17,6 +27,7 @@ private struct BridgeError: Error, CustomStringConvertible {
 }
 
 private let lastErrorKey = "aegis.ane.lastError"
+private let layoutMetadataKey = "aegis_input_layout"
 
 private func setLastError(_ message: String) {
     Thread.current.threadDictionary[lastErrorKey] = message
@@ -56,18 +67,85 @@ private func jsonString(_ object: Any) throws -> String {
     return text
 }
 
+/// Codes match `InputLayout` in src/lib.rs.
+private enum InputLayout: Int32 {
+    case vector = 0
+    case columns = 1
+    case window = 2
+    case windowBatch = 3
+
+    init?(name: String) {
+        switch name {
+        case "vector": self = .vector
+        case "columns": self = .columns
+        case "window": self = .window
+        case "window_batch": self = .windowBatch
+        default: return nil
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .vector: return "vector"
+        case .columns: return "columns"
+        case .window: return "window"
+        case .windowBatch: return "window_batch"
+        }
+    }
+}
+
+/// Input element types the bridge writes without boxing. Float16(Float) is a single conversion
+/// instruction on arm64; the generic fill functions are specialised under -wmo.
+private protocol InputScalar {
+    static func from(_ value: Float) -> Self
+    static var zeroValue: Self { get }
+}
+
+extension Float16: InputScalar {
+    @inline(__always) static func from(_ value: Float) -> Float16 { Float16(value) }
+    static var zeroValue: Float16 { 0 }
+}
+
+extension Float: InputScalar {
+    @inline(__always) static func from(_ value: Float) -> Float { value }
+    static var zeroValue: Float { 0 }
+}
+
+/// An FP16 multi-array sharing an IOSurface-backed `kCVPixelFormatType_OneComponent16Half` pixel
+/// buffer (width = last axis, height = product of the others). Returns nil for other data types or
+/// when CoreVideo cannot allocate the buffer; the caller then falls back to a plain multi-array.
+private func surfaceBackedArray(shape: [Int], dataType: MLMultiArrayDataType) -> MLMultiArray? {
+    guard dataType == .float16, let width = shape.last, width > 0 else { return nil }
+    let height = shape.dropLast().reduce(1, *)
+    guard height > 0 else { return nil }
+    var buffer: CVPixelBuffer?
+    let attributes: [String: Any] = [kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any]()]
+    let status = CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_OneComponent16Half,
+                                     attributes as CFDictionary, &buffer)
+    guard status == kCVReturnSuccess, let pixels = buffer else { return nil }
+    return MLMultiArray(pixelBuffer: pixels, shape: shape.map { NSNumber(value: $0) })
+}
+
 /// One loaded model plus a reusable input buffer. Predictions are serialized by `lock`, so a
 /// handle may be shared between threads.
 private final class AegisANEModel {
     let model: MLModel
+    let layout: InputLayout
     let inputName: String
     let outputName: String
-    /// Features per operation (C).
+    /// Features per event (C).
     let featureCount: Int
-    /// Operations per prediction: 1 for a (1, C) input, N for a (1, C, 1, N) input.
-    let batchSize: Int
+    /// Events of one session the model sees (W); 1 for vector and columns layouts.
+    let windowLength: Int
+    /// Sessions scored per prediction: N for columns, B for window_batch, otherwise 1.
+    let unitsPerPrediction: Int
     let input: MLMultiArray
+    /// Element strides of `input`: feature axis, unit axis (column or batch entry), window axis.
+    let featureStride: Int
+    let unitStride: Int
+    let windowStride: Int
     let provider: MLDictionaryFeatureProvider
+    /// Preallocated output (`MLPredictionOptions.outputBackings`), so predictions do not allocate one.
     let options = MLPredictionOptions()
     let lock = NSLock()
 
@@ -81,93 +159,180 @@ private final class AegisANEModel {
               let constraint = inputDescription.multiArrayConstraint else {
             throw BridgeError("model must have exactly one multi-array input")
         }
-        guard let output = description.outputDescriptionsByName.keys.sorted().first else {
-            throw BridgeError("model has no outputs")
+        guard description.outputDescriptionsByName.count == 1,
+              let (output, outputDescription) = description.outputDescriptionsByName.first,
+              let outputConstraint = outputDescription.multiArrayConstraint else {
+            throw BridgeError("model must have exactly one multi-array output")
         }
         let shape = constraint.shape.map { $0.intValue }
-        if shape.count == 4 && shape[0] == 1 && shape[2] == 1 {
-            featureCount = shape[1]
-            batchSize = shape[3]
+        let metadata = description.metadata[MLModelMetadataKey.creatorDefinedKey] as? [String: String]
+        if let declared = metadata?[layoutMetadataKey] {
+            guard let parsed = InputLayout(name: declared) else {
+                throw BridgeError("unknown \(layoutMetadataKey) '\(declared)' (expected vector, columns, window or window_batch)")
+            }
+            layout = parsed
+        } else if shape.count == 2 && shape[0] == 1 {
+            layout = .vector
         } else {
-            featureCount = shape.reduce(1, *)
-            batchSize = 1
+            throw BridgeError("input shape \(shape) needs the '\(layoutMetadataKey)' metadata key "
+                + "(vector, columns, window or window_batch); rebuild with harness/build_model.sh")
+        }
+        switch layout {
+        case .vector:
+            guard shape.count == 2 && shape[0] == 1 else { throw BridgeError("vector layout needs a (1, C) input, model has \(shape)") }
+            featureCount = shape[1]
+            windowLength = 1
+            unitsPerPrediction = 1
+        case .columns:
+            guard shape.count == 4 && shape[0] == 1 && shape[2] == 1 else {
+                throw BridgeError("columns layout needs a (1, C, 1, N) input, model has \(shape)")
+            }
+            featureCount = shape[1]
+            windowLength = 1
+            unitsPerPrediction = shape[3]
+        case .window:
+            guard shape.count == 4 && shape[0] == 1 && shape[2] == 1 else {
+                throw BridgeError("window layout needs a (1, C, 1, W) input, model has \(shape)")
+            }
+            featureCount = shape[1]
+            windowLength = shape[3]
+            unitsPerPrediction = 1
+        case .windowBatch:
+            guard shape.count == 4 && shape[2] == 1 else {
+                throw BridgeError("window_batch layout needs a (B, C, 1, W) input, model has \(shape)")
+            }
+            featureCount = shape[1]
+            unitsPerPrediction = shape[0]
+            windowLength = shape[3]
+        }
+        guard featureCount > 0, windowLength > 0, unitsPerPrediction > 0 else {
+            throw BridgeError("input shape \(shape) has an empty axis")
+        }
+        let outputCount = outputConstraint.shape.reduce(1) { $0 * $1.intValue }
+        guard outputCount == unitsPerPrediction else {
+            throw BridgeError("\(layout.name) layout scores \(unitsPerPrediction) session(s) per prediction but output "
+                + "'\(output)' has shape \(outputConstraint.shape.map { $0.intValue })")
         }
         inputName = name
         outputName = output
-        input = try MLMultiArray(shape: constraint.shape, dataType: constraint.dataType)
-        provider = try MLDictionaryFeatureProvider(dictionary: [name: MLFeatureValue(multiArray: input)])
-    }
-
-    func score(_ features: UnsafePointer<Float>, count: Int) throws -> Float {
-        guard count == featureCount else {
-            throw BridgeError("expected \(featureCount) features, got \(count)")
+        // FP16 inputs share an IOSurface-backed pixel buffer, which CoreML can hand to the Neural
+        // Engine without an extra copy (measured ~10-15 us per prediction on M2).
+        input = try surfaceBackedArray(shape: shape, dataType: constraint.dataType)
+            ?? MLMultiArray(shape: constraint.shape, dataType: constraint.dataType)
+        let strides = input.strides.map { $0.intValue }
+        switch layout {
+        case .vector:
+            featureStride = strides[1]
+            unitStride = 0
+            windowStride = 0
+        case .columns:
+            featureStride = strides[1]
+            unitStride = strides[3]
+            windowStride = 0
+        case .window:
+            featureStride = strides[1]
+            unitStride = 0
+            windowStride = strides[3]
+        case .windowBatch:
+            featureStride = strides[1]
+            unitStride = strides[0]
+            windowStride = strides[3]
         }
-        var result: Float = 0
-        try scoreBatch(features, operations: 1, into: &result)
-        return result
+        provider = try MLDictionaryFeatureProvider(dictionary: [name: MLFeatureValue(multiArray: input)])
+        switch outputConstraint.dataType {
+        case .float16, .float32, .double:
+            options.outputBackings = [output: try MLMultiArray(shape: outputConstraint.shape, dataType: outputConstraint.dataType)]
+        default:
+            break
+        }
     }
 
-    /// Scores `operations` rows of `featureCount` floats, writing one score per row. Rows beyond
-    /// the model's batch size are processed in further predictions.
-    func scoreBatch(_ rows: UnsafePointer<Float>, operations: Int, into out: UnsafeMutablePointer<Float>) throws {
+    /// Scores `count` sessions. Session `i` is `lengths[i]` events (all 1 when `lengths` is nil) of
+    /// `featureCount` floats, oldest -> newest; sessions are stored back to back in `events`.
+    func scoreWindows(_ events: UnsafePointer<Float>, lengths: UnsafePointer<Int32>?, count: Int,
+                      into out: UnsafeMutablePointer<Float>) throws {
+        var starts = [Int](repeating: 0, count: count)
+        var sizes = [Int](repeating: 1, count: count)
+        var offset = 0
+        for i in 0..<count {
+            let length = lengths.map { Int($0[i]) } ?? 1
+            guard length > 0 else { throw BridgeError("session \(i) has no events") }
+            starts[i] = offset
+            sizes[i] = length
+            offset += length
+        }
         lock.lock()
         defer { lock.unlock() }
         var done = 0
-        while done < operations {
-            let n = min(batchSize, operations - done)
-            try fill(rows + done * featureCount, count: n)
+        while done < count {
+            let n = min(unitsPerPrediction, count - done)
+            switch input.dataType {
+            case .float16:
+                input.withUnsafeMutableBufferPointer(ofType: Float16.self) { buffer, _ in
+                    fill(buffer, events: events, starts: starts, sizes: sizes, first: done, count: n)
+                }
+            case .float32:
+                input.withUnsafeMutableBufferPointer(ofType: Float.self) { buffer, _ in
+                    fill(buffer, events: events, starts: starts, sizes: sizes, first: done, count: n)
+                }
+            default:
+                throw BridgeError("unsupported input data type \(input.dataType.rawValue)")
+            }
             let result = try model.prediction(from: provider, options: options)
             guard let output = result.featureValue(for: outputName)?.multiArrayValue else {
                 throw BridgeError("prediction has no multi-array output '\(outputName)'")
             }
-            read(output, count: n, into: out + done)
+            try read(output, count: n, into: out + done)
             done += n
         }
     }
 
-    /// Writes `count` rows into the input columns. Columns past `count` keep stale values; every
-    /// column is independent (1x1 convolutions), so their outputs are simply not read.
-    private func fill(_ rows: UnsafePointer<Float>, count: Int) throws {
-        let strides = input.strides.map { $0.intValue }
-        let featureStride = batchSize > 1 ? strides[1] : strides[strides.count - 1]
-        let columnStride = batchSize > 1 ? strides[3] : 0
+    /// Writes sessions `first ..< first + count` into units 0 ..< count of the input. Window layouts
+    /// right-align the newest `windowLength` events and zero the older columns of that unit; units
+    /// past `count` keep stale values, which is safe because units never mix (columns of a 1x1
+    /// network, or separate batch entries) and their outputs are not read.
+    private func fill<T: InputScalar>(_ buffer: UnsafeMutableBufferPointer<T>, events: UnsafePointer<Float>,
+                                      starts: [Int], sizes: [Int], first: Int, count: Int) {
+        guard let base = buffer.baseAddress else { return }
         let features = featureCount
-        switch input.dataType {
-        case .float16:
-            input.withUnsafeMutableBufferPointer(ofType: Float16.self) { buffer, _ in
-                for r in 0..<count {
-                    for c in 0..<features { buffer[c * featureStride + r * columnStride] = Float16(rows[r * features + c]) }
-                }
+        for unit in 0..<count {
+            let size = sizes[first + unit]
+            let used = min(size, windowLength)
+            let newest = events + (starts[first + unit] + size - used) * features
+            let pad = windowLength - used
+            let unitBase = base + unit * unitStride
+            for c in 0..<features {
+                let row = unitBase + c * featureStride
+                for w in 0..<pad { row[w * windowStride] = T.zeroValue }
+                for i in 0..<used { row[(pad + i) * windowStride] = T.from(newest[i * features + c]) }
             }
-        case .float32:
-            input.withUnsafeMutableBufferPointer(ofType: Float.self) { buffer, _ in
-                for r in 0..<count {
-                    for c in 0..<features { buffer[c * featureStride + r * columnStride] = rows[r * features + c] }
-                }
-            }
-        default:
-            throw BridgeError("unsupported input data type \(input.dataType.rawValue)")
         }
     }
 
-    private func read(_ output: MLMultiArray, count: Int, into out: UnsafeMutablePointer<Float>) {
-        let strides = output.strides.map { $0.intValue }
-        let columnStride = batchSize > 1 ? strides[strides.count - 1] : 0
+    private func read(_ output: MLMultiArray, count: Int, into out: UnsafeMutablePointer<Float>) throws {
+        var stride = 0
+        if unitsPerPrediction > 1 {
+            let shape = output.shape.map { $0.intValue }
+            guard let axis = shape.firstIndex(of: unitsPerPrediction) else {
+                throw BridgeError("output shape \(shape) has no axis of \(unitsPerPrediction) scores")
+            }
+            stride = output.strides[axis].intValue
+        }
         switch output.dataType {
         case .float16:
             output.withUnsafeBufferPointer(ofType: Float16.self) { b in
-                for r in 0..<count { out[r] = Float(b[r * columnStride]) }
+                for r in 0..<count { out[r] = Float(b[r * stride]) }
             }
         case .float32:
             output.withUnsafeBufferPointer(ofType: Float.self) { b in
-                for r in 0..<count { out[r] = b[r * columnStride] }
+                for r in 0..<count { out[r] = b[r * stride] }
             }
         case .double:
             output.withUnsafeBufferPointer(ofType: Double.self) { b in
-                for r in 0..<count { out[r] = Float(b[r * columnStride]) }
+                for r in 0..<count { out[r] = Float(b[r * stride]) }
             }
         default:
-            for r in 0..<count { out[r] = output[r * columnStride].floatValue }
+            throw BridgeError("unsupported output data type \(output.dataType.rawValue)")
         }
     }
 }
@@ -232,6 +397,10 @@ private func computePlanReport(url: URL, units: MLComputeUnits) throws -> String
     return json
 }
 
+private func handleModel(_ handle: UnsafeMutableRawPointer) -> AegisANEModel {
+    Unmanaged<AegisANEModel>.fromOpaque(handle).takeUnretainedValue()
+}
+
 // MARK: - C ABI
 
 @_cdecl("aegis_ane_open")
@@ -258,16 +427,32 @@ public func aegis_ane_close(_ handle: UnsafeMutableRawPointer?) {
 @_cdecl("aegis_ane_feature_count")
 public func aegis_ane_feature_count(_ handle: UnsafeMutableRawPointer?) -> Int32 {
     guard let handle = handle else { return -1 }
-    return Int32(Unmanaged<AegisANEModel>.fromOpaque(handle).takeUnretainedValue().featureCount)
+    return Int32(handleModel(handle).featureCount)
 }
 
+/// Sessions scored per CoreML prediction (N for columns, B for window_batch, otherwise 1).
 @_cdecl("aegis_ane_batch_size")
 public func aegis_ane_batch_size(_ handle: UnsafeMutableRawPointer?) -> Int32 {
     guard let handle = handle else { return -1 }
-    return Int32(Unmanaged<AegisANEModel>.fromOpaque(handle).takeUnretainedValue().batchSize)
+    return Int32(handleModel(handle).unitsPerPrediction)
 }
 
-/// Scores one operation vector. Returns 0 on success, -1 for invalid arguments, -2 when CoreML fails.
+/// Events of one session the model sees (W for window layouts, 1 otherwise).
+@_cdecl("aegis_ane_window_length")
+public func aegis_ane_window_length(_ handle: UnsafeMutableRawPointer?) -> Int32 {
+    guard let handle = handle else { return -1 }
+    return Int32(handleModel(handle).windowLength)
+}
+
+/// 0 vector, 1 columns, 2 window, 3 window_batch; -1 for a null handle.
+@_cdecl("aegis_ane_layout")
+public func aegis_ane_layout(_ handle: UnsafeMutableRawPointer?) -> Int32 {
+    guard let handle = handle else { return -1 }
+    return handleModel(handle).layout.rawValue
+}
+
+/// Scores one event as a session with no history. Returns 0 on success, -1 for invalid arguments,
+/// -2 when CoreML fails.
 @_cdecl("aegis_ane_score_workflow")
 public func aegis_ane_score_workflow(_ handle: UnsafeMutableRawPointer?, _ features: UnsafePointer<Float>?,
                                      _ count: Int32, _ outScore: UnsafeMutablePointer<Float>?) -> Int32 {
@@ -275,9 +460,13 @@ public func aegis_ane_score_workflow(_ handle: UnsafeMutableRawPointer?, _ featu
         setLastError("invalid arguments to aegis_ane_score_workflow")
         return -1
     }
-    let model = Unmanaged<AegisANEModel>.fromOpaque(handle).takeUnretainedValue()
+    let model = handleModel(handle)
+    guard Int(count) == model.featureCount else {
+        setLastError("expected \(model.featureCount) features, got \(count)")
+        return -1
+    }
     do {
-        outScore.pointee = try model.score(features, count: Int(count))
+        try model.scoreWindows(features, lengths: nil, count: 1, into: outScore)
         return 0
     } catch {
         setLastError("prediction failed: \(error)")
@@ -285,7 +474,8 @@ public func aegis_ane_score_workflow(_ handle: UnsafeMutableRawPointer?, _ featu
     }
 }
 
-/// Scores `operations` row-major vectors of `feature_count` floats into `outScores`.
+/// Scores `operations` row-major events of `feature_count` floats, each as a session with no
+/// history, into `outScores`.
 @_cdecl("aegis_ane_score_batch")
 public func aegis_ane_score_batch(_ handle: UnsafeMutableRawPointer?, _ rows: UnsafePointer<Float>?,
                                   _ operations: Int32, _ outScores: UnsafeMutablePointer<Float>?) -> Int32 {
@@ -293,12 +483,30 @@ public func aegis_ane_score_batch(_ handle: UnsafeMutableRawPointer?, _ rows: Un
         setLastError("invalid arguments to aegis_ane_score_batch")
         return -1
     }
-    let model = Unmanaged<AegisANEModel>.fromOpaque(handle).takeUnretainedValue()
     do {
-        try model.scoreBatch(rows, operations: Int(operations), into: outScores)
+        try handleModel(handle).scoreWindows(rows, lengths: nil, count: Int(operations), into: outScores)
         return 0
     } catch {
         setLastError("batch prediction failed: \(error)")
+        return -2
+    }
+}
+
+/// Scores `sessions` sessions. Session i has `lengths[i]` > 0 events of `feature_count` floats,
+/// oldest -> newest; sessions are concatenated in `events`. One score per session in `outScores`.
+@_cdecl("aegis_ane_score_windows")
+public func aegis_ane_score_windows(_ handle: UnsafeMutableRawPointer?, _ events: UnsafePointer<Float>?,
+                                    _ lengths: UnsafePointer<Int32>?, _ sessions: Int32,
+                                    _ outScores: UnsafeMutablePointer<Float>?) -> Int32 {
+    guard let handle = handle, let events = events, let lengths = lengths, let outScores = outScores, sessions > 0 else {
+        setLastError("invalid arguments to aegis_ane_score_windows")
+        return -1
+    }
+    do {
+        try handleModel(handle).scoreWindows(events, lengths: lengths, count: Int(sessions), into: outScores)
+        return 0
+    } catch {
+        setLastError("window prediction failed: \(error)")
         return -2
     }
 }

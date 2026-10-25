@@ -8,3 +8,8 @@ __pycache__/
 /brain/.obsidian/workspace.json
 /brain/.obsidian/workspace-mobile.json
 /brain/.obsidian/cache
+
+# Local credentials (written by harness/configure_keys.sh or the console)
+/.env
+/.env.local
+/.env.tmp-*

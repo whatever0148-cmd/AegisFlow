@@ -1,9 +1,22 @@
 {
-  "schema": "aegisflow.phase1.telemetry.v1",
-  "generated_at": "2026-10-25T08:06:37Z",
+  "schema": "aegisflow.telemetry.v2",
+  "phase": "phase-2",
+  "generated_at": "2026-10-25T15:28:03Z",
   "git": {
-    "commit": "a29112b",
-    "dirty": false
+    "commit": "60fc826",
+    "dirty": true
+  },
+  "sources": {
+    "sha256": "edbddc3dcb0a35ab5c0518e445e29d2cb24d379b96dfbfcbd10028e37b3c0030",
+    "files": 88,
+    "paths": [
+      "crates",
+      "policies",
+      "models",
+      "Cargo.toml",
+      "Cargo.lock"
+    ],
+    "method": "SHA-256 over (path, SHA-256 of content) of the tracked and untracked-but-not-ignored files under paths"
   },
   "host": {
     "model": "Mac14,2",
@@ -16,20 +29,62 @@
     "kernel": "27.0.0",
     "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
     "swiftc": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)",
-    "coremltools": "9.0"
+    "coremltools": "9.0",
+    "load_average_at_start": "{ 4.00 11.98 10.52 }"
   },
-  "benchmark_seconds": 20.988033,
+  "config": {
+    "dotenv_path": "/Users/ahmed/AegisFlow/crates/aegis-config/../../.env",
+    "dotenv_keys_exported": 0,
+    "error": null
+  },
+  "live_mode": false,
+  "benchmark_seconds": 80.694086,
   "scale": 1.0,
+  "preliminary": true,
+  "run_conditions": {
+    "preliminary": true,
+    "reasons": [
+      "1-min load average 11.47 at end above the busy threshold 4"
+    ],
+    "scale": 1.0,
+    "full_scale": true,
+    "busy_threshold_load1": 4.0,
+    "busy_threshold_basis": "performance-core count (hw.perflevel0.physicalcpu, else hw.physicalcpu)",
+    "load_average_start": [
+      4.0,
+      11.98,
+      10.52
+    ],
+    "load_average_end": [
+      11.47,
+      12.54,
+      10.87
+    ],
+    "quiet_wait": {
+      "max_wait_s": 300.0,
+      "waited_s": 185.354612,
+      "load_average_after_wait": [
+        4.0,
+        11.98,
+        10.52
+      ]
+    },
+    "sources_unchanged_during_run": true,
+    "rule": "preliminary when reduced-scale, when the 1-min load average at start or end is above the busy threshold, or when the measured sources changed during the run; only a run that is not preliminary decides the phase result (T18)"
+  },
   "targets": {
-    "clonefile_branch_ms": 0.5,
+    "branch_acquire_ms": 0.5,
+    "settled_acquire_hit_rate": 1.0,
     "renameatx_swap_ms": 0.5,
-    "rollback_ms": 0.5,
+    "rollback_caller_ms": 0.15,
     "ane_inference_ms": 0.6,
-    "tier0_route_ms": 0.4
+    "ane_speedup": 1.0,
+    "tier0_route_ms": 0.4,
+    "clonefile_reference_ms": 0.5
   },
   "apfs": {
     "filesystem": "apfs",
-    "stat_type": "/",
+    "stat_type": "apfs",
     "fixtures": [
       {
         "name": "tiny",
@@ -38,59 +93,373 @@
         "entries": 12,
         "bytes": 17829,
         "iterations": 400,
+        "collision_iterations": 200,
         "clonefile_ms": {
           "n": 400,
-          "min": 0.142917,
-          "p50": 0.165333,
-          "p95": 0.234791,
-          "p99": 0.31125,
-          "max": 0.363375,
-          "mean": 0.173872
+          "min": 0.146792,
+          "p50": 0.166542,
+          "p95": 0.204291,
+          "p99": 0.228,
+          "max": 5.149041,
+          "mean": 0.188002
         },
         "branch_total_ms": {
           "n": 400,
-          "min": 0.168791,
-          "p50": 0.20125,
-          "p95": 0.281875,
-          "p99": 0.375542,
-          "max": 0.430875,
-          "mean": 0.209248
+          "min": 0.175166,
+          "p50": 0.204459,
+          "p95": 0.248542,
+          "p99": 0.27775,
+          "max": 5.185125,
+          "mean": 0.226204
+        },
+        "kernel_clonefile": {
+          "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
+          "iterations": 400,
+          "wall_us": {
+            "n": 400,
+            "min": 141.166,
+            "p50": 154.917,
+            "p95": 206.292,
+            "p99": 260.792,
+            "max": 278.75,
+            "mean": 165.845763
+          },
+          "sys_us": {
+            "n": 400,
+            "min": 141.0,
+            "p50": 155.0,
+            "p95": 206.0,
+            "p99": 261.0,
+            "max": 278.0,
+            "mean": 165.885
+          },
+          "user_us": {
+            "n": 400,
+            "min": 0.0,
+            "p50": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0,
+            "mean": 0.585
+          },
+          "sys_us_per_entry_p50": 12.916667,
+          "wall_us_per_entry_p50": 12.90975,
+          "sys_share_of_wall_p50": 1.000536,
+          "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 400,
-          "min": 0.104917,
-          "p50": 0.122292,
-          "p95": 0.149666,
-          "p99": 0.243083,
-          "max": 2.118583,
-          "mean": 0.131186
+          "min": 0.103875,
+          "p50": 0.117791,
+          "p95": 0.13375,
+          "p99": 0.162,
+          "max": 0.255583,
+          "mean": 0.119718
         },
         "commit_total_ms": {
           "n": 400,
-          "min": 0.227,
-          "p50": 0.283083,
-          "p95": 0.338334,
-          "p99": 0.649583,
-          "max": 2.302125,
-          "mean": 0.300668
+          "min": 0.248291,
+          "p50": 0.296208,
+          "p95": 0.348584,
+          "p99": 0.425584,
+          "max": 0.674375,
+          "mean": 0.299897
         },
+        "commit_caller_ms": {
+          "n": 400,
+          "min": 0.344708,
+          "p50": 0.440667,
+          "p95": 0.512125,
+          "p99": 0.616458,
+          "max": 0.888458,
+          "mean": 0.443123
+        },
+        "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 400,
-          "min": 0.071792,
-          "p50": 0.088375,
-          "p95": 0.111791,
-          "p99": 0.119208,
-          "max": 0.134792,
-          "mean": 0.08811
+          "min": 0.072334,
+          "p50": 0.083625,
+          "p95": 0.099042,
+          "p99": 0.1205,
+          "max": 4.0985,
+          "mean": 0.103353
+        },
+        "rollback_caller_background_ms": {
+          "n": 400,
+          "min": 0.073791,
+          "p50": 0.08525,
+          "p95": 0.100833,
+          "p99": 0.122167,
+          "max": 4.103584,
+          "mean": 0.105107
+        },
+        "rollback_background_reaper": {
+          "reap_ms": {
+            "n": 400,
+            "min": 0.542958,
+            "p50": 0.588125,
+            "p95": 0.690792,
+            "p99": 0.891458,
+            "max": 3.761875,
+            "mean": 0.61789
+          },
+          "queue_wait_ms": {
+            "n": 400,
+            "min": 0.00225,
+            "p50": 0.003166,
+            "p95": 0.003792,
+            "p99": 0.005042,
+            "max": 0.010917,
+            "mean": 0.003163
+          },
+          "failed": 0,
+          "records_missing": 0
+        },
+        "rollback_sync_caller_ms": {
+          "n": 400,
+          "min": 0.607958,
+          "p50": 0.695333,
+          "p95": 0.755459,
+          "p99": 0.867834,
+          "max": 1.024291,
+          "mean": 0.689045
+        },
+        "rollback_sync_detach_ms": {
+          "n": 400,
+          "min": 0.07425,
+          "p50": 0.087791,
+          "p95": 0.097917,
+          "p99": 0.110083,
+          "max": 0.274959,
+          "mean": 0.087125
         },
         "rollback_reclaim_ms": {
           "n": 400,
-          "min": 0.528541,
-          "p50": 0.601291,
-          "p95": 0.748125,
-          "p99": 0.844,
-          "max": 0.914958,
-          "mean": 0.613921
+          "min": 0.529458,
+          "p50": 0.608208,
+          "p95": 0.659625,
+          "p99": 0.736917,
+          "max": 0.929708,
+          "mean": 0.601392
+        },
+        "pool": {
+          "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
+          "config": {
+            "capacity": 1,
+            "max_standby_age_s": 30.0,
+            "watch_fs_events": true,
+            "replenish_delay_ms": 0.0
+          },
+          "acquire_hit_ms": {
+            "n": 400,
+            "min": 0.080375,
+            "p50": 0.09775,
+            "p95": 0.114,
+            "p99": 0.118583,
+            "max": 0.143458,
+            "mean": 0.097243
+          },
+          "acquire_hit_rename_ms": {
+            "n": 400,
+            "min": 0.07625,
+            "p50": 0.089958,
+            "p95": 0.104958,
+            "p99": 0.109625,
+            "max": 0.133541,
+            "mean": 0.089828
+          },
+          "acquire_hit_standby_age_ms": {
+            "n": 400,
+            "min": 0.717584,
+            "p50": 0.976916,
+            "p95": 1.114,
+            "p99": 1.155833,
+            "max": 1.291042,
+            "mean": 0.98596
+          },
+          "acquire_miss_ms": {
+            "n": 0
+          },
+          "acquire_all_ms": {
+            "n": 400,
+            "min": 0.080375,
+            "p50": 0.09775,
+            "p95": 0.114,
+            "p99": 0.118583,
+            "max": 0.143458,
+            "mean": 0.097243
+          },
+          "hits": 400,
+          "misses": 0,
+          "replenish_ms": {
+            "n": 400,
+            "min": 0.154334,
+            "p50": 0.181166,
+            "p95": 0.21175,
+            "p99": 0.230625,
+            "max": 0.39,
+            "mean": 0.18224
+          },
+          "rollback_caller_ms": {
+            "n": 400,
+            "min": 0.068792,
+            "p50": 0.079,
+            "p95": 0.096459,
+            "p99": 0.09975,
+            "max": 0.102292,
+            "mean": 0.080505
+          },
+          "rollback_detach_ms": {
+            "n": 400,
+            "min": 0.06625,
+            "p50": 0.076208,
+            "p95": 0.09375,
+            "p99": 0.097166,
+            "max": 0.099583,
+            "mean": 0.077633
+          },
+          "rollback_while_refill_in_flight": 0,
+          "background_reaper": {
+            "reap_ms": {
+              "n": 400,
+              "min": 0.554833,
+              "p50": 0.616083,
+              "p95": 0.692125,
+              "p99": 0.717667,
+              "max": 0.856916,
+              "mean": 0.621163
+            },
+            "queue_wait_ms": {
+              "n": 400,
+              "min": 0.00225,
+              "p50": 0.003125,
+              "p95": 0.004292,
+              "p99": 0.006708,
+              "max": 0.007209,
+              "mean": 0.003214
+            },
+            "failed": 0,
+            "records_missing": 0
+          },
+          "acquire_after_commit": {
+            "acquire_ms": {
+              "n": 400,
+              "min": 0.2595,
+              "p50": 0.486,
+              "p95": 0.659458,
+              "p99": 0.825125,
+              "max": 3.656917,
+              "mean": 0.498375
+            },
+            "sources": {
+              "pool_ready": 0,
+              "pool_after_waiting_for_refill": 356,
+              "cold": 44
+            },
+            "stale_discarded": 44,
+            "waited_for_refill_ms": {
+              "n": 356,
+              "min": 0.292667,
+              "p50": 0.375167,
+              "p95": 0.539416,
+              "p99": 0.688166,
+              "max": 3.546542,
+              "mean": 0.399831
+            }
+          },
+          "collisions": {
+            "rollback_right_after_acquire_ms": {
+              "n": 200,
+              "min": 0.097667,
+              "p50": 0.189833,
+              "p95": 0.371417,
+              "p99": 0.425917,
+              "max": 0.54925,
+              "mean": 0.207974
+            },
+            "commit_right_after_acquire_ms": {
+              "n": 200,
+              "min": 0.442334,
+              "p50": 0.543333,
+              "p95": 0.785875,
+              "p99": 1.030375,
+              "max": 1.292833,
+              "mean": 0.571086
+            }
+          },
+          "counters": {
+            "hits": 1561,
+            "misses": 44,
+            "stale_discards": 410,
+            "replenished": 1972,
+            "replenish_races": 189,
+            "replenish_failures": 0,
+            "fs_events": 417,
+            "fs_events_ignored": 1002,
+            "invalidations": 1010,
+            "watching_fs_events": true,
+            "last_error": null
+          }
+        },
+        "reaper": {
+          "reaped": 2606,
+          "failed": 0,
+          "queued_at_end": 0,
+          "background": true,
+          "last_error": null
+        },
+        "store_after_pool_drop": {
+          "leftover_entries": {
+            "branches": 0,
+            "standby": 0,
+            "trash": 0
+          },
+          "clean": true,
+          "versions_kept": 4,
+          "retained_versions": 4
+        },
+        "integrity": {
+          "method": "SHA-256 of every live file compared with the expected tree (original files plus the last committed agent file) after each phase",
+          "phases": [
+            {
+              "phase": "kernel_clonefile",
+              "ok": true,
+              "live_sha256": "23d8fddf1e6acc2431131b0ab404e6dd0d0a66aab8625920c50fc400c4aa7fe5"
+            },
+            {
+              "phase": "cold_branch_background_rollback",
+              "ok": true,
+              "live_sha256": "23d8fddf1e6acc2431131b0ab404e6dd0d0a66aab8625920c50fc400c4aa7fe5"
+            },
+            {
+              "phase": "synchronous_rollback",
+              "ok": true,
+              "live_sha256": "23d8fddf1e6acc2431131b0ab404e6dd0d0a66aab8625920c50fc400c4aa7fe5"
+            },
+            {
+              "phase": "pool_acquire_and_rollback",
+              "ok": true,
+              "live_sha256": "23d8fddf1e6acc2431131b0ab404e6dd0d0a66aab8625920c50fc400c4aa7fe5"
+            },
+            {
+              "phase": "commit_then_acquire",
+              "ok": true,
+              "live_sha256": "f7ba1e0b5e4561ea771b1993e3627db558829cb7b7619c05793508510cec6443"
+            },
+            {
+              "phase": "collision_cases",
+              "ok": true,
+              "live_sha256": "f1a1adae91e9765128eac3a5187289263fd5674acbfadfda6b410d753cf1b97f"
+            },
+            {
+              "phase": "after_pool_drop",
+              "ok": true,
+              "live_sha256": "f1a1adae91e9765128eac3a5187289263fd5674acbfadfda6b410d753cf1b97f"
+            }
+          ],
+          "checks": 7,
+          "passed": 7,
+          "all_ok": true
         },
         "live_tree_unchanged_after_rollback": true
       },
@@ -101,59 +470,373 @@
         "entries": 138,
         "bytes": 1128190,
         "iterations": 300,
+        "collision_iterations": 150,
         "clonefile_ms": {
           "n": 300,
-          "min": 0.862583,
-          "p50": 1.116458,
-          "p95": 1.512333,
-          "p99": 1.878791,
-          "max": 8.380542,
-          "mean": 1.195528
+          "min": 0.863667,
+          "p50": 1.00575,
+          "p95": 1.140875,
+          "p99": 1.296625,
+          "max": 2.360875,
+          "mean": 1.01924
         },
         "branch_total_ms": {
           "n": 300,
-          "min": 0.891709,
-          "p50": 1.15875,
-          "p95": 1.5525,
-          "p99": 1.918166,
-          "max": 8.416125,
-          "mean": 1.235346
+          "min": 0.896791,
+          "p50": 1.048416,
+          "p95": 1.183625,
+          "p99": 1.340625,
+          "max": 2.404708,
+          "mean": 1.062168
+        },
+        "kernel_clonefile": {
+          "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
+          "iterations": 300,
+          "wall_us": {
+            "n": 300,
+            "min": 854.458,
+            "p50": 1050.875,
+            "p95": 1416.0,
+            "p99": 1903.208,
+            "max": 3021.458,
+            "mean": 1098.03421
+          },
+          "sys_us": {
+            "n": 300,
+            "min": 855.0,
+            "p50": 1050.0,
+            "p95": 1391.0,
+            "p99": 1666.0,
+            "max": 2157.0,
+            "mean": 1084.08
+          },
+          "user_us": {
+            "n": 300,
+            "min": 0.0,
+            "p50": 1.0,
+            "p95": 2.0,
+            "p99": 3.0,
+            "max": 4.0,
+            "mean": 1.016667
+          },
+          "sys_us_per_entry_p50": 7.608696,
+          "wall_us_per_entry_p50": 7.615036,
+          "sys_share_of_wall_p50": 0.999167,
+          "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 300,
-          "min": 0.1105,
-          "p50": 0.125333,
-          "p95": 0.144667,
-          "p99": 0.205833,
-          "max": 0.295875,
-          "mean": 0.128234
+          "min": 0.111917,
+          "p50": 0.128833,
+          "p95": 0.151417,
+          "p99": 0.200375,
+          "max": 0.451167,
+          "mean": 0.133051
         },
         "commit_total_ms": {
           "n": 300,
-          "min": 0.239875,
-          "p50": 0.288,
-          "p95": 0.3485,
-          "p99": 0.478084,
-          "max": 3.455167,
-          "mean": 0.302576
+          "min": 0.268875,
+          "p50": 0.3185,
+          "p95": 0.37925,
+          "p99": 0.518459,
+          "max": 0.819333,
+          "mean": 0.325153
         },
+        "commit_caller_ms": {
+          "n": 300,
+          "min": 0.315292,
+          "p50": 0.466833,
+          "p95": 0.559541,
+          "p99": 0.853334,
+          "max": 1.236375,
+          "mean": 0.476442
+        },
+        "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 300,
-          "min": 0.074666,
-          "p50": 0.089417,
+          "min": 0.074916,
+          "p50": 0.090875,
           "p95": 0.101417,
-          "p99": 0.112958,
-          "max": 0.228916,
-          "mean": 0.089317
+          "p99": 0.138458,
+          "max": 0.317042,
+          "mean": 0.091077
+        },
+        "rollback_caller_background_ms": {
+          "n": 300,
+          "min": 0.07675,
+          "p50": 0.092583,
+          "p95": 0.10325,
+          "p99": 0.140416,
+          "max": 0.321042,
+          "mean": 0.093012
+        },
+        "rollback_background_reaper": {
+          "reap_ms": {
+            "n": 300,
+            "min": 4.245333,
+            "p50": 4.791125,
+            "p95": 5.36825,
+            "p99": 6.353375,
+            "max": 7.432542,
+            "mean": 4.849617
+          },
+          "queue_wait_ms": {
+            "n": 300,
+            "min": 0.002583,
+            "p50": 0.00325,
+            "p95": 0.004208,
+            "p99": 0.005125,
+            "max": 0.006084,
+            "mean": 0.003318
+          },
+          "failed": 0,
+          "records_missing": 0
+        },
+        "rollback_sync_caller_ms": {
+          "n": 300,
+          "min": 4.209208,
+          "p50": 5.066125,
+          "p95": 5.552667,
+          "p99": 6.802791,
+          "max": 27.919166,
+          "mean": 5.184988
+        },
+        "rollback_sync_detach_ms": {
+          "n": 300,
+          "min": 0.075042,
+          "p50": 0.08975,
+          "p95": 0.099958,
+          "p99": 0.1175,
+          "max": 0.149959,
+          "mean": 0.089231
         },
         "rollback_reclaim_ms": {
           "n": 300,
-          "min": 4.560292,
-          "p50": 5.062375,
-          "p95": 5.560417,
-          "p99": 7.555792,
-          "max": 16.369542,
-          "mean": 5.17758
+          "min": 4.129333,
+          "p50": 4.978875,
+          "p95": 5.455875,
+          "p99": 6.716292,
+          "max": 27.837125,
+          "mean": 5.095074
+        },
+        "pool": {
+          "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
+          "config": {
+            "capacity": 1,
+            "max_standby_age_s": 30.0,
+            "watch_fs_events": true,
+            "replenish_delay_ms": 0.0
+          },
+          "acquire_hit_ms": {
+            "n": 300,
+            "min": 0.084417,
+            "p50": 0.105292,
+            "p95": 0.122625,
+            "p99": 0.134334,
+            "max": 0.445334,
+            "mean": 0.1061
+          },
+          "acquire_hit_rename_ms": {
+            "n": 300,
+            "min": 0.078709,
+            "p50": 0.095667,
+            "p95": 0.111333,
+            "p99": 0.117584,
+            "max": 0.397542,
+            "mean": 0.096529
+          },
+          "acquire_hit_standby_age_ms": {
+            "n": 300,
+            "min": 5.336709,
+            "p50": 6.433083,
+            "p95": 6.8785,
+            "p99": 7.2475,
+            "max": 9.176083,
+            "mean": 6.404938
+          },
+          "acquire_miss_ms": {
+            "n": 0
+          },
+          "acquire_all_ms": {
+            "n": 300,
+            "min": 0.084417,
+            "p50": 0.105292,
+            "p95": 0.122625,
+            "p99": 0.134334,
+            "max": 0.445334,
+            "mean": 0.1061
+          },
+          "hits": 300,
+          "misses": 0,
+          "replenish_ms": {
+            "n": 300,
+            "min": 0.857208,
+            "p50": 1.134833,
+            "p95": 1.351,
+            "p99": 1.524334,
+            "max": 1.601833,
+            "mean": 1.134759
+          },
+          "rollback_caller_ms": {
+            "n": 300,
+            "min": 0.072125,
+            "p50": 0.086875,
+            "p95": 0.1005,
+            "p99": 0.109166,
+            "max": 0.148125,
+            "mean": 0.087201
+          },
+          "rollback_detach_ms": {
+            "n": 300,
+            "min": 0.06925,
+            "p50": 0.083833,
+            "p95": 0.097167,
+            "p99": 0.105958,
+            "max": 0.139584,
+            "mean": 0.084085
+          },
+          "rollback_while_refill_in_flight": 0,
+          "background_reaper": {
+            "reap_ms": {
+              "n": 300,
+              "min": 4.268833,
+              "p50": 5.095833,
+              "p95": 5.412334,
+              "p99": 5.88725,
+              "max": 8.101709,
+              "mean": 5.075497
+            },
+            "queue_wait_ms": {
+              "n": 300,
+              "min": 0.002542,
+              "p50": 0.003375,
+              "p95": 0.004792,
+              "p99": 0.006917,
+              "max": 0.010583,
+              "mean": 0.003541
+            },
+            "failed": 0,
+            "records_missing": 0
+          },
+          "acquire_after_commit": {
+            "acquire_ms": {
+              "n": 300,
+              "min": 1.135833,
+              "p50": 1.765167,
+              "p95": 2.5285,
+              "p99": 2.921292,
+              "max": 3.249042,
+              "mean": 1.834504
+            },
+            "sources": {
+              "pool_ready": 0,
+              "pool_after_waiting_for_refill": 151,
+              "cold": 149
+            },
+            "stale_discarded": 149,
+            "waited_for_refill_ms": {
+              "n": 151,
+              "min": 1.3205,
+              "p50": 1.751209,
+              "p95": 2.528917,
+              "p99": 3.054458,
+              "max": 3.125875,
+              "mean": 1.828666
+            }
+          },
+          "collisions": {
+            "rollback_right_after_acquire_ms": {
+              "n": 150,
+              "min": 0.101792,
+              "p50": 1.286417,
+              "p95": 2.522208,
+              "p99": 2.895959,
+              "max": 2.975708,
+              "mean": 1.446251
+            },
+            "commit_right_after_acquire_ms": {
+              "n": 150,
+              "min": 0.47225,
+              "p50": 1.604708,
+              "p95": 2.626416,
+              "p99": 3.099375,
+              "max": 3.624542,
+              "mean": 1.71331
+            }
+          },
+          "counters": {
+            "hits": 1056,
+            "misses": 149,
+            "stale_discards": 351,
+            "replenished": 1408,
+            "replenish_races": 98,
+            "replenish_failures": 0,
+            "fs_events": 350,
+            "fs_events_ignored": 1525,
+            "invalidations": 800,
+            "watching_fs_events": true,
+            "last_error": null
+          }
+        },
+        "reaper": {
+          "reaped": 1956,
+          "failed": 0,
+          "queued_at_end": 0,
+          "background": true,
+          "last_error": null
+        },
+        "store_after_pool_drop": {
+          "leftover_entries": {
+            "branches": 0,
+            "standby": 0,
+            "trash": 0
+          },
+          "clean": true,
+          "versions_kept": 4,
+          "retained_versions": 4
+        },
+        "integrity": {
+          "method": "SHA-256 of every live file compared with the expected tree (original files plus the last committed agent file) after each phase",
+          "phases": [
+            {
+              "phase": "kernel_clonefile",
+              "ok": true,
+              "live_sha256": "7e4f4686cfe5c0214310c5e0136abae70dfaee75352bd2a5a957c753bcfc22a5"
+            },
+            {
+              "phase": "cold_branch_background_rollback",
+              "ok": true,
+              "live_sha256": "7e4f4686cfe5c0214310c5e0136abae70dfaee75352bd2a5a957c753bcfc22a5"
+            },
+            {
+              "phase": "synchronous_rollback",
+              "ok": true,
+              "live_sha256": "7e4f4686cfe5c0214310c5e0136abae70dfaee75352bd2a5a957c753bcfc22a5"
+            },
+            {
+              "phase": "pool_acquire_and_rollback",
+              "ok": true,
+              "live_sha256": "7e4f4686cfe5c0214310c5e0136abae70dfaee75352bd2a5a957c753bcfc22a5"
+            },
+            {
+              "phase": "commit_then_acquire",
+              "ok": true,
+              "live_sha256": "2ed6278a584030795cc81b7b58708dbec920670cb4999b1548c71164baad1080"
+            },
+            {
+              "phase": "collision_cases",
+              "ok": true,
+              "live_sha256": "0d07d3767c6778a8bf61db6f51efcd4e3369dd59e7044b96df34ec4c3802853e"
+            },
+            {
+              "phase": "after_pool_drop",
+              "ok": true,
+              "live_sha256": "0d07d3767c6778a8bf61db6f51efcd4e3369dd59e7044b96df34ec4c3802853e"
+            }
+          ],
+          "checks": 7,
+          "passed": 7,
+          "all_ok": true
         },
         "live_tree_unchanged_after_rollback": true
       },
@@ -164,358 +847,1761 @@
         "entries": 1058,
         "bytes": 8975511,
         "iterations": 60,
+        "collision_iterations": 30,
         "clonefile_ms": {
           "n": 60,
-          "min": 7.088583,
-          "p50": 10.319041,
-          "p95": 12.125083,
-          "p99": 13.862708,
-          "max": 13.862708,
-          "mean": 10.195816
+          "min": 6.621458,
+          "p50": 10.369625,
+          "p95": 12.651417,
+          "p99": 14.193458,
+          "max": 14.193458,
+          "mean": 10.344423
         },
         "branch_total_ms": {
           "n": 60,
-          "min": 7.130625,
-          "p50": 10.389542,
-          "p95": 12.182167,
-          "p99": 13.921125,
-          "max": 13.921125,
-          "mean": 10.248731
+          "min": 6.667166,
+          "p50": 10.437416,
+          "p95": 12.702167,
+          "p99": 14.236584,
+          "max": 14.236584,
+          "mean": 10.405165
+        },
+        "kernel_clonefile": {
+          "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
+          "iterations": 60,
+          "wall_us": {
+            "n": 60,
+            "min": 6432.167,
+            "p50": 10141.709,
+            "p95": 12288.708,
+            "p99": 13025.125,
+            "max": 13025.125,
+            "mean": 10102.6049
+          },
+          "sys_us": {
+            "n": 60,
+            "min": 6432.0,
+            "p50": 10061.0,
+            "p95": 12012.0,
+            "p99": 12798.0,
+            "max": 12798.0,
+            "mean": 9935.7
+          },
+          "user_us": {
+            "n": 60,
+            "min": 1.0,
+            "p50": 2.0,
+            "p95": 3.0,
+            "p99": 5.0,
+            "max": 5.0,
+            "mean": 1.933333
+          },
+          "sys_us_per_entry_p50": 9.509452,
+          "wall_us_per_entry_p50": 9.585736,
+          "sys_share_of_wall_p50": 0.992042,
+          "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 60,
-          "min": 0.114917,
-          "p50": 0.131917,
-          "p95": 0.168666,
-          "p99": 0.291333,
-          "max": 0.291333,
-          "mean": 0.138307
+          "min": 0.131708,
+          "p50": 0.143333,
+          "p95": 0.169333,
+          "p99": 0.232917,
+          "max": 0.232917,
+          "mean": 0.148319
         },
         "commit_total_ms": {
           "n": 60,
-          "min": 0.246666,
-          "p50": 0.288291,
-          "p95": 0.345542,
-          "p99": 0.488208,
-          "max": 0.488208,
-          "mean": 0.297689
+          "min": 0.303416,
+          "p50": 0.338125,
+          "p95": 0.400209,
+          "p99": 0.6385,
+          "max": 0.6385,
+          "mean": 0.348977
         },
+        "commit_caller_ms": {
+          "n": 60,
+          "min": 0.368041,
+          "p50": 0.478792,
+          "p95": 0.569041,
+          "p99": 0.834958,
+          "max": 0.834958,
+          "mean": 0.488727
+        },
+        "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 60,
-          "min": 0.084041,
-          "p50": 0.112834,
-          "p95": 0.223375,
-          "p99": 0.244792,
-          "max": 0.244792,
-          "mean": 0.12631
+          "min": 0.084791,
+          "p50": 0.096459,
+          "p95": 0.121,
+          "p99": 0.192833,
+          "max": 0.192833,
+          "mean": 0.099669
+        },
+        "rollback_caller_background_ms": {
+          "n": 60,
+          "min": 0.088292,
+          "p50": 0.10025,
+          "p95": 0.127083,
+          "p99": 0.204375,
+          "max": 0.204375,
+          "mean": 0.103875
+        },
+        "rollback_background_reaper": {
+          "reap_ms": {
+            "n": 60,
+            "min": 34.167333,
+            "p50": 37.309875,
+            "p95": 42.4295,
+            "p99": 48.765583,
+            "max": 48.765583,
+            "mean": 38.17456
+          },
+          "queue_wait_ms": {
+            "n": 60,
+            "min": 0.00525,
+            "p50": 0.00675,
+            "p95": 0.009417,
+            "p99": 0.088209,
+            "max": 0.088209,
+            "mean": 0.008258
+          },
+          "failed": 0,
+          "records_missing": 0
+        },
+        "rollback_sync_caller_ms": {
+          "n": 60,
+          "min": 35.167041,
+          "p50": 40.321125,
+          "p95": 69.488125,
+          "p99": 118.629916,
+          "max": 118.629916,
+          "mean": 44.217713
+        },
+        "rollback_sync_detach_ms": {
+          "n": 60,
+          "min": 0.08275,
+          "p50": 0.101667,
+          "p95": 0.176542,
+          "p99": 0.291,
+          "max": 0.291,
+          "mean": 0.114115
         },
         "rollback_reclaim_ms": {
           "n": 60,
-          "min": 35.543792,
-          "p50": 39.805417,
-          "p95": 51.706166,
-          "p99": 75.990667,
-          "max": 75.990667,
-          "mean": 41.239681
+          "min": 35.080125,
+          "p50": 40.218042,
+          "p95": 69.374333,
+          "p99": 118.504208,
+          "max": 118.504208,
+          "mean": 44.100963
+        },
+        "pool": {
+          "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
+          "config": {
+            "capacity": 1,
+            "max_standby_age_s": 30.0,
+            "watch_fs_events": true,
+            "replenish_delay_ms": 0.0
+          },
+          "acquire_hit_ms": {
+            "n": 60,
+            "min": 0.107791,
+            "p50": 0.137542,
+            "p95": 0.31325,
+            "p99": 0.359125,
+            "max": 0.359125,
+            "mean": 0.15345
+          },
+          "acquire_hit_rename_ms": {
+            "n": 60,
+            "min": 0.093917,
+            "p50": 0.120667,
+            "p95": 0.152333,
+            "p99": 0.310875,
+            "max": 0.310875,
+            "mean": 0.129939
+          },
+          "acquire_hit_standby_age_ms": {
+            "n": 60,
+            "min": 39.928708,
+            "p50": 46.22625,
+            "p95": 69.95225,
+            "p99": 209.780625,
+            "max": 209.780625,
+            "mean": 52.369706
+          },
+          "acquire_miss_ms": {
+            "n": 0
+          },
+          "acquire_all_ms": {
+            "n": 60,
+            "min": 0.107791,
+            "p50": 0.137542,
+            "p95": 0.31325,
+            "p99": 0.359125,
+            "max": 0.359125,
+            "mean": 0.15345
+          },
+          "hits": 60,
+          "misses": 0,
+          "replenish_ms": {
+            "n": 60,
+            "min": 7.081708,
+            "p50": 8.609375,
+            "p95": 10.63,
+            "p99": 18.934458,
+            "max": 18.934458,
+            "mean": 8.935251
+          },
+          "rollback_caller_ms": {
+            "n": 60,
+            "min": 0.08625,
+            "p50": 0.100417,
+            "p95": 0.250291,
+            "p99": 1.764917,
+            "max": 1.764917,
+            "mean": 0.149714
+          },
+          "rollback_detach_ms": {
+            "n": 60,
+            "min": 0.082583,
+            "p50": 0.095375,
+            "p95": 0.194208,
+            "p99": 1.4755,
+            "max": 1.4755,
+            "mean": 0.136058
+          },
+          "rollback_while_refill_in_flight": 0,
+          "background_reaper": {
+            "reap_ms": {
+              "n": 60,
+              "min": 35.868208,
+              "p50": 37.644125,
+              "p95": 60.218125,
+              "p99": 188.733875,
+              "max": 188.733875,
+              "mean": 43.19899
+            },
+            "queue_wait_ms": {
+              "n": 60,
+              "min": 0.00375,
+              "p50": 0.006209,
+              "p95": 0.016583,
+              "p99": 0.102208,
+              "max": 0.102208,
+              "mean": 0.008527
+            },
+            "failed": 0,
+            "records_missing": 0
+          },
+          "acquire_after_commit": {
+            "acquire_ms": {
+              "n": 60,
+              "min": 8.050375,
+              "p50": 12.428375,
+              "p95": 14.435959,
+              "p99": 15.208791,
+              "max": 15.208791,
+              "mean": 12.378464
+            },
+            "sources": {
+              "pool_ready": 0,
+              "pool_after_waiting_for_refill": 59,
+              "cold": 1
+            },
+            "stale_discarded": 1,
+            "waited_for_refill_ms": {
+              "n": 59,
+              "min": 9.624125,
+              "p50": 12.306375,
+              "p95": 14.300625,
+              "p99": 15.087875,
+              "max": 15.087875,
+              "mean": 12.299587
+            }
+          },
+          "collisions": {
+            "rollback_right_after_acquire_ms": {
+              "n": 30,
+              "min": 0.39,
+              "p50": 9.377291,
+              "p95": 11.453916,
+              "p99": 11.848042,
+              "max": 11.848042,
+              "mean": 9.298563
+            },
+            "commit_right_after_acquire_ms": {
+              "n": 30,
+              "min": 7.63775,
+              "p50": 9.4565,
+              "p95": 10.795708,
+              "p99": 11.272334,
+              "max": 11.272334,
+              "mean": 9.360669
+            }
+          },
+          "counters": {
+            "hits": 244,
+            "misses": 1,
+            "stale_discards": 60,
+            "replenished": 305,
+            "replenish_races": 30,
+            "replenish_failures": 0,
+            "fs_events": 60,
+            "fs_events_ignored": 455,
+            "invalidations": 150,
+            "watching_fs_events": true,
+            "last_error": null
+          }
+        },
+        "reaper": {
+          "reaped": 397,
+          "failed": 0,
+          "queued_at_end": 0,
+          "background": true,
+          "last_error": null
+        },
+        "store_after_pool_drop": {
+          "leftover_entries": {
+            "branches": 0,
+            "standby": 0,
+            "trash": 0
+          },
+          "clean": true,
+          "versions_kept": 4,
+          "retained_versions": 4
+        },
+        "integrity": {
+          "method": "SHA-256 of every live file compared with the expected tree (original files plus the last committed agent file) after each phase",
+          "phases": [
+            {
+              "phase": "kernel_clonefile",
+              "ok": true,
+              "live_sha256": "f181eee1317f286f345d8161bdf952544afb90df166a4d8b8c2b0f2f5f3efe14"
+            },
+            {
+              "phase": "cold_branch_background_rollback",
+              "ok": true,
+              "live_sha256": "f181eee1317f286f345d8161bdf952544afb90df166a4d8b8c2b0f2f5f3efe14"
+            },
+            {
+              "phase": "synchronous_rollback",
+              "ok": true,
+              "live_sha256": "f181eee1317f286f345d8161bdf952544afb90df166a4d8b8c2b0f2f5f3efe14"
+            },
+            {
+              "phase": "pool_acquire_and_rollback",
+              "ok": true,
+              "live_sha256": "f181eee1317f286f345d8161bdf952544afb90df166a4d8b8c2b0f2f5f3efe14"
+            },
+            {
+              "phase": "commit_then_acquire",
+              "ok": true,
+              "live_sha256": "740fca4bb4b4ec4627559ac3f3e298feaff45eb96ba35e57f1048d12c762497e"
+            },
+            {
+              "phase": "collision_cases",
+              "ok": true,
+              "live_sha256": "4b168e83a6a50d0034a191a7a78633b773099b4f690e70fc91a4c2e0174edf1f"
+            },
+            {
+              "phase": "after_pool_drop",
+              "ok": true,
+              "live_sha256": "4b168e83a6a50d0034a191a7a78633b773099b4f690e70fc91a4c2e0174edf1f"
+            }
+          ],
+          "checks": 7,
+          "passed": 7,
+          "all_ok": true
         },
         "live_tree_unchanged_after_rollback": true
       },
       {
         "name": "aegisflow_src",
-        "files": 61,
-        "dirs": 40,
-        "entries": 101,
-        "bytes": 535073,
+        "files": 108,
+        "dirs": 51,
+        "entries": 159,
+        "bytes": 5509932,
         "iterations": 200,
+        "collision_iterations": 100,
         "clonefile_ms": {
           "n": 200,
-          "min": 0.711167,
-          "p50": 0.89675,
-          "p95": 1.754166,
-          "p99": 3.93975,
-          "max": 17.765292,
-          "mean": 1.099143
+          "min": 1.110333,
+          "p50": 1.363625,
+          "p95": 2.260667,
+          "p99": 2.616292,
+          "max": 2.764166,
+          "mean": 1.520945
         },
         "branch_total_ms": {
           "n": 200,
-          "min": 0.740833,
-          "p50": 0.936083,
-          "p95": 1.7895,
-          "p99": 3.973959,
-          "max": 17.799583,
-          "mean": 1.137966
+          "min": 1.146042,
+          "p50": 1.412375,
+          "p95": 2.3095,
+          "p99": 2.662625,
+          "max": 2.803792,
+          "mean": 1.566872
+        },
+        "kernel_clonefile": {
+          "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
+          "iterations": 200,
+          "wall_us": {
+            "n": 200,
+            "min": 1091.667,
+            "p50": 1373.375,
+            "p95": 2291.917,
+            "p99": 3462.667,
+            "max": 20176.125,
+            "mean": 1603.410865
+          },
+          "sys_us": {
+            "n": 200,
+            "min": 1091.0,
+            "p50": 1365.0,
+            "p95": 2106.0,
+            "p99": 2343.0,
+            "max": 2740.0,
+            "mean": 1446.73
+          },
+          "user_us": {
+            "n": 200,
+            "min": 0.0,
+            "p50": 1.0,
+            "p95": 3.0,
+            "p99": 5.0,
+            "max": 8.0,
+            "mean": 1.39
+          },
+          "sys_us_per_entry_p50": 8.584906,
+          "wall_us_per_entry_p50": 8.637579,
+          "sys_share_of_wall_p50": 0.993902,
+          "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 200,
-          "min": 0.109875,
-          "p50": 0.126792,
-          "p95": 0.150375,
-          "p99": 0.1795,
-          "max": 0.208791,
-          "mean": 0.12986
+          "min": 0.1125,
+          "p50": 0.133292,
+          "p95": 0.160417,
+          "p99": 0.259542,
+          "max": 0.386791,
+          "mean": 0.138291
         },
         "commit_total_ms": {
           "n": 200,
-          "min": 0.241583,
-          "p50": 0.288209,
-          "p95": 0.352916,
-          "p99": 0.400792,
-          "max": 0.441541,
-          "mean": 0.294723
+          "min": 0.264541,
+          "p50": 0.319041,
+          "p95": 0.432208,
+          "p99": 0.702208,
+          "max": 0.911792,
+          "mean": 0.338206
         },
+        "commit_caller_ms": {
+          "n": 200,
+          "min": 0.3525,
+          "p50": 0.463333,
+          "p95": 0.662667,
+          "p99": 0.927625,
+          "max": 1.133625,
+          "mean": 0.491379
+        },
+        "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 200,
-          "min": 0.077375,
-          "p50": 0.091334,
-          "p95": 0.109042,
-          "p99": 0.13125,
-          "max": 0.185791,
-          "mean": 0.092838
+          "min": 0.079458,
+          "p50": 0.093,
+          "p95": 0.111792,
+          "p99": 0.120375,
+          "max": 0.346708,
+          "mean": 0.094805
+        },
+        "rollback_caller_background_ms": {
+          "n": 200,
+          "min": 0.081708,
+          "p50": 0.095125,
+          "p95": 0.1145,
+          "p99": 0.126542,
+          "max": 0.352709,
+          "mean": 0.097103
+        },
+        "rollback_background_reaper": {
+          "reap_ms": {
+            "n": 200,
+            "min": 6.945833,
+            "p50": 7.71175,
+            "p95": 8.353083,
+            "p99": 9.410625,
+            "max": 21.487834,
+            "mean": 7.805775
+          },
+          "queue_wait_ms": {
+            "n": 200,
+            "min": 0.002708,
+            "p50": 0.003583,
+            "p95": 0.004833,
+            "p99": 0.007375,
+            "max": 0.008042,
+            "mean": 0.003764
+          },
+          "failed": 0,
+          "records_missing": 0
+        },
+        "rollback_sync_caller_ms": {
+          "n": 200,
+          "min": 7.105916,
+          "p50": 7.843708,
+          "p95": 9.224916,
+          "p99": 10.645084,
+          "max": 15.126458,
+          "mean": 8.001052
+        },
+        "rollback_sync_detach_ms": {
+          "n": 200,
+          "min": 0.079417,
+          "p50": 0.093958,
+          "p95": 0.112791,
+          "p99": 0.130917,
+          "max": 0.13525,
+          "mean": 0.094499
         },
         "rollback_reclaim_ms": {
           "n": 200,
-          "min": 4.728625,
-          "p50": 5.341375,
-          "p95": 9.330959,
-          "p99": 27.304375,
-          "max": 187.685541,
-          "mean": 6.964492
+          "min": 7.021625,
+          "p50": 7.7465,
+          "p95": 9.119083,
+          "p99": 10.55175,
+          "max": 14.993959,
+          "mean": 7.905638
+        },
+        "pool": {
+          "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
+          "config": {
+            "capacity": 1,
+            "max_standby_age_s": 30.0,
+            "watch_fs_events": true,
+            "replenish_delay_ms": 0.0
+          },
+          "acquire_hit_ms": {
+            "n": 200,
+            "min": 0.089625,
+            "p50": 0.114791,
+            "p95": 0.1645,
+            "p99": 0.375708,
+            "max": 0.58675,
+            "mean": 0.123911
+          },
+          "acquire_hit_rename_ms": {
+            "n": 200,
+            "min": 0.083417,
+            "p50": 0.103667,
+            "p95": 0.145667,
+            "p99": 0.26375,
+            "max": 0.461792,
+            "mean": 0.109736
+          },
+          "acquire_hit_standby_age_ms": {
+            "n": 200,
+            "min": 8.2125,
+            "p50": 9.712083,
+            "p95": 12.703125,
+            "p99": 27.310708,
+            "max": 70.576333,
+            "mean": 10.57176
+          },
+          "acquire_miss_ms": {
+            "n": 0
+          },
+          "acquire_all_ms": {
+            "n": 200,
+            "min": 0.089625,
+            "p50": 0.114791,
+            "p95": 0.1645,
+            "p99": 0.375708,
+            "max": 0.58675,
+            "mean": 0.123911
+          },
+          "hits": 200,
+          "misses": 0,
+          "replenish_ms": {
+            "n": 200,
+            "min": 1.101209,
+            "p50": 1.392542,
+            "p95": 2.467167,
+            "p99": 2.891042,
+            "max": 4.614,
+            "mean": 1.579237
+          },
+          "rollback_caller_ms": {
+            "n": 200,
+            "min": 0.077083,
+            "p50": 0.093375,
+            "p95": 0.136208,
+            "p99": 0.222792,
+            "max": 0.83875,
+            "mean": 0.101156
+          },
+          "rollback_detach_ms": {
+            "n": 200,
+            "min": 0.073834,
+            "p50": 0.089958,
+            "p95": 0.130833,
+            "p99": 0.217583,
+            "max": 0.823291,
+            "mean": 0.097223
+          },
+          "rollback_while_refill_in_flight": 0,
+          "background_reaper": {
+            "reap_ms": {
+              "n": 200,
+              "min": 6.92325,
+              "p50": 8.021583,
+              "p95": 10.031416,
+              "p99": 23.321042,
+              "max": 68.524917,
+              "mean": 8.768911
+            },
+            "queue_wait_ms": {
+              "n": 200,
+              "min": 0.002625,
+              "p50": 0.003875,
+              "p95": 0.012541,
+              "p99": 0.021167,
+              "max": 0.070708,
+              "mean": 0.005703
+            },
+            "failed": 0,
+            "records_missing": 0
+          },
+          "acquire_after_commit": {
+            "acquire_ms": {
+              "n": 200,
+              "min": 1.502125,
+              "p50": 2.217125,
+              "p95": 3.275417,
+              "p99": 3.83975,
+              "max": 7.160417,
+              "mean": 2.347606
+            },
+            "sources": {
+              "pool_ready": 0,
+              "pool_after_waiting_for_refill": 136,
+              "cold": 64
+            },
+            "stale_discarded": 64,
+            "waited_for_refill_ms": {
+              "n": 136,
+              "min": 1.563834,
+              "p50": 2.18425,
+              "p95": 3.202,
+              "p99": 4.247667,
+              "max": 6.879792,
+              "mean": 2.356112
+            }
+          },
+          "collisions": {
+            "rollback_right_after_acquire_ms": {
+              "n": 100,
+              "min": 1.145667,
+              "p50": 1.4365,
+              "p95": 2.496042,
+              "p99": 2.581417,
+              "max": 8.276792,
+              "mean": 1.631712
+            },
+            "commit_right_after_acquire_ms": {
+              "n": 100,
+              "min": 1.442292,
+              "p50": 1.699833,
+              "p95": 2.537125,
+              "p99": 2.679125,
+              "max": 2.701333,
+              "mean": 1.845721
+            }
+          },
+          "counters": {
+            "hits": 741,
+            "misses": 64,
+            "stale_discards": 222,
+            "replenished": 964,
+            "replenish_races": 78,
+            "replenish_failures": 0,
+            "fs_events": 222,
+            "fs_events_ignored": 1224,
+            "invalidations": 522,
+            "watching_fs_events": true,
+            "last_error": null
+          }
+        },
+        "reaper": {
+          "reaped": 1307,
+          "failed": 0,
+          "queued_at_end": 0,
+          "background": true,
+          "last_error": null
+        },
+        "store_after_pool_drop": {
+          "leftover_entries": {
+            "branches": 0,
+            "standby": 0,
+            "trash": 0
+          },
+          "clean": true,
+          "versions_kept": 4,
+          "retained_versions": 4
+        },
+        "integrity": {
+          "method": "SHA-256 of every live file compared with the expected tree (original files plus the last committed agent file) after each phase",
+          "phases": [
+            {
+              "phase": "kernel_clonefile",
+              "ok": true,
+              "live_sha256": "285ab2a3ebcaab5a593dcf249d04f37fb7208dba84d1087b8cdff8bddfb7052a"
+            },
+            {
+              "phase": "cold_branch_background_rollback",
+              "ok": true,
+              "live_sha256": "285ab2a3ebcaab5a593dcf249d04f37fb7208dba84d1087b8cdff8bddfb7052a"
+            },
+            {
+              "phase": "synchronous_rollback",
+              "ok": true,
+              "live_sha256": "285ab2a3ebcaab5a593dcf249d04f37fb7208dba84d1087b8cdff8bddfb7052a"
+            },
+            {
+              "phase": "pool_acquire_and_rollback",
+              "ok": true,
+              "live_sha256": "285ab2a3ebcaab5a593dcf249d04f37fb7208dba84d1087b8cdff8bddfb7052a"
+            },
+            {
+              "phase": "commit_then_acquire",
+              "ok": true,
+              "live_sha256": "5c58c8ce275e3d473e741580baa9b6ad4f7fc76e3c890752c5d7b5b30e3473d9"
+            },
+            {
+              "phase": "collision_cases",
+              "ok": true,
+              "live_sha256": "c056f2d7e825c82f9cc88bd9c86dacf2b1ca624c082d622d43d67628ac2bea74"
+            },
+            {
+              "phase": "after_pool_drop",
+              "ok": true,
+              "live_sha256": "c056f2d7e825c82f9cc88bd9c86dacf2b1ca624c082d622d43d67628ac2bea74"
+            }
+          ],
+          "checks": 7,
+          "passed": 7,
+          "all_ok": true
         },
         "live_tree_unchanged_after_rollback": true
       }
     ],
-    "clonefile_us_per_entry": 9.82025,
-    "clonefile_fixed_us": -89.281275
+    "clonefile_us_per_entry": 9.930519,
+    "clonefile_fixed_us": -167.369288,
+    "kernel_sys_us_per_entry_fit": 9.605376,
+    "kernel_sys_fixed_us_fit": -124.887396
   },
   "ane": {
     "model": "models/AegisWorkflowFP16.mlmodelc",
     "precision": "float16",
+    "layout": "window",
+    "window_len": 64,
+    "batch_size": 1,
     "feature_count": 64,
     "neural_engine_cores": 16,
+    "method": {
+      "call": "AneScorer::score_window on one full window per call (FFI + FP16 fill + CoreML prediction)",
+      "pattern": "back-to-back: per_round consecutive calls per unit, no gap between calls",
+      "interleaved": true,
+      "rounds": 40,
+      "per_round": 60,
+      "warmup_per_unit": 300,
+      "distinct_windows": 16
+    },
     "runs": {
       "cpu_and_neural_engine": {
-        "n": 3000,
-        "min": 0.023208,
-        "p50": 0.039458,
-        "p95": 0.048209,
-        "p99": 0.064083,
-        "max": 0.103625,
-        "mean": 0.039994
+        "n": 2400,
+        "min": 0.139,
+        "p50": 0.178542,
+        "p95": 0.195541,
+        "p99": 0.213459,
+        "max": 0.366125,
+        "mean": 0.177894
       },
       "cpu_only": {
-        "n": 3000,
-        "min": 0.022625,
-        "p50": 0.038916,
-        "p95": 0.048167,
-        "p99": 0.063833,
-        "max": 0.185916,
-        "mean": 0.038947
+        "n": 2400,
+        "min": 0.21275,
+        "p50": 0.219917,
+        "p95": 0.257959,
+        "p99": 0.331084,
+        "max": 1.447083,
+        "mean": 0.227105
       },
       "all": {
-        "n": 3000,
-        "min": 0.022292,
-        "p50": 0.03925,
-        "p95": 0.048292,
-        "p99": 0.063708,
-        "max": 0.109917,
-        "mean": 0.040158
+        "n": 2400,
+        "min": 0.138208,
+        "p50": 0.182583,
+        "p95": 0.200083,
+        "p99": 0.325875,
+        "max": 0.361292,
+        "mean": 0.185008
+      }
+    },
+    "speedup_cpu_only_over_ane_p50": 1.231738,
+    "isolated": {
+      "method": {
+        "call": "one AneScorer::score_window per gap, units cpuAndNeuralEngine and cpuOnly interleaved in rounds; the gap is outside the timed region",
+        "gap_ms": 3.0,
+        "busy_gap": "the calling thread spins for the gap (CPU busy, as during diff and feature extraction)",
+        "idle_gap": "the calling thread sleeps for the gap (CPU idle, as while a transaction waits on I/O or the pool)",
+        "rounds": 20,
+        "per_round": 20
+      },
+      "busy_gap": {
+        "speedup_cpu_only_over_ane_p50": 0.635977,
+        "runs": {
+          "cpu_and_neural_engine": {
+            "n": 400,
+            "min": 0.291292,
+            "p50": 0.3435,
+            "p95": 0.4345,
+            "p99": 0.551833,
+            "max": 2.08125,
+            "mean": 0.363694
+          },
+          "cpu_only": {
+            "n": 400,
+            "min": 0.210041,
+            "p50": 0.218458,
+            "p95": 0.339583,
+            "p99": 1.219458,
+            "max": 16.42175,
+            "mean": 0.295347
+          }
+        }
+      },
+      "idle_gap": {
+        "speedup_cpu_only_over_ane_p50": 1.773505,
+        "runs": {
+          "cpu_and_neural_engine": {
+            "n": 400,
+            "min": 0.354416,
+            "p50": 0.706041,
+            "p95": 1.069,
+            "p99": 1.937166,
+            "max": 13.32,
+            "mean": 0.771324
+          },
+          "cpu_only": {
+            "n": 400,
+            "min": 0.253625,
+            "p50": 1.252167,
+            "p95": 3.115417,
+            "p99": 7.776166,
+            "max": 35.6775,
+            "mean": 1.591538
+          }
+        }
       }
     },
     "compute_plan": {
       "compute_units": "cpuAndNeuralEngine",
-      "operations": 7,
-      "operations_total": 14,
+      "operations": 36,
+      "operations_total": 135,
       "preferred": {
-        "neural_engine": 0,
-        "cpu": 7,
+        "neural_engine": 36,
+        "cpu": 0,
         "gpu": 0
       },
+      "all_on_neural_engine": true,
       "ops": [
         {
-          "operator": "ios17.linear",
-          "preferred": "cpu",
-          "supported": [
-            "cpu",
-            "neural_engine"
-          ]
-        },
-        {
-          "operator": "ios16.relu",
-          "preferred": "cpu",
-          "supported": [
-            "cpu",
-            "neural_engine"
-          ]
-        },
-        {
-          "operator": "ios17.linear",
-          "preferred": "cpu",
-          "supported": [
-            "cpu",
-            "neural_engine"
-          ]
-        },
-        {
-          "operator": "ios16.relu",
-          "preferred": "cpu",
-          "supported": [
-            "cpu",
-            "neural_engine"
-          ]
-        },
-        {
-          "operator": "ios17.linear",
-          "preferred": "cpu",
-          "supported": [
-            "cpu",
-            "neural_engine"
-          ]
-        },
-        {
-          "operator": "ios16.sigmoid",
-          "preferred": "cpu",
-          "supported": [
-            "cpu",
-            "neural_engine"
-          ]
-        },
-        {
+          "index": 0,
           "operator": "ios17.mul",
-          "preferred": "cpu",
+          "preferred": "neural_engine",
           "supported": [
             "cpu",
             "neural_engine"
-          ]
+          ],
+          "estimated_cost": 0.0021810253777999294
+        },
+        {
+          "index": 1,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.012014148094169551
+        },
+        {
+          "index": 2,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 3,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.031752312805548
+        },
+        {
+          "index": 4,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 5,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02393516325737655
+        },
+        {
+          "index": 6,
+          "operator": "ios17.add",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.07414110879220388
+        },
+        {
+          "index": 7,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 8,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.031752312805548
+        },
+        {
+          "index": 9,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 10,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02393516325737655
+        },
+        {
+          "index": 11,
+          "operator": "ios17.add",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.07414110879220388
+        },
+        {
+          "index": 12,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 13,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.031752312805548
+        },
+        {
+          "index": 14,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 15,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02393516325737655
+        },
+        {
+          "index": 16,
+          "operator": "ios17.add",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.07414110879220388
+        },
+        {
+          "index": 17,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 18,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.031752312805548
+        },
+        {
+          "index": 19,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 20,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02393516325737655
+        },
+        {
+          "index": 21,
+          "operator": "ios17.add",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.07414110879220388
+        },
+        {
+          "index": 22,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 23,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.031752312805548
+        },
+        {
+          "index": 24,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 25,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02393516325737655
+        },
+        {
+          "index": 26,
+          "operator": "ios17.add",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.07414110879220388
+        },
+        {
+          "index": 27,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.02667636373202402
+        },
+        {
+          "index": 28,
+          "operator": "ios17.slice_by_index",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.018557762822636974
+        },
+        {
+          "index": 29,
+          "operator": "ios16.reduce_mean",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.018553999757897347
+        },
+        {
+          "index": 30,
+          "operator": "ios17.concat",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.0004168181833128753
+        },
+        {
+          "index": 31,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.005662979134255447
+        },
+        {
+          "index": 32,
+          "operator": "ios16.relu",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 0.000026051136457054703
+        },
+        {
+          "index": 33,
+          "operator": "ios17.conv",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 2.786048893698715e-6
+        },
+        {
+          "index": 34,
+          "operator": "ios16.sigmoid",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 5.574910725377606e-7
+        },
+        {
+          "index": 35,
+          "operator": "ios17.mul",
+          "preferred": "neural_engine",
+          "supported": [
+            "cpu",
+            "neural_engine"
+          ],
+          "estimated_cost": 9.466255980034414e-7
         }
-      ]
+      ],
+      "not_on_neural_engine": []
+    },
+    "compute_plan_all_units": {
+      "compute_units": "all",
+      "preferred": {
+        "neural_engine": 36,
+        "cpu": 0,
+        "gpu": 0
+      },
+      "operations": 36
+    },
+    "unit_agreement_max_abs_diff": {
+      "cpu_only_vs_ane": 0.3125,
+      "all_vs_ane": 0.0
     },
     "parity": {
-      "vectors": 256,
-      "max_abs_diff": 0.11548,
-      "mean_abs_diff": 0.028251,
-      "reference": "NumPy FP32 forward pass of the same weights (models/parity_vectors.json)"
+      "format": 2,
+      "tolerance_points": 1.0,
+      "reference": "reference_fp32 in models/parity_vectors.json: FP32 forward pass of the trained weights (PyTorch, per the model build)",
+      "vectors": 62,
+      "max_abs_diff": 0.32889,
+      "mean_abs_diff": 0.116299,
+      "single_events": {
+        "n": 62,
+        "max_abs_diff": 0.32889,
+        "mean_abs_diff": 0.116299,
+        "within_tolerance": 62
+      },
+      "windows": {
+        "n": 96,
+        "max_abs_diff": 0.30559,
+        "mean_abs_diff": 0.101354,
+        "within_tolerance": 96
+      },
+      "windows_cpu_only": {
+        "n": 96,
+        "max_abs_diff": 0.08592,
+        "mean_abs_diff": 0.022935,
+        "within_tolerance": 96
+      },
+      "windows_by_scenario": {
+        "benign_edit": {
+          "n": 16,
+          "max_abs_diff": 0.29456,
+          "mean_abs_diff": 0.124465
+        },
+        "build_break_loop": {
+          "n": 7,
+          "max_abs_diff": 0.29504,
+          "mean_abs_diff": 0.139544
+        },
+        "mass_delete": {
+          "n": 8,
+          "max_abs_diff": 0.265683,
+          "mean_abs_diff": 0.108315
+        },
+        "mixed": {
+          "n": 12,
+          "max_abs_diff": 0.22292,
+          "mean_abs_diff": 0.082869
+        },
+        "procurement": {
+          "n": 28,
+          "max_abs_diff": 0.259885,
+          "mean_abs_diff": 0.059403
+        },
+        "refactor": {
+          "n": 18,
+          "max_abs_diff": 0.30559,
+          "mean_abs_diff": 0.137976
+        },
+        "secret_leak": {
+          "n": 7,
+          "max_abs_diff": 0.24856,
+          "mean_abs_diff": 0.107704
+        }
+      },
+      "windows_vs_build_time_coreml_max_abs_diff": 5e-6
     },
     "batch": {
       "model": "models/AegisWorkflowFP16Batch.mlmodelc",
-      "batch_size": 16384,
+      "layout": "window_batch",
+      "batch_size": 32,
       "compute_plan": {
         "compute_units": "cpuAndNeuralEngine",
-        "operations": 7,
-        "operations_total": 29,
+        "operations": 36,
+        "operations_total": 135,
         "preferred": {
-          "neural_engine": 7,
+          "neural_engine": 36,
           "cpu": 0,
           "gpu": 0
         },
+        "all_on_neural_engine": true,
         "ops": [
           {
-            "operator": "ios17.conv",
-            "preferred": "neural_engine",
-            "supported": [
-              "cpu",
-              "neural_engine"
-            ]
-          },
-          {
-            "operator": "ios16.relu",
-            "preferred": "neural_engine",
-            "supported": [
-              "cpu",
-              "neural_engine"
-            ]
-          },
-          {
-            "operator": "ios17.conv",
-            "preferred": "neural_engine",
-            "supported": [
-              "cpu",
-              "neural_engine"
-            ]
-          },
-          {
-            "operator": "ios16.relu",
-            "preferred": "neural_engine",
-            "supported": [
-              "cpu",
-              "neural_engine"
-            ]
-          },
-          {
-            "operator": "ios17.conv",
-            "preferred": "neural_engine",
-            "supported": [
-              "cpu",
-              "neural_engine"
-            ]
-          },
-          {
-            "operator": "ios16.sigmoid",
-            "preferred": "neural_engine",
-            "supported": [
-              "cpu",
-              "neural_engine"
-            ]
-          },
-          {
+            "index": 0,
             "operator": "ios17.mul",
             "preferred": "neural_engine",
             "supported": [
               "cpu",
               "neural_engine"
-            ]
+            ],
+            "estimated_cost": 0.0019570860382095295
+          },
+          {
+            "index": 1,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.012080962749906946
+          },
+          {
+            "index": 2,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 3,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.03192889793104669
+          },
+          {
+            "index": 4,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 5,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.02406827462578361
+          },
+          {
+            "index": 6,
+            "operator": "ios17.add",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.07455343204817773
+          },
+          {
+            "index": 7,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 8,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.03192889793104669
+          },
+          {
+            "index": 9,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 10,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.02406827462578361
+          },
+          {
+            "index": 11,
+            "operator": "ios17.add",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.07455343204817773
+          },
+          {
+            "index": 12,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 13,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.03192889793104669
+          },
+          {
+            "index": 14,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 15,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.02406827462578361
+          },
+          {
+            "index": 16,
+            "operator": "ios17.add",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.07455343204817773
+          },
+          {
+            "index": 17,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 18,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.03192889793104669
+          },
+          {
+            "index": 19,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 20,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.02406827462578361
+          },
+          {
+            "index": 21,
+            "operator": "ios17.add",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.07455343204817773
+          },
+          {
+            "index": 22,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 23,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.03192889793104669
+          },
+          {
+            "index": 24,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 25,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.02406827462578361
+          },
+          {
+            "index": 26,
+            "operator": "ios17.add",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.07455343204817773
+          },
+          {
+            "index": 27,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.026824719823950818
+          },
+          {
+            "index": 28,
+            "operator": "ios17.slice_by_index",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.01865662410278063
+          },
+          {
+            "index": 29,
+            "operator": "ios16.reduce_mean",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.018656505853018483
+          },
+          {
+            "index": 30,
+            "operator": "ios17.concat",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.0004191362472492314
+          },
+          {
+            "index": 31,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.00037469495205281583
+          },
+          {
+            "index": 32,
+            "operator": "ios16.relu",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 0.000026196015453076967
+          },
+          {
+            "index": 33,
+            "operator": "ios17.conv",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 2.8015430341272292e-6
+          },
+          {
+            "index": 34,
+            "operator": "ios16.sigmoid",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 5.605914649914177e-7
+          },
+          {
+            "index": 35,
+            "operator": "ios17.mul",
+            "preferred": "neural_engine",
+            "supported": [
+              "cpu",
+              "neural_engine"
+            ],
+            "estimated_cost": 4.908183309590412e-7
           }
-        ]
+        ],
+        "not_on_neural_engine": []
+      },
+      "method": {
+        "interleaved": true,
+        "rounds": 20,
+        "per_round": 10,
+        "warmup_per_unit": 20
       },
       "runs": {
         "cpu_and_neural_engine": {
           "batch_ms": {
-            "n": 40,
-            "min": 4.80275,
-            "p50": 4.871167,
-            "p95": 4.923916,
-            "p99": 4.962083,
-            "max": 4.962083,
-            "mean": 4.87421
+            "n": 200,
+            "min": 1.460584,
+            "p50": 1.649416,
+            "p95": 2.774791,
+            "p99": 4.072416,
+            "max": 8.558291,
+            "mean": 1.893617
           },
-          "amortized_us_per_operation_p50": 0.297312
+          "amortized_us_per_window_p50": 51.54425
         },
         "cpu_only": {
           "batch_ms": {
-            "n": 40,
-            "min": 4.335125,
-            "p50": 4.514916,
-            "p95": 4.571625,
-            "p99": 8.153125,
-            "max": 8.153125,
-            "mean": 4.598551
+            "n": 200,
+            "min": 5.200541,
+            "p50": 5.381167,
+            "p95": 10.688375,
+            "p99": 20.948875,
+            "max": 75.323458,
+            "mean": 6.559814
           },
-          "amortized_us_per_operation_p50": 0.275569
+          "amortized_us_per_window_p50": 168.161469
         }
       },
-      "parity_max_abs_diff": 0.34484
+      "speedup_cpu_only_over_ane_p50": 3.262468,
+      "parity_max_abs_diff": 0.30559,
+      "parity_windows": {
+        "n": 96,
+        "max_abs_diff": 0.30559,
+        "mean_abs_diff": 0.101354,
+        "within_tolerance": 96
+      },
+      "parity_single_events": {
+        "n": 62,
+        "max_abs_diff": 0.32889,
+        "mean_abs_diff": 0.116299,
+        "within_tolerance": 62
+      }
     },
-    "placement_note": "MLComputePlan (.cpuAndNeuralEngine) placed online-model ops as ANE 0 / CPU 7 / GPU 0 of 7; batch model (16384 operations per prediction) as ANE 7 / CPU 0 / GPU 0 of 7."
+    "feature_count_expected": 64,
+    "placement_note": "MLComputePlan (.cpuAndNeuralEngine) placed the online window model (window layout, 64 events x 64 features) as ANE 36 / CPU 0 / GPU 0 of 36 dispatched ops (135 including constants); the batch model (32 windows per prediction) as ANE 36 / CPU 0 / GPU 0 of 36."
   },
   "cedar": {
     "policies": 5,
     "schema_validated": true,
     "is_authorized_us": {
       "n": 20000,
-      "min": 3.584,
-      "p50": 4.291,
-      "p95": 4.917,
-      "p99": 6.167,
-      "max": 133.416,
-      "mean": 4.325143
+      "min": 3.667,
+      "p50": 4.542,
+      "p95": 7.084,
+      "p99": 35.25,
+      "max": 1631.167,
+      "mean": 6.26122
     },
     "build_request_and_authorize_us": {
       "n": 20000,
-      "min": 6.875,
-      "p50": 7.667,
-      "p95": 8.25,
-      "p99": 10.625,
-      "max": 72.167,
-      "mean": 7.740189
+      "min": 6.833,
+      "p50": 7.792,
+      "p95": 10.708,
+      "p99": 39.917,
+      "max": 7419.125,
+      "mean": 11.187854
     },
     "decision_matrix": [
       {
@@ -601,101 +2687,310 @@
   "end_to_end": {
     "fixture_files": 131,
     "iterations": 200,
+    "branching": "WarmBranchPool::acquire (capacity 1, FSEvents watch) with replenish delay = 2 x measured cold clone p50; pool settled between transactions",
+    "replenish_delay_ms": 2.10475,
+    "scoring": "AneScorer::score_window over one ContextWindow per agent session (risky agent, docs agent)",
+    "window_len": 64,
     "rollback_path_ms": {
       "n": 200,
-      "min": 7.0375,
-      "p50": 9.035375,
-      "p95": 10.716042,
-      "p99": 11.880458,
-      "max": 12.582541,
-      "mean": 9.09431
+      "min": 2.46325,
+      "p50": 4.178375,
+      "p95": 11.574,
+      "p99": 25.707709,
+      "max": 143.948125,
+      "mean": 6.261974
     },
     "commit_path_ms": {
       "n": 200,
-      "min": 3.415792,
-      "p50": 9.273583,
-      "p95": 10.119208,
-      "p99": 10.425417,
-      "max": 10.502542,
-      "mean": 9.073537
+      "min": 2.864334,
+      "p50": 4.339583,
+      "p95": 6.30025,
+      "p99": 14.056417,
+      "max": 68.25825,
+      "mean": 4.997171
     },
     "stage_p50_us": {
-      "branch": 1202.75,
-      "agent_edit": 144.708,
-      "diff": 2401.167,
-      "features": 4.708,
-      "ane_score": 40.25,
-      "cedar": 17.625,
-      "rollback": 4998.5
+      "branch": 126.417,
+      "agent_edit": 197.583,
+      "diff": 3007.708,
+      "features": 21.5,
+      "ane_score": 482.708,
+      "cedar": 51.708,
+      "rollback": 154.417
+    },
+    "commit_stage_p50_us": {
+      "branch": 120.833,
+      "agent_edit": 205.917,
+      "diff": 2817.333,
+      "features": 10.417,
+      "ane_score": 446.75,
+      "cedar": 45.708,
+      "commit": 648.958
+    },
+    "stage_us": {
+      "branch": {
+        "n": 200,
+        "min": 87.542,
+        "p50": 126.417,
+        "p95": 343.208,
+        "p99": 588.667,
+        "max": 5765.75,
+        "mean": 183.29563
+      },
+      "agent_edit": {
+        "n": 200,
+        "min": 119.792,
+        "p50": 197.583,
+        "p95": 815.708,
+        "p99": 1303.209,
+        "max": 2413.417,
+        "mean": 302.5625
+      },
+      "diff": {
+        "n": 200,
+        "min": 1761.416,
+        "p50": 3007.708,
+        "p95": 8980.541,
+        "p99": 23393.166,
+        "max": 137552.75,
+        "mean": 4579.95814
+      },
+      "features": {
+        "n": 200,
+        "min": 4.5,
+        "p50": 21.5,
+        "p95": 45.875,
+        "p99": 100.792,
+        "max": 1717.625,
+        "mean": 30.441425
+      },
+      "ane_score": {
+        "n": 200,
+        "min": 331.167,
+        "p50": 482.708,
+        "p95": 903.542,
+        "p99": 2897.417,
+        "max": 4557.666,
+        "mean": 590.895875
+      },
+      "cedar": {
+        "n": 200,
+        "min": 11.708,
+        "p50": 51.708,
+        "p95": 129.375,
+        "p99": 830.25,
+        "max": 3074.083,
+        "mean": 84.514005
+      },
+      "rollback": {
+        "n": 200,
+        "min": 79.292,
+        "p50": 154.417,
+        "p95": 1701.792,
+        "p99": 2657.583,
+        "max": 3038.291,
+        "mean": 489.49504
+      }
+    },
+    "commit_stage_us": {
+      "branch": {
+        "n": 200,
+        "min": 93.25,
+        "p50": 120.833,
+        "p95": 168.084,
+        "p99": 369.834,
+        "max": 8006.791,
+        "mean": 168.249995
+      },
+      "agent_edit": {
+        "n": 200,
+        "min": 119.041,
+        "p50": 205.917,
+        "p95": 297.75,
+        "p99": 494.292,
+        "max": 15595.125,
+        "mean": 291.86269
+      },
+      "diff": {
+        "n": 200,
+        "min": 1736.25,
+        "p50": 2817.333,
+        "p95": 3605.666,
+        "p99": 9314.25,
+        "max": 10655.041,
+        "mean": 2890.67753
+      },
+      "features": {
+        "n": 200,
+        "min": 2.417,
+        "p50": 10.417,
+        "p95": 16.375,
+        "p99": 21.917,
+        "max": 63.125,
+        "mean": 10.493345
+      },
+      "ane_score": {
+        "n": 200,
+        "min": 341.125,
+        "p50": 446.75,
+        "p95": 595.292,
+        "p99": 3412.042,
+        "max": 14084.334,
+        "mean": 617.251885
+      },
+      "cedar": {
+        "n": 200,
+        "min": 12.833,
+        "p50": 45.708,
+        "p95": 68.125,
+        "p99": 109.916,
+        "max": 254.792,
+        "mean": 45.59354
+      },
+      "commit": {
+        "n": 200,
+        "min": 436.333,
+        "p50": 648.958,
+        "p95": 1759.417,
+        "p99": 3728.792,
+        "max": 19787.334,
+        "mean": 972.53627
+      }
+    },
+    "stage_method": "Instant laps around each stage of every transaction; ane_score is one AneScorer::score_window per transaction (after diff and features, pool settled before the transaction)",
+    "acquire_sources": {
+      "rollback_path": {
+        "pool_ready": 200,
+        "pool_after_waiting_for_refill": 0,
+        "cold": 0
+      },
+      "commit_path": {
+        "pool_ready": 200,
+        "pool_after_waiting_for_refill": 0,
+        "cold": 0
+      }
+    },
+    "pool_counters": {
+      "hits": 400,
+      "misses": 0,
+      "stale_discards": 23,
+      "fs_events": 21
     },
     "live_integrity_verified": true,
+    "commit_integrity_verified": true,
+    "integrity": {
+      "method": "SHA-256 of every live file compared with the expected tree (original files plus the last committed agent file) after each phase",
+      "phases": [
+        {
+          "phase": "e2e_rollback_path",
+          "ok": true,
+          "live_sha256": "3301ad1a307b7f899a4a097bc20c805224a5c3c523c350d9ed01fac7dc9e6dc7"
+        },
+        {
+          "phase": "e2e_commit_path",
+          "ok": true,
+          "live_sha256": "2c5ebd6cd55ef2b7fa61baa21068ef6807b646c3710b00f88864dd7ed08b42c9"
+        }
+      ],
+      "checks": 2,
+      "passed": 2,
+      "all_ok": true
+    },
     "rollback_case": {
       "denied": 200,
       "risk_score": {
         "n": 200,
-        "min": 99.875,
-        "p50": 99.875,
-        "p95": 99.875,
-        "p99": 99.875,
-        "max": 99.875,
-        "mean": 99.875
+        "min": 99.9375,
+        "p50": 100.0,
+        "p95": 100.0,
+        "p99": 100.0,
+        "max": 100.0,
+        "mean": 99.999375
+      },
+      "risk_score_without_history": {
+        "n": 200,
+        "min": 99.9375,
+        "p50": 99.9375,
+        "p95": 99.9375,
+        "p99": 99.9375,
+        "max": 99.9375,
+        "mean": 99.9375
       }
     },
     "commit_case": {
       "allowed": 200,
       "risk_score": {
         "n": 200,
-        "min": 1.142578,
-        "p50": 1.145508,
-        "p95": 1.145508,
-        "p99": 1.145508,
-        "max": 1.145508,
-        "mean": 1.145361
+        "min": 1.525391,
+        "p50": 1.59082,
+        "p95": 1.640625,
+        "p99": 1.662109,
+        "max": 1.710938,
+        "mean": 1.595034
+      },
+      "risk_score_without_history": {
+        "n": 200,
+        "min": 1.525391,
+        "p50": 1.525391,
+        "p95": 1.525391,
+        "p99": 1.525391,
+        "max": 1.525391,
+        "mean": 1.525391
       }
     }
   },
   "paypal_receipt": {
     "prepare_order_us": {
       "n": 2000,
-      "min": 105.417,
-      "p50": 116.458,
-      "p95": 121.959,
-      "p99": 130.75,
-      "max": 159.333,
-      "mean": 116.568569
+      "min": 224.083,
+      "p50": 279.416,
+      "p95": 409.334,
+      "p99": 613.125,
+      "max": 1596.958,
+      "mean": 295.621184
     },
     "redact_us": {
       "n": 2000,
-      "min": 10.791,
-      "p50": 14.542,
-      "p95": 14.875,
-      "p99": 15.208,
-      "max": 23.166,
-      "mean": 14.559056
+      "min": 11.209,
+      "p50": 17.583,
+      "p95": 24.208,
+      "p99": 56.083,
+      "max": 186.084,
+      "mean": 19.089332
     },
+    "score_us": {
+      "n": 2000,
+      "min": 135.125,
+      "p50": 165.209,
+      "p95": 234.042,
+      "p99": 321.125,
+      "max": 1420.167,
+      "mean": 173.987689
+    },
+    "scoring": "PayPalMiddleware::prepare scores each order with AneScorer::score (one event, no session history) on the online window model",
     "ed25519_sign_us": {
       "n": 2000,
-      "min": 18.708,
-      "p50": 19.042,
-      "p95": 21.75,
-      "p99": 30.0,
-      "max": 94.042,
-      "mean": 19.67428
+      "min": 17.875,
+      "p50": 19.25,
+      "p95": 26.292,
+      "p99": 53.833,
+      "max": 392.292,
+      "mean": 21.013833
     },
     "ed25519_verify_us": {
       "n": 2000,
-      "min": 39.042,
-      "p50": 39.458,
-      "p95": 45.792,
-      "p99": 60.625,
-      "max": 251.083,
-      "mean": 40.962193
+      "min": 39.083,
+      "p50": 42.041,
+      "p95": 81.833,
+      "p99": 138.417,
+      "max": 1169.583,
+      "mean": 47.042
     },
     "cases": [
       {
         "case": "$42.00 known payee",
         "amount_cents": 4200,
-        "risk_score": 11.875,
+        "risk_score": 11.921875,
         "decision": "Allow",
         "policies": [
           "permit-low-risk"
@@ -712,7 +3007,7 @@
       {
         "case": "$120.00 known payee",
         "amount_cents": 12000,
-        "risk_score": 28.3125,
+        "risk_score": 28.515625,
         "decision": "Allow",
         "policies": [
           "permit-low-risk"
@@ -729,7 +3024,7 @@
       {
         "case": "$480.00 new payee, high-risk country",
         "amount_cents": 48000,
-        "risk_score": 99.625,
+        "risk_score": 99.375,
         "decision": "Deny",
         "policies": [],
         "redactions": 0,
@@ -744,7 +3039,7 @@
       {
         "case": "$25.00 with redaction disabled",
         "amount_cents": 2500,
-        "risk_score": 80.25,
+        "risk_score": 81.625,
         "decision": "Deny",
         "policies": [],
         "redactions": 0,
@@ -765,15 +3060,16 @@
   "nebius_router": {
     "tier0_route_us": {
       "n": 5000,
-      "min": 33.875,
-      "p50": 42.416,
-      "p95": 50.875,
-      "p99": 68.667,
-      "max": 180.166,
-      "mean": 43.259334
+      "min": 134.583,
+      "p50": 171.917,
+      "p95": 215.708,
+      "p99": 319.083,
+      "max": 1068.334,
+      "mean": 179.333177
     },
+    "scoring": "tier 0 scores the failure with AneScorer::score (one event, no session history) on the online window model, then Cedar",
     "triage": {
-      "risk_score": 13.78125,
+      "risk_score": 12.5390625,
       "compile_errors": 2,
       "compile_warnings": 1,
       "start_tier": "NemotronSuper",
@@ -781,7 +3077,7 @@
       "determining_policies": [
         "permit-low-risk"
       ],
-      "elapsed_us": 38.75
+      "elapsed_us": 166.125
     },
     "live_calls": {
       "attempted": false,
@@ -790,37 +3086,37 @@
     "models": {
       "tier1": "nvidia/Llama-3_3-Nemotron-Super-49B-v1",
       "tier2": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
-      "base_url": "https://api.studio.nebius.ai/v1"
+      "base_url": "https://api.tokenfactory.nebius.com/v1"
     }
   },
   "mcp": {
     "tools": 9,
     "tools_call_roundtrip_us": {
       "n": 6000,
-      "min": 13.667,
-      "p50": 31.459,
-      "p95": 40.25,
-      "p99": 100.375,
-      "max": 1241.0,
-      "mean": 29.952083
+      "min": 15.208,
+      "p50": 142.834,
+      "p95": 180.25,
+      "p99": 219.667,
+      "max": 1541.75,
+      "mean": 95.107732
     },
     "policy_evaluate_roundtrip_us": {
       "n": 3000,
-      "min": 13.667,
-      "p50": 19.375,
-      "p95": 19.959,
-      "p99": 20.416,
-      "max": 33.959,
-      "mean": 19.235645
+      "min": 15.208,
+      "p50": 24.083,
+      "p95": 30.208,
+      "p99": 39.792,
+      "max": 194.209,
+      "mean": 24.983224
     },
     "score_features_roundtrip_us": {
       "n": 3000,
-      "min": 30.459,
-      "p50": 36.209,
-      "p95": 44.417,
-      "p99": 149.458,
-      "max": 1241.0,
-      "mean": 40.668522
+      "min": 142.834,
+      "p50": 158.291,
+      "p95": 193.833,
+      "p99": 255.958,
+      "max": 1541.75,
+      "mean": 165.232239
     },
     "webhooks": {
       "attempted": false,
@@ -834,78 +3130,554 @@
   },
   "targets_summary": [
     {
-      "metric": "clonefile branch · tiny (9 files)",
-      "target": "< 0.5 ms",
-      "measured_p50_ms": 0.165333,
-      "pass": true
+      "metric": "branch acquire (WarmBranchPool warm hit) · tiny (9 files)",
+      "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
+      "measured_p50_ms": 0.09775,
+      "p95_ms": 0.114,
+      "n": 400,
+      "pass": true,
+      "measured_hit_rate": 1.0,
+      "fixture": "tiny",
+      "hits": 400,
+      "misses": 0,
+      "miss_p50_ms": null,
+      "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
+      "live_tree_integrity": true,
+      "section": "apfs"
     },
     {
-      "metric": "clonefile branch · small (129 files)",
-      "target": "< 0.5 ms",
-      "measured_p50_ms": 1.116458,
-      "pass": false
+      "metric": "branch acquire (WarmBranchPool warm hit) · small (129 files)",
+      "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
+      "measured_p50_ms": 0.105292,
+      "p95_ms": 0.122625,
+      "n": 300,
+      "pass": true,
+      "measured_hit_rate": 1.0,
+      "fixture": "small",
+      "hits": 300,
+      "misses": 0,
+      "miss_p50_ms": null,
+      "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
+      "live_tree_integrity": true,
+      "section": "apfs"
     },
     {
-      "metric": "clonefile branch · medium (1025 files)",
-      "target": "< 0.5 ms",
-      "measured_p50_ms": 10.319041,
-      "pass": false
+      "metric": "branch acquire (WarmBranchPool warm hit) · medium (1025 files)",
+      "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
+      "measured_p50_ms": 0.137542,
+      "p95_ms": 0.31325,
+      "n": 60,
+      "pass": true,
+      "measured_hit_rate": 1.0,
+      "fixture": "medium",
+      "hits": 60,
+      "misses": 0,
+      "miss_p50_ms": null,
+      "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
+      "live_tree_integrity": true,
+      "section": "apfs"
     },
     {
-      "metric": "clonefile branch · aegisflow_src (61 files)",
-      "target": "< 0.5 ms",
-      "measured_p50_ms": 0.89675,
-      "pass": false
+      "metric": "branch acquire (WarmBranchPool warm hit) · aegisflow_src (108 files)",
+      "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
+      "measured_p50_ms": 0.114791,
+      "p95_ms": 0.1645,
+      "n": 200,
+      "pass": true,
+      "measured_hit_rate": 1.0,
+      "fixture": "aegisflow_src",
+      "hits": 200,
+      "misses": 0,
+      "miss_p50_ms": null,
+      "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
+      "live_tree_integrity": true,
+      "section": "apfs"
     },
     {
-      "metric": "renameatx_np RENAME_SWAP · small",
+      "metric": "renameatx_np RENAME_SWAP commit (syscall only) · small",
       "target": "< 0.5 ms",
-      "measured_p50_ms": 0.125333,
-      "pass": true
+      "measured_p50_ms": 0.128833,
+      "p95_ms": 0.151417,
+      "n": 300,
+      "pass": true,
+      "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
+      "live_tree_integrity": true,
+      "section": "apfs"
     },
     {
-      "metric": "rollback detach · small",
-      "target": "< 0.5 ms",
-      "measured_p50_ms": 0.089417,
-      "pass": true
+      "metric": "rollback · caller-visible (background reap) · small",
+      "target": "< 0.15 ms",
+      "measured_p50_ms": 0.086875,
+      "p95_ms": 0.1005,
+      "n": 300,
+      "pass": true,
+      "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
+      "live_tree_integrity": true,
+      "section": "apfs"
     },
     {
-      "metric": "rollback detach + reclaim · small",
-      "target": "< 0.5 ms",
-      "measured_p50_ms": 5.151792,
-      "pass": false
-    },
-    {
-      "metric": "CoreML FP16 inference · online · cpuAndNeuralEngine",
+      "metric": "CoreML FP16 online window model · cpuAndNeuralEngine · back-to-back calls",
       "target": "< 0.6 ms",
-      "measured_p50_ms": 0.039458,
-      "pass": true
+      "measured_p50_ms": 0.178542,
+      "p95_ms": 0.195541,
+      "n": 2400,
+      "pass": true,
+      "section": "ane"
     },
     {
       "metric": "online model executes on the Neural Engine (MLComputePlan)",
       "target": "all ops on ANE",
       "measured": {
-        "neural_engine": 0,
-        "cpu": 7,
+        "neural_engine": 36,
+        "cpu": 0,
         "gpu": 0
       },
-      "pass": false
+      "dispatched_ops": 36,
+      "pass": true,
+      "section": "ane"
+    },
+    {
+      "metric": "online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly",
+      "target": "speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50)",
+      "measured": {
+        "cpuAndNeuralEngine p50 ms": 0.178542,
+        "cpuOnly p50 ms": 0.219917,
+        "speedup": 1.231738
+      },
+      "cpu_and_neural_engine_p50_ms": 0.178542,
+      "cpu_only_p50_ms": 0.219917,
+      "speedup": 1.231738,
+      "n": 2400,
+      "n_cpu_only": 2400,
+      "pass": true,
+      "section": "ane"
     },
     {
       "metric": "batch model executes on the Neural Engine (MLComputePlan)",
       "target": "all ops on ANE",
       "measured": {
-        "neural_engine": 7,
+        "neural_engine": 36,
         "cpu": 0,
         "gpu": 0
       },
-      "pass": true
+      "dispatched_ops": 36,
+      "pass": true,
+      "section": "ane"
     },
     {
       "metric": "tier-0 route (ANE + Cedar)",
       "target": "< 0.4 ms",
-      "measured_p50_ms": 0.042416,
-      "pass": true
+      "measured_p50_ms": 0.171917,
+      "p95_ms": 0.215708,
+      "n": 5000,
+      "pass": true,
+      "section": "router"
     }
-  ]
+  ],
+  "informational": [
+    {
+      "metric": "cold clonefile branch · tiny (9 files)",
+      "target": "< 0.5 ms (same reference as the pool rows)",
+      "measured_p50_ms": 0.166542,
+      "p95_ms": 0.204291,
+      "n": 400,
+      "pass": true,
+      "fixture": "tiny",
+      "section": "apfs"
+    },
+    {
+      "metric": "cold clonefile branch · small (129 files)",
+      "target": "< 0.5 ms (same reference as the pool rows)",
+      "measured_p50_ms": 1.00575,
+      "p95_ms": 1.140875,
+      "n": 300,
+      "pass": false,
+      "fixture": "small",
+      "section": "apfs"
+    },
+    {
+      "metric": "cold clonefile branch · medium (1025 files)",
+      "target": "< 0.5 ms (same reference as the pool rows)",
+      "measured_p50_ms": 10.369625,
+      "p95_ms": 12.651417,
+      "n": 60,
+      "pass": false,
+      "fixture": "medium",
+      "section": "apfs"
+    },
+    {
+      "metric": "cold clonefile branch · aegisflow_src (108 files)",
+      "target": "< 0.5 ms (same reference as the pool rows)",
+      "measured_p50_ms": 1.363625,
+      "p95_ms": 2.260667,
+      "n": 200,
+      "pass": false,
+      "fixture": "aegisflow_src",
+      "section": "apfs"
+    },
+    {
+      "metric": "kernel time per clonefile entry (getrusage ru_stime) · tiny (9 files)",
+      "target": "— (O(entries) inside the kernel)",
+      "pass": null,
+      "measured_per_entry_us": 12.916667,
+      "fixture": "tiny",
+      "entries": 12,
+      "sys_us_p50": 155.0,
+      "section": "apfs"
+    },
+    {
+      "metric": "kernel time per clonefile entry (getrusage ru_stime) · small (129 files)",
+      "target": "— (O(entries) inside the kernel)",
+      "pass": null,
+      "measured_per_entry_us": 7.608696,
+      "fixture": "small",
+      "entries": 138,
+      "sys_us_p50": 1050.0,
+      "section": "apfs"
+    },
+    {
+      "metric": "kernel time per clonefile entry (getrusage ru_stime) · medium (1025 files)",
+      "target": "— (O(entries) inside the kernel)",
+      "pass": null,
+      "measured_per_entry_us": 9.509452,
+      "fixture": "medium",
+      "entries": 1058,
+      "sys_us_p50": 10061.0,
+      "section": "apfs"
+    },
+    {
+      "metric": "kernel time per clonefile entry (getrusage ru_stime) · aegisflow_src (108 files)",
+      "target": "— (O(entries) inside the kernel)",
+      "pass": null,
+      "measured_per_entry_us": 8.584906,
+      "fixture": "aegisflow_src",
+      "entries": 159,
+      "sys_us_p50": 1365.0,
+      "section": "apfs"
+    },
+    {
+      "metric": "standby replenish (refill thread, off the caller's path) · tiny (9 files)",
+      "target": "—",
+      "measured_p50_ms": 0.181166,
+      "p95_ms": 0.21175,
+      "n": 400,
+      "pass": null,
+      "fixture": "tiny",
+      "section": "apfs"
+    },
+    {
+      "metric": "standby replenish (refill thread, off the caller's path) · small (129 files)",
+      "target": "—",
+      "measured_p50_ms": 1.134833,
+      "p95_ms": 1.351,
+      "n": 300,
+      "pass": null,
+      "fixture": "small",
+      "section": "apfs"
+    },
+    {
+      "metric": "standby replenish (refill thread, off the caller's path) · medium (1025 files)",
+      "target": "—",
+      "measured_p50_ms": 8.609375,
+      "p95_ms": 10.63,
+      "n": 60,
+      "pass": null,
+      "fixture": "medium",
+      "section": "apfs"
+    },
+    {
+      "metric": "standby replenish (refill thread, off the caller's path) · aegisflow_src (108 files)",
+      "target": "—",
+      "measured_p50_ms": 1.392542,
+      "p95_ms": 2.467167,
+      "n": 200,
+      "pass": null,
+      "fixture": "aegisflow_src",
+      "section": "apfs"
+    },
+    {
+      "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · tiny (9 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 0.440667,
+      "p95_ms": 0.512125,
+      "n": 400,
+      "pass": true,
+      "fixture": "tiny",
+      "section": "apfs"
+    },
+    {
+      "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · small (129 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 0.466833,
+      "p95_ms": 0.559541,
+      "n": 300,
+      "pass": true,
+      "fixture": "small",
+      "section": "apfs"
+    },
+    {
+      "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · medium (1025 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 0.478792,
+      "p95_ms": 0.569041,
+      "n": 60,
+      "pass": true,
+      "fixture": "medium",
+      "section": "apfs"
+    },
+    {
+      "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · aegisflow_src (108 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 0.463333,
+      "p95_ms": 0.662667,
+      "n": 200,
+      "pass": true,
+      "fixture": "aegisflow_src",
+      "section": "apfs"
+    },
+    {
+      "metric": "acquire immediately after a commit (stale standby) · tiny (9 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 0.486,
+      "p95_ms": 0.659458,
+      "n": 400,
+      "pass": true,
+      "fixture": "tiny",
+      "measured_sources": {
+        "pool_ready": 0,
+        "pool_after_waiting_for_refill": 356,
+        "cold": 44
+      },
+      "section": "apfs"
+    },
+    {
+      "metric": "acquire immediately after a commit (stale standby) · small (129 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 1.765167,
+      "p95_ms": 2.5285,
+      "n": 300,
+      "pass": false,
+      "fixture": "small",
+      "measured_sources": {
+        "pool_ready": 0,
+        "pool_after_waiting_for_refill": 151,
+        "cold": 149
+      },
+      "section": "apfs"
+    },
+    {
+      "metric": "acquire immediately after a commit (stale standby) · medium (1025 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 12.428375,
+      "p95_ms": 14.435959,
+      "n": 60,
+      "pass": false,
+      "fixture": "medium",
+      "measured_sources": {
+        "pool_ready": 0,
+        "pool_after_waiting_for_refill": 59,
+        "cold": 1
+      },
+      "section": "apfs"
+    },
+    {
+      "metric": "acquire immediately after a commit (stale standby) · aegisflow_src (108 files)",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 2.217125,
+      "p95_ms": 3.275417,
+      "n": 200,
+      "pass": false,
+      "fixture": "aegisflow_src",
+      "measured_sources": {
+        "pool_ready": 0,
+        "pool_after_waiting_for_refill": 136,
+        "cold": 64
+      },
+      "section": "apfs"
+    },
+    {
+      "metric": "background reap per detached tree (reaper thread) · tiny (9 files)",
+      "target": "—",
+      "measured_p50_ms": 0.616083,
+      "p95_ms": 0.692125,
+      "n": 400,
+      "pass": null,
+      "fixture": "tiny",
+      "section": "apfs"
+    },
+    {
+      "metric": "background reap per detached tree (reaper thread) · small (129 files)",
+      "target": "—",
+      "measured_p50_ms": 5.095833,
+      "p95_ms": 5.412334,
+      "n": 300,
+      "pass": null,
+      "fixture": "small",
+      "section": "apfs"
+    },
+    {
+      "metric": "background reap per detached tree (reaper thread) · medium (1025 files)",
+      "target": "—",
+      "measured_p50_ms": 37.644125,
+      "p95_ms": 60.218125,
+      "n": 60,
+      "pass": null,
+      "fixture": "medium",
+      "section": "apfs"
+    },
+    {
+      "metric": "background reap per detached tree (reaper thread) · aegisflow_src (108 files)",
+      "target": "—",
+      "measured_p50_ms": 8.021583,
+      "p95_ms": 10.031416,
+      "n": 200,
+      "pass": null,
+      "fixture": "aegisflow_src",
+      "section": "apfs"
+    },
+    {
+      "metric": "rollback detach only (rename into trash) · small",
+      "target": "< 0.15 ms (reference)",
+      "measured_p50_ms": 0.083833,
+      "p95_ms": 0.097167,
+      "n": 300,
+      "pass": true,
+      "section": "apfs"
+    },
+    {
+      "metric": "rollback · synchronous (detach + inline delete, phase-1 style) · small",
+      "target": "< 0.15 ms (reference)",
+      "measured_p50_ms": 5.066125,
+      "p95_ms": 5.552667,
+      "n": 300,
+      "pass": false,
+      "section": "apfs"
+    },
+    {
+      "metric": "rollback right after acquire (refill clone in flight) · small",
+      "target": "< 0.15 ms (reference)",
+      "measured_p50_ms": 1.286417,
+      "p95_ms": 2.522208,
+      "n": 150,
+      "pass": false,
+      "section": "apfs"
+    },
+    {
+      "metric": "commit right after acquire (refill clone in flight) · small",
+      "target": "< 0.5 ms (reference)",
+      "measured_p50_ms": 1.604708,
+      "p95_ms": 2.626416,
+      "n": 150,
+      "pass": false,
+      "section": "apfs"
+    },
+    {
+      "metric": "CoreML FP16 online window model · all (compute units) · back-to-back calls",
+      "target": "< 0.6 ms (reference)",
+      "measured_p50_ms": 0.182583,
+      "p95_ms": 0.200083,
+      "n": 2400,
+      "pass": true,
+      "section": "ane"
+    },
+    {
+      "metric": "CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms busy CPU gap before each)",
+      "target": "< 0.6 ms (reference)",
+      "measured_p50_ms": 0.3435,
+      "p95_ms": 0.4345,
+      "n": 400,
+      "pass": true,
+      "pattern": "busy_gap",
+      "section": "ane"
+    },
+    {
+      "metric": "CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms idle CPU gap before each)",
+      "target": "< 0.6 ms (reference)",
+      "measured_p50_ms": 0.706041,
+      "p95_ms": 1.069,
+      "n": 400,
+      "pass": false,
+      "pattern": "idle_gap",
+      "section": "ane"
+    },
+    {
+      "metric": "online model, isolated calls (3.0 ms busy CPU gap): cpuAndNeuralEngine faster than cpuOnly",
+      "target": "speedup > 1 (reference)",
+      "measured_speedup": 0.635977,
+      "cpu_and_neural_engine_p50_ms": 0.3435,
+      "cpu_only_p50_ms": 0.218458,
+      "cpu_and_neural_engine_p95_ms": 0.4345,
+      "cpu_only_p95_ms": 0.339583,
+      "n": 400,
+      "n_cpu_only": 400,
+      "pattern": "busy_gap",
+      "pass": false,
+      "section": "ane"
+    },
+    {
+      "metric": "online model, isolated calls (3.0 ms idle CPU gap): cpuAndNeuralEngine faster than cpuOnly",
+      "target": "speedup > 1 (reference)",
+      "measured_speedup": 1.773505,
+      "cpu_and_neural_engine_p50_ms": 0.706041,
+      "cpu_only_p50_ms": 1.252167,
+      "cpu_and_neural_engine_p95_ms": 1.069,
+      "cpu_only_p95_ms": 3.115417,
+      "n": 400,
+      "n_cpu_only": 400,
+      "pattern": "idle_gap",
+      "pass": true,
+      "section": "ane"
+    },
+    {
+      "metric": "CoreML online window model · one call per transaction (end-to-end ane_score stage, rollback path)",
+      "target": "< 0.6 ms (reference)",
+      "measured_p50_ms": 0.482708,
+      "p95_ms": 0.903542,
+      "n": 200,
+      "pass": true,
+      "section": "ane"
+    },
+    {
+      "metric": "CoreML batch window model · per window, amortized (cpuAndNeuralEngine)",
+      "target": "—",
+      "pass": null,
+      "measured_p50_us": 51.54425,
+      "section": "ane"
+    },
+    {
+      "metric": "batch model: cpuAndNeuralEngine faster than cpuOnly",
+      "target": "speedup > 1 (reference)",
+      "pass": true,
+      "measured_speedup": 3.262468,
+      "section": "ane"
+    },
+    {
+      "metric": "online model parity · sessions (score_window vs FP32 reference, max |diff| points)",
+      "target": "<= 1 points (parity file tolerance)",
+      "pass": true,
+      "measured_points": 0.30559,
+      "section": "ane"
+    },
+    {
+      "metric": "end-to-end rollback path (pool + score_window + Cedar) · e2e",
+      "target": "—",
+      "measured_p50_ms": 4.178375,
+      "p95_ms": 11.574,
+      "n": 200,
+      "pass": null,
+      "section": "e2e"
+    },
+    {
+      "metric": "live-tree integrity after every APFS and end-to-end phase",
+      "target": "all checks pass; store empty after pool drop (precondition of the APFS gated rows)",
+      "measured": {
+        "checks passed": 30,
+        "checks": 30,
+        "stores clean": true
+      },
+      "pass": true,
+      "section": "integrity"
+    }
+  ],
+  "targets_note": "Rows 1-4 measure WarmBranchPool::acquire on a warm hit: one renameatx_np(RENAME_EXCL) of a standby cloned earlier, p50 0.0978-0.1375 ms across 4 fixtures (960 hits, 0 misses; a row passes only without misses). The gated acquire and rollback rows are timed with the pool idle (settle before each acquire, rollback after the refill finished); the contended cases are reported next to them. The pool does not make clonefile cheaper: a cold clonefile is still O(entries) inside the kernel, p50 0.167 ms at 9 files and 10.370 ms at 1025 files, with getrusage ru_stime of 7.61-12.92 us per tree entry, and every acquire is paid for by one refill clone off the caller's path (standby replenish p50 1.135 ms small, 8.609 ms medium). An acquire right after a commit finds the standby stale: at medium 1/60 fell back to a cold clone and 59/60 waited for the refill in flight, p50 12.428 ms. A commit or rollback issued while the refill clone runs waits behind it (small: commit 1.605 ms, rollback 1.286 ms p50). The commit row times the RENAME_SWAP syscall (small p50 0.129 ms); the caller-visible commit (lock, checks, swap, version) has p50 0.467 ms. The online-model rows time back-to-back calls (cpuAndNeuralEngine p50 0.179 ms, cpuOnly 0.220 ms). One call after a 3.0 ms gap takes 0.344 ms with the CPU busy in the gap and 0.706 ms with it idle (cpuOnly 0.218 / 1.252 ms: cpuAndNeuralEngine is slower than cpuOnly with a busy CPU, speedup 0.64, and faster with an idle CPU, speedup 1.77). The end-to-end ane_score stage, one call per transaction, has p50 0.483 ms, 2.70x the back-to-back p50 and 1.41x the busy-gap isolated p50. Live-tree integrity: 30/30 checks passed, stores clean: true. One run on Apple M2, 11/11 gated rows passed. This run is PRELIMINARY (1-min load average 11.47 at end above the busy threshold 4); only a quiet full-scale run decides the phase result."
 }

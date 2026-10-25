@@ -6,20 +6,30 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use aegis_ane_scorer::{workspace_features, AneScorer, ExecutionContext, Feature, FeatureVector, FEATURE_COUNT};
 use aegis_governance::{risk_to_context, Action, AuthzRequest, Decision, GovernanceEngine, PolicyContext};
 use aegis_storage::{Branch, ChangeSet, Workspace};
 use serde_json::{json, Value};
 
-use crate::cards::{mattermost_card, post_webhook, slack_card, ApprovalRequest, ChatConfig};
+use crate::cards::{mattermost_card, post_webhook, slack_card, ApprovalRequest, CardError, ChatConfig};
 
 /// Newest first; the first entry is offered when a client asks for an unknown version.
 pub const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
 
+/// Upper bound on the wait of `aegis_branch_rollback` with `wait_for_reclaim: true`.
+const ROLLBACK_REAP_WAIT: Duration = Duration::from_secs(60);
+
 struct Approval {
     approved: bool,
     approver: String,
+}
+
+/// A branch plus the workspace it was made from (whose reaper deletes it on rollback).
+struct OpenBranch {
+    branch: Branch,
+    ws: Workspace,
 }
 
 pub struct McpServer {
@@ -28,9 +38,22 @@ pub struct McpServer {
     chat: ChatConfig,
     http: ureq::Agent,
     workspace: Option<Workspace>,
-    branches: HashMap<String, Branch>,
+    /// Workspaces replaced by a later open; kept so [`McpServer::shutdown`] waits for their reapers.
+    retired: Vec<Workspace>,
+    branches: HashMap<String, OpenBranch>,
     approvals: HashMap<String, Approval>,
     agent_id: String,
+}
+
+/// What [`McpServer::shutdown`] did.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ShutdownReport {
+    /// Branches still open at shutdown, now rolled back.
+    pub rolled_back: usize,
+    /// Rollbacks that failed (the tree stays in the store for `Workspace::reclaim_trash`).
+    pub rollback_errors: Vec<String>,
+    /// True when every workspace's reaper finished its queue within the timeout.
+    pub reaped: bool,
 }
 
 fn error_response(id: Value, code: i64, message: &str) -> Value {
@@ -44,6 +67,10 @@ fn decision_json(decision: &Decision) -> Value {
         "errors": decision.errors,
         "eval_us": decision.eval_ns as f64 / 1000.0,
     })
+}
+
+fn us(d: Duration) -> f64 {
+    d.as_secs_f64() * 1e6
 }
 
 fn tool(name: &str, description: &str, properties: Value, required: &[&str]) -> Value {
@@ -81,7 +108,15 @@ pub fn tool_definitions() -> Vec<Value> {
              &["action", "ane_risk_score"]),
         tool("aegis_branch_commit", "Commit a branch with renameatx_np(RENAME_SWAP) if Cedar allows it (recorded team approval counts).",
              branch_id.clone(), &["branch_id"]),
-        tool("aegis_branch_rollback", "Discard a branch; the live workspace is untouched.", branch_id.clone(), &["branch_id"]),
+        tool("aegis_branch_rollback",
+             "Discard a branch; the live workspace is untouched. detach_us is the O(1) rename into the store's trash. \
+              Deletion is normally queued to a background reaper (reclaim_queued: true, reclaim_us: null, reap_ticket); \
+              pass wait_for_reclaim: true to wait for it and get the measured reap.reap_us.",
+             json!({
+                 "branch_id": {"type": "string", "description": "id returned by aegis_branch_create"},
+                 "wait_for_reclaim": {"type": "boolean", "description": "wait for the background deletion and report its duration"},
+             }),
+             &["branch_id"]),
         tool("aegis_request_approval", "Render the diff + approval card and post it to the configured Mattermost/Slack webhooks.",
              json!({"branch_id": {"type": "string"}, "channel": {"type": "string", "enum": ["mattermost", "slack", "both"]}}),
              &["branch_id"]),
@@ -99,6 +134,7 @@ impl McpServer {
             chat,
             http: ureq::AgentBuilder::new().timeout(std::time::Duration::from_secs(15)).build(),
             workspace: None,
+            retired: Vec::new(),
             branches: HashMap::new(),
             approvals: HashMap::new(),
             agent_id: std::env::var("AEGIS_AGENT_ID").unwrap_or_else(|_| "mcp-client".to_string()),
@@ -106,8 +142,36 @@ impl McpServer {
     }
 
     pub fn with_workspace(mut self, workspace: Workspace) -> Self {
-        self.workspace = Some(workspace);
+        self.set_workspace(workspace);
         self
+    }
+
+    fn set_workspace(&mut self, workspace: Workspace) {
+        if let Some(previous) = self.workspace.replace(workspace) {
+            self.retired.push(previous);
+        }
+    }
+
+    /// Rolls back every open branch, then waits (at most `timeout` in total) until the background
+    /// reaper of every workspace opened by this server has deleted what it was handed. Call it
+    /// before the process exits: the reaper thread is detached, so deletions still queued when
+    /// `main` returns are lost and their trees stay in `<store>/trash` until the next
+    /// `aegis_workspace_open` reclaims them.
+    pub fn shutdown(&mut self, timeout: Duration) -> ShutdownReport {
+        let deadline = Instant::now() + timeout;
+        let mut report = ShutdownReport { rolled_back: 0, rollback_errors: Vec::new(), reaped: true };
+        for (id, open) in self.branches.drain() {
+            match open.branch.rollback() {
+                Ok(_) => report.rolled_back += 1,
+                Err(e) => report.rollback_errors.push(format!("{id}: {e}")),
+            }
+        }
+        self.approvals.clear();
+        for ws in self.retired.iter().chain(self.workspace.iter()) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            report.reaped &= ws.wait_reaped(left);
+        }
+        report
     }
 
     /// Handles one line of input; returns the line to write back, if any.
@@ -157,8 +221,15 @@ impl McpServer {
             "aegis_workspace_open" => {
                 let path = args["path"].as_str().ok_or("path is required")?;
                 let ws = Workspace::open(path).map_err(|e| e.to_string())?;
-                let out = json!({"live": ws.live(), "store": ws.store(), "filesystem": "apfs"});
-                self.workspace = Some(ws);
+                // Trees a previous session left in trash (it exited before its reaper finished,
+                // or crashed) are deleted now; nothing of this new handle is queued yet. A failure
+                // here does not block the open; it is reported instead.
+                let mut out = json!({"live": ws.live(), "store": ws.store(), "filesystem": "apfs"});
+                match ws.reclaim_trash() {
+                    Ok(n) => out["trash_reclaimed"] = json!(n),
+                    Err(e) => out["trash_reclaim_error"] = json!(e.to_string()),
+                }
+                self.set_workspace(ws);
                 Ok(out)
             }
             "aegis_branch_create" => {
@@ -167,9 +238,9 @@ impl McpServer {
                 let out = json!({
                     "branch_id": branch.id(),
                     "path": branch.path(),
-                    "clonefile_us": branch.clone_duration().as_secs_f64() * 1e6,
+                    "clonefile_us": us(branch.clone_duration()),
                 });
-                self.branches.insert(branch.id().to_string(), branch);
+                self.branches.insert(branch.id().to_string(), OpenBranch { branch, ws: ws.clone() });
                 Ok(out)
             }
             "aegis_branch_diff" => {
@@ -223,23 +294,32 @@ impl McpServer {
                 if !decision.allowed {
                     return Ok(json!({"branch_id": id, "committed": false, "risk_score": risk, "decision": decision_json(&decision)}));
                 }
-                let branch = self.branches.remove(&id).ok_or("unknown branch")?;
-                let receipt = branch.commit().map_err(|e| e.to_string())?;
+                let open = self.branches.remove(&id).ok_or("unknown branch")?;
+                let receipt = open.branch.commit().map_err(|e| e.to_string())?;
                 let approved_by = self.approvals.remove(&id).filter(|a| a.approved).map(|a| a.approver);
                 Ok(json!({
                     "branch_id": id, "committed": true, "risk_score": risk, "decision": decision_json(&decision),
-                    "approved_by": approved_by, "version": receipt.version, "swap_us": receipt.swap.as_secs_f64() * 1e6,
+                    "approved_by": approved_by, "version": receipt.version, "swap_us": us(receipt.swap),
                 }))
             }
             "aegis_branch_rollback" => {
                 let id = branch_id(args)?;
-                let branch = self.branches.remove(&id).ok_or_else(|| format!("unknown branch {id}"))?;
+                let wait = args["wait_for_reclaim"].as_bool().unwrap_or(false);
+                let OpenBranch { branch, ws } = self.branches.remove(&id).ok_or_else(|| format!("unknown branch {id}"))?;
                 let receipt = branch.rollback().map_err(|e| e.to_string())?;
                 self.approvals.remove(&id);
-                Ok(json!({
+                let mut out = json!({
                     "branch_id": id, "rolled_back": true,
-                    "detach_us": receipt.detach.as_secs_f64() * 1e6, "reclaim_us": receipt.reclaim.as_secs_f64() * 1e6,
-                }))
+                    "detach_us": us(receipt.detach),
+                    // Measured only when deletion ran on this thread; null when it was queued.
+                    "reclaim_us": receipt.reclaim_inline().map(us),
+                    "reclaim_queued": receipt.queued,
+                    "reap_ticket": receipt.reap_ticket,
+                });
+                if let (true, Some(ticket)) = (wait, receipt.reap_ticket) {
+                    out["reap"] = reap_report(&ws, ticket, ROLLBACK_REAP_WAIT);
+                }
+                Ok(out)
             }
             "aegis_request_approval" => {
                 let id = branch_id(args)?;
@@ -260,7 +340,9 @@ impl McpServer {
                     posted[name] = match url {
                         Some(url) => match post_webhook(&self.http, &url, card) {
                             Ok(status) => json!({"posted": true, "status": status}),
-                            Err(e) => json!({"posted": false, "error": e.to_string()}),
+                            // CardError texts never contain the webhook URL (a secret).
+                            Err(e @ CardError::Http { status, .. }) => json!({"posted": false, "status": status, "error": e.to_string()}),
+                            Err(e @ CardError::Transport { .. }) => json!({"posted": false, "error": e.to_string()}),
                         },
                         None => json!({"posted": false, "reason": format!("AEGIS_{}_WEBHOOK_URL not set", name.to_uppercase())}),
                     };
@@ -283,7 +365,7 @@ impl McpServer {
 
     /// Diff → features → ANE score → Cedar decision for committing `id`.
     fn assess(&self, id: &str) -> Result<(ChangeSet, FeatureVector, f32, Decision), String> {
-        let branch = self.branches.get(id).ok_or_else(|| format!("unknown branch {id}"))?;
+        let branch = &self.branches.get(id).ok_or_else(|| format!("unknown branch {id}"))?.branch;
         let changes = branch.changes().map_err(|e| e.to_string())?;
         let exec = ExecutionContext {
             branch_age_minutes: branch.age().as_secs_f64() / 60.0,
@@ -308,6 +390,16 @@ impl McpServer {
             })
             .map_err(|e| e.to_string())?;
         Ok((changes, features, risk, decision))
+    }
+}
+
+/// Waits up to `timeout` for the reaper of `ws`, then returns the measured deletion of `ticket`.
+fn reap_report(ws: &Workspace, ticket: u64, timeout: Duration) -> Value {
+    let idle = ws.wait_reaped(timeout);
+    match ws.drain_reap_records().into_iter().find(|r| r.ticket == ticket) {
+        Some(r) => json!({"finished": true, "ok": r.ok, "reap_us": us(r.duration), "queue_wait_us": us(r.waited)}),
+        None if idle => json!({"finished": false, "reason": "no record for this ticket"}),
+        None => json!({"finished": false, "reason": "reaper still busy when the wait limit expired"}),
     }
 }
 
@@ -347,6 +439,19 @@ mod tests {
         }
     }
 
+    /// `<target>/test-fixtures/mcp-<name>-<pid>/live/docs/guide.md`; the store is `.aegis-live`.
+    fn fixture(name: &str) -> (PathBuf, Fixture) {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../target/test-fixtures/mcp-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("live/docs")).unwrap();
+        std::fs::write(root.join("live/docs/guide.md"), "# Guide\n").unwrap();
+        (root.clone(), Fixture(root))
+    }
+
+    fn entries(dir: &Path) -> usize {
+        std::fs::read_dir(dir).map(|d| d.count()).unwrap_or(0)
+    }
+
     #[test]
     fn initialize_negotiates_version() {
         let mut s = server();
@@ -382,11 +487,7 @@ mod tests {
 
     #[test]
     fn branch_diff_approve_commit_and_rollback() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../target/test-fixtures/mcp-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(root.join("live/docs")).unwrap();
-        std::fs::write(root.join("live/docs/guide.md"), "# Guide\n").unwrap();
-        let _cleanup = Fixture(root.clone());
+        let (root, _cleanup) = fixture("flow");
         let mut s = server();
         call(&mut s, 1, "aegis_workspace_open", json!({"path": root.join("live")}));
 
@@ -407,6 +508,100 @@ mod tests {
         std::fs::write(Path::new(b2["path"].as_str().unwrap()).join("docs/guide.md"), "deleted everything").unwrap();
         let rb = call(&mut s, 8, "aegis_branch_rollback", json!({"branch_id": id2}));
         assert_eq!(rb["rolled_back"], true);
+        assert!(rb["detach_us"].is_f64(), "{rb}");
+        // Background reclaim is the default: the deletion is queued, so no reclaim time exists yet.
+        assert_eq!(rb["reclaim_queued"], true, "{rb}");
+        assert!(rb["reclaim_us"].is_null(), "a queued deletion has no measured reclaim time: {rb}");
+        assert!(rb["reap_ticket"].is_u64(), "{rb}");
+        assert!(rb.get("reap").is_none(), "{rb}");
         assert!(std::fs::read_to_string(root.join("live/docs/guide.md")).unwrap().contains("More detail."));
+
+        let b3 = call(&mut s, 9, "aegis_branch_create", json!({}));
+        let id3 = b3["branch_id"].as_str().unwrap().to_string();
+        let rb = call(&mut s, 10, "aegis_branch_rollback", json!({"branch_id": id3, "wait_for_reclaim": true}));
+        assert_eq!(rb["reclaim_queued"], true, "{rb}");
+        assert!(rb["reclaim_us"].is_null(), "{rb}");
+        assert_eq!(rb["reap"]["finished"], true, "{rb}");
+        assert_eq!(rb["reap"]["ok"], true, "{rb}");
+        assert!(rb["reap"]["reap_us"].is_f64(), "{rb}");
+        assert!(!root.join(".aegis-live/trash").join(&id3).exists(), "waited-for tree must be gone");
+
+        let report = s.shutdown(Duration::from_secs(60));
+        assert!(report.reaped && report.rollback_errors.is_empty(), "{report:?}");
+        assert_eq!(entries(&root.join(".aegis-live/trash")), 0, "every queued deletion finished before shutdown returned");
+    }
+
+    #[test]
+    fn synchronous_reclaim_reports_measured_time() {
+        let (root, _cleanup) = fixture("sync");
+        let ws = Workspace::open(root.join("live")).unwrap();
+        ws.set_background_reclaim(false);
+        let mut s = server().with_workspace(ws);
+        let b = call(&mut s, 1, "aegis_branch_create", json!({}));
+        let rb = call(&mut s, 2, "aegis_branch_rollback", json!({"branch_id": b["branch_id"], "wait_for_reclaim": true}));
+        assert_eq!(rb["reclaim_queued"], false, "{rb}");
+        assert!(rb["reclaim_us"].is_f64(), "{rb}");
+        assert!(rb["reap_ticket"].is_null() && rb.get("reap").is_none(), "{rb}");
+        assert_eq!(entries(&root.join(".aegis-live/trash")), 0);
+    }
+
+    #[test]
+    fn shutdown_rolls_back_open_branches_and_drains_the_reaper() {
+        let (root, _cleanup) = fixture("shutdown");
+        let mut s = server();
+        call(&mut s, 1, "aegis_workspace_open", json!({"path": root.join("live")}));
+        call(&mut s, 2, "aegis_branch_create", json!({"label": "a"}));
+        call(&mut s, 3, "aegis_branch_create", json!({"label": "b"}));
+        // A second open retires the first workspace handle; its branches and reaper stay tracked.
+        call(&mut s, 4, "aegis_workspace_open", json!({"path": root.join("live")}));
+        call(&mut s, 5, "aegis_branch_create", json!({"label": "c"}));
+        let report = s.shutdown(Duration::from_secs(60));
+        assert_eq!(report.rolled_back, 3, "{report:?}");
+        assert!(report.reaped && report.rollback_errors.is_empty(), "{report:?}");
+        assert_eq!(entries(&root.join(".aegis-live/branches")), 0);
+        assert_eq!(entries(&root.join(".aegis-live/trash")), 0);
+    }
+
+    #[test]
+    fn workspace_open_reclaims_trash_left_by_an_earlier_session() {
+        let (root, _cleanup) = fixture("leftover");
+        let leftover = root.join(".aegis-live/trash/rb-earlier-session");
+        std::fs::create_dir_all(leftover.join("src")).unwrap();
+        std::fs::write(leftover.join("src/main.rs"), "fn main() {}\n").unwrap();
+        let mut s = server();
+        let opened = call(&mut s, 1, "aegis_workspace_open", json!({"path": root.join("live")}));
+        assert_eq!(opened["trash_reclaimed"], 1, "{opened}");
+        assert!(!leftover.exists());
+    }
+
+    /// URL of a local port with no listener (bound, then released), so connecting is refused.
+    fn closed_port_url(path: &str) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        format!("http://{addr}{path}")
+    }
+
+    #[test]
+    fn approval_error_never_returns_the_webhook_url() {
+        let (root, _cleanup) = fixture("secret");
+        let secret = "SECRETTOKEN123";
+        let url = closed_port_url(&format!("/services/T000/B000/{secret}"));
+        let chat = ChatConfig { slack_webhook: Some(url.clone()), ..ChatConfig::default() };
+        let mut s = McpServer::new(
+            Arc::new(AneScorer::open_default().unwrap()),
+            Arc::new(GovernanceEngine::load_default().unwrap()),
+            chat,
+        );
+        call(&mut s, 1, "aegis_workspace_open", json!({"path": root.join("live")}));
+        let b = call(&mut s, 2, "aegis_branch_create", json!({}));
+        let msg = json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                         "params": {"name": "aegis_request_approval", "arguments": {"branch_id": b["branch_id"], "channel": "slack"}}});
+        let response = s.handle(&msg).unwrap();
+        let slack = &response["result"]["structuredContent"]["posted"]["slack"];
+        assert_eq!(slack["posted"], false, "{response}");
+        assert!(slack["error"].as_str().unwrap().starts_with("webhook unreachable"), "{response}");
+        let text = response.to_string();
+        assert!(!text.contains(secret) && !text.contains(&url) && !text.contains("/services/"), "{text}");
     }
 }

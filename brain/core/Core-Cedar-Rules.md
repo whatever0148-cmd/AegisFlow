@@ -2,15 +2,15 @@
 tags:
   - core
 status: verified
-latency_ms: 0.004291
-last_verified: 2026-10-25T08:06:37Z
-git_commit: a29112b
+latency_ms: 0.004542
+last_verified: 2026-10-25T15:28:03Z
+git_commit: 60fc826-dirty
 crate: aegis_governance
 ---
 
 # Core-Cedar-Rules
 
-**Status:** 🟢 verified · **p50:** 0.0043 ms · **commit:** `a29112b`
+**Status:** 🟢 verified · **p50:** 0.0045 ms · **commit:** `60fc826-dirty` · **bench run: PRELIMINARY**
 
 > Deterministic governance: `cedar-policy` 4.x evaluates policies/aegis_rules.cedar (schema-validated), `regex` redaction flags unformatted sensitive fields, `sha2` + `ed25519-dalek` produce `c2pa:ed25519:` receipts.
 
@@ -23,12 +23,14 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T08:11:35Z · bench 2026-10-25T08:06:37Z · tests 2026-10-25T08:10:13Z · commit `a29112b`_
+_Synced 2026-10-25T15:28:06Z · bench 2026-10-25T15:28:03Z · tests 2026-10-25T08:10:13Z · commit `60fc826-dirty`_
+
+> **PRELIMINARY: 1-min load average 11.47 at end above the busy threshold 4.** Only a quiet full-scale benchmark run decides the phase result.
 
 | Metric | Measured |
 |---|---|
 | cargo test --release | 20 passed, 0 failed (2 suites) |
-| is_authorized | p50 4.291 µs · p95 4.917 µs · n=20000 |
+| is_authorized | p50 4.542 µs · p95 7.084 µs · n=20000 |
 | decision matrix | 10/10 as expected |
 <!-- aegis:telemetry:end -->
 

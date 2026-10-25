@@ -8,12 +8,43 @@ const EXCERPT_LINES_PER_FILE: usize = 12;
 /// Slack section text is limited to 3000 characters; keep room for the code fence.
 const MAX_EXCERPT_CHARS: usize = 2_600;
 
+/// Webhook delivery failure. Incoming-webhook URLs are credentials (the token is in the path), so
+/// neither variant stores the URL, and the texts it carries have the URL scrubbed out: `Display`
+/// and `Debug` are safe to return to MCP clients or to log.
 #[derive(Debug, thiserror::Error)]
 pub enum CardError {
-    #[error("webhook {url} answered HTTP {status}: {body}")]
-    Http { url: String, status: u16, body: String },
-    #[error("webhook {url} unreachable: {message}")]
-    Transport { url: String, message: String },
+    #[error("webhook answered HTTP {status}: {body}")]
+    Http { status: u16, body: String },
+    #[error("webhook unreachable: {message}")]
+    Transport { message: String },
+}
+
+/// Replaces every occurrence of `url`, its path/query part and its userinfo in `text`.
+fn scrub_url(text: &str, url: &str) -> String {
+    const MARK: &str = "[webhook]";
+    let mut out = if url.is_empty() { text.to_string() } else { text.replace(url, MARK) };
+    let after_scheme = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let (authority, rest) = after_scheme.find(['/', '?', '#']).map_or((after_scheme, ""), |i| after_scheme.split_at(i));
+    if rest.len() > 1 {
+        out = out.replace(rest, MARK);
+    }
+    if let Some((userinfo, _)) = authority.rsplit_once('@') {
+        if !userinfo.is_empty() {
+            out = out.replace(userinfo, MARK);
+        }
+    }
+    out
+}
+
+/// Kind and OS error of a transport failure. ureq's own `Display` starts with the URL, so it is
+/// never used; the result is scrubbed as well in case a message quotes the URL.
+fn transport_message(t: &ureq::Transport, url: &str) -> String {
+    use std::error::Error as _;
+    let mut message = t.kind().to_string();
+    if let Some(source) = t.source() {
+        message.push_str(&format!(": {source}"));
+    }
+    scrub_url(&message, url)
 }
 
 /// Webhook endpoints, all optional: nothing is posted to a channel that is not configured.
@@ -194,16 +225,16 @@ pub fn slack_card(req: &ApprovalRequest) -> Value {
     })
 }
 
-/// POSTs a card to a webhook and returns the HTTP status.
+/// POSTs a card to a webhook and returns the HTTP status. Error texts never contain `url`.
 pub fn post_webhook(agent: &ureq::Agent, url: &str, payload: &Value) -> Result<u16, CardError> {
     match agent.post(url).set("Content-Type", "application/json").send_json(payload.clone()) {
         Ok(response) => Ok(response.status()),
-        Err(ureq::Error::Status(status, response)) => Err(CardError::Http {
-            url: url.to_string(),
-            status,
-            body: response.into_string().unwrap_or_default().chars().take(300).collect(),
-        }),
-        Err(ureq::Error::Transport(t)) => Err(CardError::Transport { url: url.to_string(), message: t.to_string() }),
+        Err(ureq::Error::Status(status, response)) => {
+            // Some servers echo the request path ("Cannot POST /hooks/<token>"): scrub before cutting.
+            let body = scrub_url(&response.into_string().unwrap_or_default(), url);
+            Err(CardError::Http { status, body: body.chars().take(300).collect() })
+        }
+        Err(ureq::Error::Transport(t)) => Err(CardError::Transport { message: transport_message(&t, url) }),
     }
 }
 
@@ -275,10 +306,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn posts_to_a_local_webhook() {
+    /// Serves one request; `respond` maps the request line to (status line, body).
+    fn serve_once(
+        path: &str,
+        respond: fn(&str) -> (&'static str, String),
+    ) -> (String, std::thread::JoinHandle<(String, String)>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://{}/hooks/abc", listener.local_addr().unwrap());
+        let url = format!("http://{}{path}", listener.local_addr().unwrap());
         let server = std::thread::spawn(move || {
             let (stream, _) = listener.accept().unwrap();
             let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -296,15 +330,67 @@ mod tests {
             }
             let mut body = vec![0u8; length];
             reader.read_exact(&mut body).unwrap();
+            let (status, reply) = respond(head.lines().next().unwrap_or_default());
             let mut stream = stream;
-            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok").unwrap();
+            write!(stream, "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len()).unwrap();
             (head, String::from_utf8(body).unwrap())
         });
+        (url, server)
+    }
+
+    /// URL of a local port with no listener (bound, then released), so connecting is refused.
+    fn closed_port_url(path: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        format!("http://{addr}{path}")
+    }
+
+    #[test]
+    fn posts_to_a_local_webhook() {
+        let (url, server) = serve_once("/hooks/abc", |_| ("200 OK", "ok".to_string()));
         let agent = ureq::AgentBuilder::new().build();
         let status = post_webhook(&agent, &url, &slack_card(&request(40.0, "fn charge() {}"))).unwrap();
         let (head, body) = server.join().unwrap();
         assert_eq!(status, 200);
         assert!(head.starts_with("POST /hooks/abc"));
         assert!(body.contains("aegis_approve"));
+    }
+
+    #[test]
+    fn unreachable_webhook_error_hides_the_url() {
+        let url = closed_port_url("/services/T000/B000/SECRETTOKEN123");
+        let agent = ureq::AgentBuilder::new().build();
+        let err = post_webhook(&agent, &url, &slack_card(&request(40.0, "fn charge() {}"))).unwrap_err();
+        assert!(matches!(err, CardError::Transport { .. }), "{err:?}");
+        for text in [err.to_string(), format!("{err:?}")] {
+            assert!(!text.contains("SECRETTOKEN123") && !text.contains("/services/"), "{text}");
+        }
+        assert!(err.to_string().starts_with("webhook unreachable: Connection Failed"), "{err}");
+    }
+
+    #[test]
+    fn http_error_body_that_echoes_the_path_is_scrubbed() {
+        let (url, server) = serve_once("/hooks/SECRETTOKEN456", |request_line| {
+            let path = request_line.split_whitespace().nth(1).unwrap_or_default().to_string();
+            ("404 Not Found", format!("Cannot POST {path}"))
+        });
+        let agent = ureq::AgentBuilder::new().build();
+        let err = post_webhook(&agent, &url, &slack_card(&request(40.0, "fn charge() {}"))).unwrap_err();
+        server.join().unwrap();
+        assert!(matches!(err, CardError::Http { status: 404, .. }), "{err:?}");
+        for text in [err.to_string(), format!("{err:?}")] {
+            assert!(!text.contains("SECRETTOKEN456"), "{text}");
+        }
+        assert_eq!(err.to_string(), "webhook answered HTTP 404: Cannot POST [webhook]");
+    }
+
+    #[test]
+    fn scrub_url_covers_path_and_userinfo() {
+        let url = "https://bot:hunter2@hooks.example.com/hooks/abc123?x=1";
+        let text = format!("failed {url}; path /hooks/abc123?x=1; user bot:hunter2");
+        let clean = scrub_url(&text, url);
+        assert!(!clean.contains("abc123") && !clean.contains("hunter2"), "{clean}");
+        assert_eq!(scrub_url("no url here", "http://127.0.0.1:9/"), "no url here");
     }
 }

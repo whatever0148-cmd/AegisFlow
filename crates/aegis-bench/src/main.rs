@@ -1,878 +1,691 @@
-//! AegisFlow phase-1 hardware benchmark.
+//! AegisFlow hardware benchmark (phase 2).
 //!
-//! Measures, on this Mac: clonefile branching, renameatx_np(RENAME_SWAP) commits and rollbacks on
-//! APFS fixtures of increasing size; CoreML FP16 inference per compute-unit setting with the
-//! MLComputePlan placement report; Cedar evaluation; full branch→score→govern→rollback/commit
-//! transactions; PayPal order preparation with ed25519 receipts; tier-0 recovery routing; and MCP
-//! tool round-trips. Results (with sample counts and percentiles, missed targets included) go to
-//! `artifacts/aegis_phase1_telemetry.json`.
+//! Measures, on this Mac:
+//! * APFS, per fixture: cold `clonefile` branch (wall time and kernel time per call),
+//!   `WarmBranchPool` warm-hit acquire, standby replenish, `renameatx_np(RENAME_SWAP)` commit,
+//!   acquire right after a commit, caller-visible rollback with background reaping, the reaper's
+//!   deletion time, synchronous rollback, the APFS collision cases and live-tree integrity;
+//! * CoreML: the online context-window model per compute unit (units interleaved in rounds),
+//!   `MLComputePlan` per-op placement, cpuOnly / cpuAndNeuralEngine speedup, parity against
+//!   `models/parity_vectors.json`, and the batch model;
+//! * Cedar evaluation, full pool-branch -> score_window -> Cedar transactions, PayPal order
+//!   preparation with ed25519 receipts, tier-0 recovery routing and MCP tool round-trips.
 //!
-//!   cargo run --release -p aegis-bench -- [--out PATH] [--quick]
+//! Results (sample counts and percentiles, missed targets included) go to
+//! `artifacts/aegis_phase1_telemetry.json` (the file name is kept for the existing consumers).
+//! `targets_summary` holds exactly the gated targets; `informational` holds context rows;
+//! `run_conditions` says whether the run is preliminary (reduced scale, busy machine, sources
+//! changed during the run); `sources` fingerprints the measured code.
 //!
-//! Remote services are never called unless `AEGIS_BENCH_LIVE=1` and their credentials are set.
+//!   cargo run --release -p aegis-bench -- [--out PATH] [--quick | --scale F] [--quiet-wait S] [--work-dir DIR]
+//!   cargo run --release -p aegis-bench -- --verify phase1|gate [--artifact PATH]
+//!
+//! A reduced-scale run (`--quick`, `--scale` < 1) refuses to write the canonical artifact; pass
+//! `--out` elsewhere. `--quiet-wait S` waits up to S seconds for the 1-minute load average to drop
+//! to the busy threshold before measuring. `--verify` checks an existing artifact (see `gate`).
+//!
+//! `.env` is loaded through `aegis-config` before anything else. Remote services are never
+//! called unless `AEGIS_BENCH_LIVE=1` and their credentials are set.
 
-use std::error::Error;
+mod ane;
+mod apfs;
+mod conditions;
+mod flows;
+mod gate;
+mod util;
+
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use adapter_nebius_nemotron::{BuildFailure, RecoveryRouter, RouterConfig, Tier};
-use adapter_paypal::{aggrid_export, bryntum_export, telemetry_row, LineItem, OrderIntent, PayPalConfig, PayPalMiddleware, Submission, TelemetryRow};
-use adapter_switch_mcp::mcp::tool_definitions;
-use adapter_switch_mcp::{ChatConfig, McpServer};
-use aegis_ane_scorer::{
-    compute_plan, default_batch_model_path, default_model_path, neural_engine_cores, workspace_features, AneScorer,
-    ComputePlanReport, ComputeUnits, ExecutionContext, Feature, FeatureVector,
-};
-use aegis_governance::receipt::verify_json;
+use adapter_paypal::{aggrid_export, bryntum_export};
+use aegis_ane_scorer::AneScorer;
 use aegis_governance::time::utc_timestamp;
-use aegis_governance::{risk_to_context, Action, AuthzRequest, GovernanceEngine, PolicyContext, ReceiptSigner};
-use aegis_storage::Workspace;
+use aegis_governance::GovernanceEngine;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 
-type Res<T> = Result<T, Box<dyn Error>>;
+use conditions::Conditions;
+use util::{git_info, host_info, load_average, p50, p95, performance_cores, round6, source_fingerprint, Res};
 
-const TARGET_CLONEFILE_BRANCH_MS: f64 = 0.5;
+/// Gated targets (limits, not measurements).
+const TARGET_BRANCH_ACQUIRE_MS: f64 = 0.5;
 const TARGET_RENAMEATX_SWAP_MS: f64 = 0.5;
-const TARGET_ROLLBACK_MS: f64 = 0.5;
+const TARGET_ROLLBACK_CALLER_MS: f64 = 0.15;
 const TARGET_ANE_INFERENCE_MS: f64 = 0.6;
+const TARGET_ANE_SPEEDUP: f64 = 1.0;
 const TARGET_TIER0_ROUTE_MS: f64 = 0.4;
+/// Every acquire after `settle()` must be a warm hit: a miss means the pool failed.
+const TARGET_SETTLED_HIT_RATE: f64 = 1.0;
+/// Reference for informational cold-clone rows (the phase-1 branch target).
+const REFERENCE_CLONEFILE_MS: f64 = 0.5;
+const GATED_ROWS: usize = 11;
+const CANONICAL_OUT: &str = "artifacts/aegis_phase1_telemetry.json";
+const DEFAULT_WORK_DIR: &str = "target/aegis-bench";
+const APFS_PRECONDITION: &str = "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop";
 
-struct FixtureSpec {
-    name: &'static str,
-    dirs: usize,
-    files_per_dir: usize,
-    min_bytes: usize,
-    max_bytes: usize,
-    iterations: usize,
-}
-
-const FIXTURES: [FixtureSpec; 3] = [
-    FixtureSpec { name: "tiny", dirs: 2, files_per_dir: 4, min_bytes: 512, max_bytes: 4096, iterations: 400 },
-    FixtureSpec { name: "small", dirs: 8, files_per_dir: 16, min_bytes: 1024, max_bytes: 16384, iterations: 300 },
-    FixtureSpec { name: "medium", dirs: 32, files_per_dir: 32, min_bytes: 1024, max_bytes: 16384, iterations: 60 },
-];
-
-fn ms(d: Duration) -> f64 {
-    d.as_secs_f64() * 1e3
-}
-
-fn us(d: Duration) -> f64 {
-    d.as_secs_f64() * 1e6
-}
-
-fn round6(v: f64) -> f64 {
-    (v * 1e6).round() / 1e6
-}
-
-/// Nearest-rank percentile summary.
-fn stats(mut samples: Vec<f64>) -> Value {
-    if samples.is_empty() {
-        return json!({"n": 0});
-    }
-    samples.sort_by(|a, b| a.total_cmp(b));
-    let n = samples.len();
-    let pct = |p: f64| samples[((p / 100.0 * n as f64).ceil() as usize).clamp(1, n) - 1];
-    json!({
-        "n": n,
-        "min": round6(samples[0]),
-        "p50": round6(pct(50.0)),
-        "p95": round6(pct(95.0)),
-        "p99": round6(pct(99.0)),
-        "max": round6(samples[n - 1]),
-        "mean": round6(samples.iter().sum::<f64>() / n as f64),
-    })
-}
-
-fn p50(v: &Value) -> Option<f64> {
-    v["p50"].as_f64()
-}
-
-fn scaled(n: usize, scale: f64) -> usize {
-    ((n as f64 * scale).round() as usize).max(5)
-}
-
-fn command_line(program: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new(program).args(args).output().ok()?;
-    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
-}
-
-fn host_info(root: &Path) -> Value {
-    let sysctl = |name: &str| command_line("sysctl", &["-n", name]);
-    let memory_gb = sysctl("hw.memsize").and_then(|v| v.parse::<f64>().ok()).map(|b| b / 1_073_741_824.0);
-    let rustc = command_line("rustc", &["--version"]).or_else(|| {
-        let home = std::env::var("HOME").ok()?;
-        command_line(&format!("{home}/.cargo/bin/rustc"), &["--version"])
-    });
-    let card: Value = fs::read_to_string(root.join("models/model_card.json"))
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or(Value::Null);
-    json!({
-        "model": sysctl("hw.model"),
-        "cpu": sysctl("machdep.cpu.brand_string"),
-        "performance_cores": sysctl("hw.perflevel0.physicalcpu").and_then(|v| v.parse::<u32>().ok()),
-        "efficiency_cores": sysctl("hw.perflevel1.physicalcpu").and_then(|v| v.parse::<u32>().ok()),
-        "memory_gb": memory_gb,
-        "macos": command_line("sw_vers", &["-productVersion"]),
-        "macos_build": command_line("sw_vers", &["-buildVersion"]),
-        "kernel": command_line("uname", &["-r"]),
-        "rustc": rustc,
-        "swiftc": command_line("xcrun", &["swiftc", "--version"]).and_then(|v| v.lines().find(|l| l.contains("Swift version")).map(str::to_owned)),
-        "coremltools": card["toolchain"]["coremltools"],
-    })
-}
-
-fn git_info(root: &Path) -> Value {
-    let commit = command_line("git", &["-C", &root.to_string_lossy(), "rev-parse", "--short", "HEAD"]);
-    let dirty = Command::new("git")
-        .args(["-C", &root.to_string_lossy(), "status", "--porcelain", "--", "crates", "policies", "models", "Cargo.toml", "Cargo.lock"])
-        .output()
-        .map(|o| !o.stdout.is_empty())
-        .unwrap_or(true);
-    json!({"commit": commit.unwrap_or_else(|| "uncommitted".to_string()), "dirty": dirty || commit_is_missing(root)})
-}
-
-fn commit_is_missing(root: &Path) -> bool {
-    command_line("git", &["-C", &root.to_string_lossy(), "rev-parse", "HEAD"]).is_none()
-}
-
-/// Deterministic xorshift for fixture contents.
-struct XorShift(u64);
-
-impl XorShift {
-    fn next(&mut self) -> u64 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        self.0
-    }
-
-    fn range(&mut self, lo: usize, hi: usize) -> usize {
-        lo + (self.next() as usize) % (hi - lo + 1)
-    }
-}
-
-fn generate_fixture(live: &Path, spec: &FixtureSpec) -> Res<()> {
-    let mut rng = XorShift(0x9E37_79B9_7F4A_7C15 ^ spec.dirs as u64);
-    for d in 0..spec.dirs {
-        let dir = live.join(format!("src/module_{d:03}"));
-        fs::create_dir_all(&dir)?;
-        for f in 0..spec.files_per_dir {
-            let size = rng.range(spec.min_bytes, spec.max_bytes);
-            let mut text = String::with_capacity(size + 64);
-            let mut line = 0;
-            while text.len() < size {
-                text.push_str(&format!("pub const VALUE_{line}: u64 = 0x{:016x};\n", rng.next()));
-                line += 1;
-            }
-            fs::write(dir.join(format!("file_{f:03}.rs")), text)?;
-        }
-    }
-    fs::write(live.join("README.md"), format!("# {} fixture\n", spec.name))?;
-    Ok(())
-}
-
-/// (files, directories, bytes) below `root`.
-fn tree_size(root: &Path) -> Res<(usize, usize, u64)> {
-    let (mut files, mut dirs, mut bytes) = (0, 0, 0);
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        for entry in fs::read_dir(&dir)? {
-            let entry = entry?;
-            let meta = fs::symlink_metadata(entry.path())?;
-            if meta.is_dir() {
-                dirs += 1;
-                stack.push(entry.path());
-            } else {
-                files += 1;
-                bytes += meta.len();
-            }
-        }
-    }
-    Ok((files, dirs, bytes))
-}
-
-/// SHA-256 over (relative path, contents) of every file, in sorted order.
-fn tree_hash(root: &Path) -> Res<String> {
-    let mut paths = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        for entry in fs::read_dir(&dir)? {
-            let path = entry?.path();
-            if fs::symlink_metadata(&path)?.is_dir() {
-                stack.push(path);
-            } else {
-                paths.push(path);
-            }
-        }
-    }
-    paths.sort();
-    let mut hasher = Sha256::new();
-    for path in paths {
-        hasher.update(path.strip_prefix(root)?.to_string_lossy().as_bytes());
-        hasher.update([0]);
-        hasher.update(fs::read(&path)?);
-    }
-    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
-}
-
-fn bench_fixture(name: &str, live: &Path, iterations: usize) -> Res<Value> {
-    let mut ws = Workspace::open(live)?;
-    ws.set_retained_versions(4);
-    let (files, dirs, bytes) = tree_size(live)?;
-    for _ in 0..5 {
-        ws.branch("warmup")?.rollback()?;
-    }
-
-    let before = tree_hash(live)?;
-    let (mut clone, mut branch_total, mut detach, mut reclaim) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for i in 0..iterations {
-        let started = Instant::now();
-        let branch = ws.branch("bench")?;
-        branch_total.push(ms(started.elapsed()));
-        clone.push(ms(branch.clone_duration()));
-        fs::write(branch.path().join("agent_edit.rs"), format!("// edit {i}\n"))?;
-        let receipt = branch.rollback()?;
-        detach.push(ms(receipt.detach));
-        reclaim.push(ms(receipt.reclaim));
-    }
-    let unchanged = tree_hash(live)? == before;
-
-    let (mut swap, mut commit_total) = (Vec::new(), Vec::new());
-    for i in 0..iterations {
-        let branch = ws.branch("bench-commit")?;
-        fs::write(branch.path().join("agent_commit.rs"), format!("// commit {i}\n"))?;
-        let receipt = branch.commit()?;
-        swap.push(ms(receipt.swap));
-        commit_total.push(ms(receipt.total));
-    }
-    Ok(json!({
-        "name": name,
-        "files": files,
-        "dirs": dirs,
-        "entries": files + dirs,
-        "bytes": bytes,
-        "iterations": iterations,
-        "clonefile_ms": stats(clone),
-        "branch_total_ms": stats(branch_total),
-        "renameatx_swap_ms": stats(swap),
-        "commit_total_ms": stats(commit_total),
-        "rollback_detach_ms": stats(detach),
-        "rollback_reclaim_ms": stats(reclaim),
-        "live_tree_unchanged_after_rollback": unchanged,
-    }))
-}
-
-fn bench_apfs(fixtures: &Path, root: &Path, scale: f64) -> Res<Value> {
-    let mut results = Vec::new();
-    for spec in &FIXTURES {
-        let live = fixtures.join(spec.name).join("live");
-        fs::create_dir_all(&live)?;
-        generate_fixture(&live, spec)?;
-        eprintln!("  apfs · {} ({} files)", spec.name, spec.dirs * spec.files_per_dir + 1);
-        results.push(bench_fixture(spec.name, &live, scaled(spec.iterations, scale))?);
-    }
-    // A copy-on-write copy of this repository's own sources as a realistic tree.
-    let src_live = fixtures.join("aegisflow_src").join("live");
-    fs::create_dir_all(&src_live)?;
-    for dir in ["crates", "policies", "models", "harness", ".claude", ".kiro"] {
-        if root.join(dir).exists() {
-            let status = Command::new("cp").args(["-Rc"]).arg(root.join(dir)).arg(&src_live).status()?;
-            if !status.success() {
-                return Err(format!("cp -Rc {dir} failed").into());
-            }
-        }
-    }
-    eprintln!("  apfs · aegisflow_src");
-    results.push(bench_fixture("aegisflow_src", &src_live, scaled(200, scale))?);
-
-    // Least-squares fit of clonefile p50 (µs) against tree entries.
-    let points: Vec<(f64, f64)> = results
-        .iter()
-        .filter_map(|r| Some((r["entries"].as_f64()?, p50(&r["clonefile_ms"])? * 1000.0)))
-        .collect();
-    let n = points.len() as f64;
-    let (sx, sy) = points.iter().fold((0.0, 0.0), |(a, b), (x, y)| (a + x, b + y));
-    let (sxx, sxy) = points.iter().fold((0.0, 0.0), |(a, b), (x, y)| (a + x * x, b + x * y));
-    let slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-    let intercept = (sy - slope * sx) / n;
-    let fs_type = command_line("stat", &["-f", "%T", &fixtures.to_string_lossy()]);
-    Ok(json!({
-        "filesystem": "apfs",
-        "stat_type": fs_type,
-        "fixtures": results,
-        "clonefile_us_per_entry": round6(slope),
-        "clonefile_fixed_us": round6(intercept),
-    }))
-}
-
-fn load_parity(root: &Path) -> Res<(Vec<FeatureVector>, Vec<f64>)> {
-    let doc: Value = serde_json::from_str(&fs::read_to_string(root.join("models/parity_vectors.json"))?)?;
-    let vectors = doc["vectors"]
-        .as_array()
-        .ok_or("parity vectors missing")?
-        .iter()
-        .map(|row| {
-            let mut v = FeatureVector::default();
-            for (slot, x) in v.0.iter_mut().zip(row.as_array().into_iter().flatten()) {
-                *slot = x.as_f64().unwrap_or(0.0) as f32;
-            }
-            v
-        })
-        .collect();
-    let reference = doc["reference_fp32"].as_array().ok_or("reference missing")?.iter().filter_map(Value::as_f64).collect();
-    Ok((vectors, reference))
-}
-
-fn plan_summary(plan: &ComputePlanReport) -> Value {
-    json!({
-        "compute_units": plan.compute_units,
-        "operations": plan.operations_dispatched,
-        "operations_total": plan.operations_total,
-        "preferred": {
-            "neural_engine": plan.preferred.get("neural_engine").copied().unwrap_or(0),
-            "cpu": plan.preferred.get("cpu").copied().unwrap_or(0),
-            "gpu": plan.preferred.get("gpu").copied().unwrap_or(0),
-        },
-        "ops": plan.ops.iter().filter(|o| o.preferred != "none").map(|o| json!({
-            "operator": o.operator, "preferred": o.preferred, "supported": o.supported,
-        })).collect::<Vec<_>>(),
-    })
-}
-
-fn bench_ane(root: &Path, scale: f64) -> Res<Value> {
-    let (vectors, reference) = load_parity(root)?;
-    let mut runs = json!({});
-    for (key, units) in [
-        ("cpu_and_neural_engine", ComputeUnits::CpuAndNeuralEngine),
-        ("cpu_only", ComputeUnits::CpuOnly),
-        ("all", ComputeUnits::All),
-    ] {
-        let scorer = AneScorer::open(&default_model_path(), units)?;
-        for v in vectors.iter().cycle().take(200) {
-            scorer.score(v)?;
-        }
-        let mut samples = Vec::new();
-        for v in vectors.iter().cycle().take(scaled(3000, scale)) {
-            let started = Instant::now();
-            scorer.score(v)?;
-            samples.push(ms(started.elapsed()));
-        }
-        runs[key] = stats(samples);
-    }
-
-    let online = AneScorer::open_default()?;
-    let diffs: Vec<f64> = vectors
-        .iter()
-        .zip(&reference)
-        .map(|(v, r)| online.score(v).map(|s| (f64::from(s) - r).abs()))
-        .collect::<Result<_, _>>()?;
-    let online_plan = compute_plan(&default_model_path(), ComputeUnits::CpuAndNeuralEngine)?;
-
-    let batch_plan = compute_plan(&default_batch_model_path(), ComputeUnits::CpuAndNeuralEngine)?;
-    let mut batch_runs = json!({});
-    let mut batch_size = 0;
-    let mut batch_diff = 0.0f64;
-    for (key, units) in [("cpu_and_neural_engine", ComputeUnits::CpuAndNeuralEngine), ("cpu_only", ComputeUnits::CpuOnly)] {
-        let scorer = AneScorer::open(&default_batch_model_path(), units)?;
-        batch_size = scorer.batch_size();
-        let full: Vec<FeatureVector> = vectors.iter().cycle().take(batch_size).copied().collect();
-        for _ in 0..3 {
-            scorer.score_batch(&full)?;
-        }
-        let mut samples = Vec::new();
-        for _ in 0..scaled(40, scale) {
-            let started = Instant::now();
-            scorer.score_batch(&full)?;
-            samples.push(ms(started.elapsed()));
-        }
-        let summary = stats(samples);
-        let per_op_us = p50(&summary).map(|p| round6(p * 1000.0 / batch_size as f64));
-        batch_runs[key] = json!({"batch_ms": summary, "amortized_us_per_operation_p50": per_op_us});
-        if units == ComputeUnits::CpuAndNeuralEngine {
-            let scores = scorer.score_batch(&vectors)?;
-            batch_diff = scores.iter().zip(&reference).map(|(s, r)| (f64::from(*s) - r).abs()).fold(0.0, f64::max);
-        }
-    }
-    let note = format!(
-        "MLComputePlan (.cpuAndNeuralEngine) placed online-model ops as ANE {} / CPU {} / GPU {} of {}; batch model ({} operations per prediction) as ANE {} / CPU {} / GPU {} of {}.",
-        online_plan.on_neural_engine(),
-        online_plan.preferred.get("cpu").copied().unwrap_or(0),
-        online_plan.preferred.get("gpu").copied().unwrap_or(0),
-        online_plan.operations_dispatched,
-        batch_size,
-        batch_plan.on_neural_engine(),
-        batch_plan.preferred.get("cpu").copied().unwrap_or(0),
-        batch_plan.preferred.get("gpu").copied().unwrap_or(0),
-        batch_plan.operations_dispatched,
-    );
-    Ok(json!({
-        "model": "models/AegisWorkflowFP16.mlmodelc",
-        "precision": "float16",
-        "feature_count": online.feature_count(),
-        "neural_engine_cores": neural_engine_cores()?,
-        "runs": runs,
-        "compute_plan": plan_summary(&online_plan),
-        "parity": {
-            "vectors": diffs.len(),
-            "max_abs_diff": round6(diffs.iter().copied().fold(0.0, f64::max)),
-            "mean_abs_diff": round6(diffs.iter().sum::<f64>() / diffs.len() as f64),
-            "reference": "NumPy FP32 forward pass of the same weights (models/parity_vectors.json)",
-        },
-        "batch": {
-            "model": "models/AegisWorkflowFP16Batch.mlmodelc",
-            "batch_size": batch_size,
-            "compute_plan": plan_summary(&batch_plan),
-            "runs": batch_runs,
-            "parity_max_abs_diff": round6(batch_diff),
-        },
-        "placement_note": note,
-    }))
-}
-
-struct CedarCase {
-    name: &'static str,
-    action: Action,
-    context: PolicyContext,
-    expect_allow: bool,
-}
-
-fn cedar_cases() -> Vec<CedarCase> {
-    let ctx = |risk: i64, sensitive: bool, approval: bool, receipt: bool, cents: i64| PolicyContext {
-        ane_risk_score: risk,
-        has_unformatted_sensitive_fields: sensitive,
-        team_approval_granted: approval,
-        ed25519_receipt_verified: receipt,
-        amount_cents: cents,
-    };
-    vec![
-        CedarCase { name: "speculative commit, risk 12", action: Action::SpeculativeCommit, context: ctx(12, false, false, false, 0), expect_allow: true },
-        CedarCase { name: "commit with unredacted sensitive fields, risk 5", action: Action::SpeculativeCommit, context: ctx(5, true, false, false, 0), expect_allow: false },
-        CedarCase { name: "high-impact commit without approval, risk 61", action: Action::SpeculativeCommit, context: ctx(61, false, false, false, 0), expect_allow: false },
-        CedarCase { name: "high-impact commit with team approval, risk 61", action: Action::SpeculativeCommit, context: ctx(61, false, true, false, 0), expect_allow: true },
-        CedarCase { name: "order $42.00, risk 20", action: Action::CreateOrder, context: ctx(20, false, false, false, 4200), expect_allow: true },
-        CedarCase { name: "order $120.00, receipt unverified, risk 20", action: Action::CreateOrder, context: ctx(20, false, false, false, 12000), expect_allow: false },
-        CedarCase { name: "order $120.00, receipt verified, risk 20", action: Action::CreateOrder, context: ctx(20, false, false, true, 12000), expect_allow: true },
-        CedarCase { name: "order $20.00, risk 80", action: Action::CreateOrder, context: ctx(80, false, false, true, 2000), expect_allow: false },
-        CedarCase { name: "branch, risk 99 with sensitive fields", action: Action::Branch, context: ctx(99, true, false, false, 0), expect_allow: true },
-        CedarCase { name: "rollback, risk 99", action: Action::Rollback, context: ctx(99, false, false, false, 0), expect_allow: true },
-    ]
-}
-
-fn authz(case: &CedarCase) -> AuthzRequest {
-    AuthzRequest {
-        principal: "core-builder".to_string(),
-        action: case.action,
-        resource: if case.action == Action::CreateOrder { "sandbox-merchant" } else { "aegisflow" }.to_string(),
-        context: case.context.clone(),
-    }
-}
-
-fn bench_cedar(gov: &GovernanceEngine, scale: f64) -> Res<Value> {
-    let cases = cedar_cases();
-    let mut matrix = Vec::new();
-    let mut passed = 0;
-    for case in &cases {
-        let d = gov.authorize(&authz(case))?;
-        passed += usize::from(d.allowed == case.expect_allow);
-        matrix.push(json!({
-            "case": case.name,
-            "expected": if case.expect_allow { "Allow" } else { "Deny" },
-            "actual": if d.allowed { "Allow" } else { "Deny" },
-            "policies": d.determining_policies,
-        }));
-    }
-    let requests: Vec<_> = cases.iter().map(|c| gov.build_request(&authz(c))).collect::<Result<_, _>>()?;
-    for r in requests.iter().cycle().take(2000) {
-        gov.authorize_request(r);
-    }
-    let eval: Vec<f64> = requests.iter().cycle().take(scaled(20_000, scale)).map(|r| gov.authorize_request(r).eval_ns as f64 / 1000.0).collect();
-    let mut full = Vec::new();
-    for case in cases.iter().cycle().take(scaled(20_000, scale)) {
-        let started = Instant::now();
-        gov.authorize(&authz(case))?;
-        full.push(us(started.elapsed()));
-    }
-    Ok(json!({
-        "policies": gov.policy_count(),
-        "schema_validated": true,
-        "is_authorized_us": stats(eval),
-        "build_request_and_authorize_us": stats(full),
-        "decision_matrix": matrix,
-        "decision_matrix_passed": passed,
-        "decision_matrix_total": cases.len(),
-    }))
-}
-
-fn bench_end_to_end(fixtures: &Path, scorer: &AneScorer, gov: &GovernanceEngine, scale: f64) -> Res<Value> {
-    let live = fixtures.join("e2e").join("live");
-    fs::create_dir_all(&live)?;
-    generate_fixture(&live, &FIXTURES[1])?;
-    fs::create_dir_all(live.join("docs"))?;
-    fs::write(live.join("docs/guide.md"), "# Guide\n")?;
-    fs::write(live.join("src/payments.rs"), "pub fn charge(cents: u64) -> u64 { cents }\n")?;
-    let ws = Workspace::open(&live)?;
-    let (files, _, _) = tree_size(&live)?;
-    let iterations = scaled(200, scale);
-    let key = format!("AKIA{}", "IOSFODNN7EXAMPLE");
-    let before = tree_hash(&live)?;
-
-    let mut totals = Vec::new();
-    let mut stages: Vec<(&str, Vec<f64>)> =
-        ["branch", "agent_edit", "diff", "features", "ane_score", "cedar", "rollback"].iter().map(|s| (*s, Vec::new())).collect();
-    let (mut denied, mut risky_scores) = (0usize, Vec::new());
-    for i in 0..iterations {
-        let t0 = Instant::now();
-        let mut lap = Instant::now();
-        let mark = |idx: usize, stages: &mut Vec<(&str, Vec<f64>)>, lap: &mut Instant| {
-            stages[idx].1.push(us(lap.elapsed()));
-            *lap = Instant::now();
-        };
-        let branch = ws.branch("agent")?;
-        mark(0, &mut stages, &mut lap);
-        fs::write(
-            branch.path().join("src/payments.rs"),
-            format!("pub fn charge(cents: u64) -> u64 {{ cents }}\nconst AWS_KEY: &str = \"{key}\"; // edit {i}\npub fn notify() {{ send(\"billing@example.com\"); }}\n"),
-        )?;
-        fs::write(branch.path().join(".env"), format!("AWS_ACCESS_KEY_ID={key}\n"))?;
-        mark(1, &mut stages, &mut lap);
-        let changes = branch.changes()?;
-        mark(2, &mut stages, &mut lap);
-        let features = workspace_features(&changes, &ExecutionContext { agent_uncertainty: 0.3, ..Default::default() });
-        mark(3, &mut stages, &mut lap);
-        let risk = scorer.score(&features)?;
-        mark(4, &mut stages, &mut lap);
-        let decision = gov.authorize(&AuthzRequest {
-            principal: "core-builder".into(),
-            action: Action::SpeculativeCommit,
-            resource: "e2e".into(),
-            context: PolicyContext {
-                ane_risk_score: risk_to_context(risk),
-                has_unformatted_sensitive_fields: features.get(Feature::UnformattedSensitiveFields) > 0.5,
-                ..Default::default()
-            },
-        })?;
-        mark(5, &mut stages, &mut lap);
-        denied += usize::from(!decision.allowed);
-        risky_scores.push(f64::from(risk));
-        if decision.allowed {
-            return Err("risky edit was allowed by Cedar; end-to-end rollback scenario is invalid".into());
-        }
-        branch.rollback()?;
-        mark(6, &mut stages, &mut lap);
-        totals.push(ms(t0.elapsed()));
-    }
-    let integrity = tree_hash(&live)? == before;
-
-    let mut commit_totals = Vec::new();
-    let (mut allowed, mut benign_scores) = (0usize, Vec::new());
-    for i in 0..iterations {
-        let t0 = Instant::now();
-        let branch = ws.branch("docs")?;
-        let guide = branch.path().join("docs/guide.md");
-        let mut text = fs::read_to_string(&guide)?;
-        text.push_str(&format!("\nRevision {i}: clarified the setup steps.\n"));
-        fs::write(&guide, text)?;
-        let changes = branch.changes()?;
-        let features = workspace_features(&changes, &ExecutionContext { agent_uncertainty: 0.1, ..Default::default() });
-        let risk = scorer.score(&features)?;
-        let decision = gov.authorize(&AuthzRequest {
-            principal: "core-builder".into(),
-            action: Action::SpeculativeCommit,
-            resource: "e2e".into(),
-            context: PolicyContext { ane_risk_score: risk_to_context(risk), ..Default::default() },
-        })?;
-        benign_scores.push(f64::from(risk));
-        if decision.allowed {
-            allowed += 1;
-            branch.commit()?;
-        } else {
-            branch.rollback()?;
-        }
-        commit_totals.push(ms(t0.elapsed()));
-    }
-    let stage_p50: serde_json::Map<String, Value> =
-        stages.into_iter().map(|(name, s)| (name.to_string(), stats(s)["p50"].clone())).collect();
-    Ok(json!({
-        "fixture_files": files,
-        "iterations": iterations,
-        "rollback_path_ms": stats(totals),
-        "commit_path_ms": stats(commit_totals),
-        "stage_p50_us": stage_p50,
-        "live_integrity_verified": integrity,
-        "rollback_case": {"denied": denied, "risk_score": stats(risky_scores)},
-        "commit_case": {"allowed": allowed, "risk_score": stats(benign_scores)},
-    }))
-}
-
-fn order(reference: &str, quantity: u32, unit_cents: u64, note: &str, new_payee: bool, country_risk: f64) -> OrderIntent {
-    OrderIntent {
-        reference: reference.to_string(),
-        merchant_id: "sandbox-lab-supplies".to_string(),
-        currency: "USD".to_string(),
-        description: "Build-lab hardware for CI runners".to_string(),
-        customer_note: note.to_string(),
-        items: vec![LineItem { name: "Thunderbolt 4 cable".into(), quantity, unit_amount_cents: unit_cents, sku: Some("TB4-1M".into()) }],
-        new_payee,
-        payee_country_risk: country_risk,
-        customer_pii_fields: 1,
-        team_approval_granted: false,
-    }
-}
-
-fn bench_paypal(scorer: Arc<AneScorer>, gov: Arc<GovernanceEngine>, scale: f64) -> Res<(Value, Vec<TelemetryRow>)> {
-    let env_cfg = PayPalConfig::from_env();
-    let live = std::env::var("AEGIS_BENCH_LIVE").as_deref() == Ok("1") && env_cfg.has_credentials();
-    let mw = PayPalMiddleware::new(env_cfg.clone(), gov.clone(), scorer.clone(), ReceiptSigner::generate());
-    let unredacted = PayPalMiddleware::new(PayPalConfig { redact: false, ..env_cfg.clone() }, gov, scorer, ReceiptSigner::generate());
-    let cases: Vec<(&str, &PayPalMiddleware, OrderIntent)> = vec![
-        ("$42.00 known payee", &mw, order("bench-042", 2, 2100, "Deliver to jane.doe@example.com, call +1 (415) 555-0132", false, 0.05)),
-        ("$120.00 known payee", &mw, order("bench-120", 2, 6000, "Ship with the next batch", false, 0.05)),
-        ("$480.00 new payee, high-risk country", &mw, order("bench-480", 8, 6000, "Urgent", true, 0.9)),
-        ("$25.00 with redaction disabled", &unredacted, order("bench-pii", 1, 2500, "Card 4111 1111 1111 1111", false, 0.05)),
-    ];
-    let mut rows = Vec::new();
-    let mut summaries = Vec::new();
-    let mut live_result = Value::Null;
-    for (name, middleware, intent) in &cases {
-        let prepared = middleware.prepare(intent)?;
-        let submission = if !prepared.decision.allowed {
-            middleware.submit(&prepared)?
-        } else if live && intent.reference == "bench-042" {
-            let result = middleware.submit(&prepared)?;
-            live_result = serde_json::to_value(&result)?;
-            result
-        } else if env_cfg.has_credentials() {
-            Submission::NotSent { reason: "benchmark is offline unless AEGIS_BENCH_LIVE=1".into() }
-        } else {
-            Submission::NotSent { reason: "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set".into() }
-        };
-        summaries.push(json!({
-            "case": name,
-            "amount_cents": prepared.amount_cents,
-            "risk_score": round6(f64::from(prepared.risk_score)),
-            "decision": if prepared.decision.allowed { "Allow" } else { "Deny" },
-            "policies": prepared.decision.determining_policies,
-            "redactions": prepared.redactions,
-            "unformatted_sensitive_fields": prepared.has_unformatted_sensitive_fields,
-            "receipt_verified": prepared.receipt_verified,
-            "receipt_reverified": prepared.verify().is_ok(),
-            "submission": submission,
-        }));
-        rows.push(telemetry_row(&prepared, &submission, &env_cfg.agent_id));
-    }
-
-    let standard = &cases[0].2;
-    for _ in 0..200 {
-        mw.prepare(standard)?;
-    }
-    let (mut prepare, mut redact) = (Vec::new(), Vec::new());
-    for _ in 0..scaled(2000, scale) {
-        let p = mw.prepare(standard)?;
-        prepare.push(p.timings.total_us);
-        redact.push(p.timings.redact_us);
-    }
-    let signer = ReceiptSigner::generate();
-    let body = mw.prepare(standard)?.body;
-    let (mut sign, mut verify) = (Vec::new(), Vec::new());
-    for _ in 0..scaled(2000, scale) {
-        let t = Instant::now();
-        let receipt = signer.sign_json(&body);
-        sign.push(us(t.elapsed()));
-        let t = Instant::now();
-        verify_json(&receipt, &body)?;
-        verify.push(us(t.elapsed()));
-    }
-    let sandbox = if live {
-        json!({"attempted": true, "result": live_result})
-    } else if env_cfg.has_credentials() {
-        json!({"attempted": false, "reason": "credentials present; set AEGIS_BENCH_LIVE=1 to submit the $42 case to the Sandbox"})
-    } else {
-        json!({"attempted": false, "reason": "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set"})
-    };
-    Ok((
-        json!({
-            "prepare_order_us": stats(prepare),
-            "redact_us": stats(redact),
-            "ed25519_sign_us": stats(sign),
-            "ed25519_verify_us": stats(verify),
-            "cases": summaries,
-            "sandbox_submission": sandbox,
-        }),
-        rows,
-    ))
-}
-
-fn bench_router(scorer: Arc<AneScorer>, gov: Arc<GovernanceEngine>, scale: f64) -> Res<Value> {
-    let cfg = RouterConfig::from_env();
-    let live = std::env::var("AEGIS_BENCH_LIVE").as_deref() == Ok("1") && cfg.nebius_api_key.is_some();
-    let has_key = cfg.nebius_api_key.is_some();
-    let router = RecoveryRouter::new(cfg, scorer, gov);
-    let failure = BuildFailure {
-        command: vec!["cargo".into(), "build".into(), "--release".into()],
-        exit_code: 101,
-        stderr: concat!(
-            "error[E0425]: cannot find value `receipt` in this scope\n  --> src/lib.rs:42:9\n",
-            "error[E0308]: mismatched types\n  --> src/orders.rs:17:20\n",
-            "warning: unused import: `std::io`\n  --> src/lib.rs:3:5\n",
-            "error: could not compile `demo` (lib) due to 2 previous errors; 1 warning emitted\n"
-        )
-        .to_string(),
-        retry_count: 1,
-    };
-    for _ in 0..200 {
-        router.triage(&failure)?;
-    }
-    let mut samples = Vec::new();
-    for _ in 0..scaled(5000, scale) {
-        let t = Instant::now();
-        router.triage(&failure)?;
-        samples.push(us(t.elapsed()));
-    }
-    let triage = router.triage(&failure)?;
-    let live_calls = if live {
-        match router.probe_model(Tier::NemotronSuper) {
-            Ok((reply, latency_ms)) => json!({"attempted": true, "result": format!("tier-1 replied {reply:?} in {latency_ms:.1} ms")}),
-            Err(e) => json!({"attempted": true, "result": format!("tier-1 call failed: {e}")}),
-        }
-    } else if has_key {
-        json!({"attempted": false, "reason": "NEBIUS_API_KEY present; set AEGIS_BENCH_LIVE=1 for a live tier-1 probe"})
-    } else {
-        json!({"attempted": false, "reason": "NEBIUS_API_KEY not set"})
-    };
-    Ok(json!({
-        "tier0_route_us": stats(samples),
-        "triage": triage,
-        "live_calls": live_calls,
-        "models": {"tier1": router.config().tier1_model, "tier2": router.config().tier2_model, "base_url": router.config().base_url},
-    }))
-}
-
-fn bench_mcp(scorer: Arc<AneScorer>, gov: Arc<GovernanceEngine>, scale: f64) -> Res<Value> {
-    let mut server = McpServer::new(scorer, gov, ChatConfig::default());
-    let policy = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "aegis_policy_evaluate",
-        "arguments": {"action": "paypal::create_order", "ane_risk_score": 20, "amount_cents": 4200}}})
-    .to_string();
-    let mut vector = FeatureVector::default();
-    vector.put(Feature::FilesTouched, 6.0);
-    vector.put(Feature::LinesAdded, 120.0);
-    let score = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "aegis_score_features",
-        "arguments": {"features": vector.as_slice()}}})
-    .to_string();
-    for _ in 0..200 {
-        server.handle_line(&policy);
-        server.handle_line(&score);
-    }
-    let (mut policy_us, mut score_us, mut both) = (Vec::new(), Vec::new(), Vec::new());
-    for _ in 0..scaled(3000, scale) {
-        let t = Instant::now();
-        server.handle_line(&policy).ok_or("no response")?;
-        let a = us(t.elapsed());
-        let t = Instant::now();
-        server.handle_line(&score).ok_or("no response")?;
-        let b = us(t.elapsed());
-        policy_us.push(a);
-        score_us.push(b);
-        both.push(a);
-        both.push(b);
-    }
-    Ok(json!({
-        "tools": tool_definitions().len(),
-        "tools_call_roundtrip_us": stats(both),
-        "policy_evaluate_roundtrip_us": stats(policy_us),
-        "score_features_roundtrip_us": stats(score_us),
-        "webhooks": {"attempted": false, "reason": "the benchmark never posts to chat; aegis_request_approval posts only to configured webhooks"},
-    }))
-}
-
-fn target_row(metric: &str, target_ms: f64, measured: Option<f64>) -> Value {
+/// Latency row from a stats summary (`n`, `p50`, `p95`) whose unit is `to_ms` milliseconds.
+/// `pass` is null when there are no samples.
+fn latency_row(metric: String, target_ms: f64, samples: &Value, to_ms: f64) -> Value {
+    let p50_ms = p50(samples).map(|v| round6(v * to_ms));
     json!({
         "metric": metric,
         "target": format!("< {target_ms} ms"),
-        "measured_p50_ms": measured,
-        "pass": measured.map(|m| m < target_ms),
+        "measured_p50_ms": p50_ms,
+        "p95_ms": p95(samples).map(|v| round6(v * to_ms)),
+        "n": samples["n"].as_u64().unwrap_or(0),
+        "pass": p50_ms.map(|m| m < target_ms),
     })
 }
 
-fn main() -> Res<()> {
-    let mut out = PathBuf::from("artifacts/aegis_phase1_telemetry.json");
-    let mut scale = 1.0;
-    let mut args = std::env::args().skip(1);
+/// Informational latency row: same fields, target marked as a reference.
+fn reference_row(metric: String, target_ms: f64, samples: &Value, to_ms: f64) -> Value {
+    let mut row = latency_row(metric, target_ms, samples, to_ms);
+    row["target"] = json!(format!("< {target_ms} ms (reference)"));
+    row
+}
+
+/// Informational latency row without a reference target.
+fn context_row(metric: String, samples: &Value, to_ms: f64) -> Value {
+    let mut row = latency_row(metric, f64::INFINITY, samples, to_ms);
+    row["target"] = json!("—");
+    row["pass"] = Value::Null;
+    row
+}
+
+/// A latency verdict combined with preconditions; null stays null (no measurement).
+fn gate_pass(latency: &Value, preconditions: &[bool]) -> Value {
+    json!(latency.as_bool().map(|ok| ok && preconditions.iter().all(|p| *p)))
+}
+
+/// "faster" / "slower" for a cpuOnly-over-cpuAndNeuralEngine speedup.
+fn faster_or_slower(speedup: Option<f64>) -> &'static str {
+    match speedup {
+        Some(s) if s > TARGET_ANE_SPEEDUP => "faster",
+        Some(s) if s < TARGET_ANE_SPEEDUP => "slower",
+        Some(_) => "as fast",
+        None => "n/a",
+    }
+}
+
+fn placement_row(metric: &str, plan: &Value) -> Value {
+    let dispatched = plan["operations"].as_u64();
+    let on_ane = plan["preferred"]["neural_engine"].as_u64();
+    let pass = match (dispatched, on_ane) {
+        (Some(d), Some(a)) if d > 0 => Some(a == d),
+        _ => None,
+    };
+    json!({
+        "metric": metric,
+        "target": "all ops on ANE",
+        "measured": plan["preferred"],
+        "dispatched_ops": dispatched,
+        "pass": pass,
+    })
+}
+
+fn info_row(metric: String, target: &str, key: &str, value: Option<f64>, pass: Option<bool>) -> Value {
+    let mut row = json!({"metric": metric, "target": target, "pass": pass});
+    row[key] = json!(value);
+    row
+}
+
+fn fixture_label(f: &Value) -> String {
+    format!("{} ({} files)", f["name"].as_str().unwrap_or("?"), f["files"])
+}
+
+fn fmt_opt(v: Option<f64>, digits: usize) -> String {
+    v.map(|x| format!("{x:.digits$}")).unwrap_or_else(|| "n/a".to_string())
+}
+
+fn min_max(values: &[f64]) -> Option<(f64, f64)> {
+    let lo = values.iter().copied().reduce(f64::min)?;
+    let hi = values.iter().copied().reduce(f64::max)?;
+    Some((lo, hi))
+}
+
+struct Summary {
+    gated: Vec<Value>,
+    informational: Vec<Value>,
+    note: String,
+    /// Live-tree integrity held in every phase and every store was clean after its pool dropped.
+    integrity_ok: bool,
+}
+
+struct IntegrityVerdict {
+    checks: u64,
+    passed: u64,
+    stores_clean: bool,
+    ok: bool,
+}
+
+fn integrity_verdict(fixtures: &[&Value], e2e: &Value) -> IntegrityVerdict {
+    let mut checks = 0u64;
+    let mut passed = 0u64;
+    for integrity in fixtures.iter().map(|f| &f["integrity"]).chain(std::iter::once(&e2e["integrity"])) {
+        checks += integrity["checks"].as_u64().unwrap_or(0);
+        passed += integrity["passed"].as_u64().unwrap_or(0);
+    }
+    let stores_clean = !fixtures.is_empty() && fixtures.iter().all(|f| f["store_after_pool_drop"]["clean"] == true);
+    IntegrityVerdict { checks, passed, stores_clean, ok: checks > 0 && passed == checks && stores_clean }
+}
+
+fn summarize(apfs: &Value, ane: &Value, router: &Value, e2e: &Value, host: &Value) -> Summary {
+    let fixtures: Vec<&Value> = apfs["fixtures"].as_array().map(|a| a.iter().collect()).unwrap_or_default();
+    let fixture = |name: &str| fixtures.iter().copied().find(|f| f["name"] == name).cloned().unwrap_or(Value::Null);
+    let small = fixture("small");
+    let medium = fixture("medium");
+    // Integrity is a precondition of every APFS gated row (P2-R2.3: the live tree stays
+    // byte-identical); it is computed first so those rows can depend on it.
+    let integrity = integrity_verdict(&fixtures, e2e);
+
+    // ---- gated rows (exactly GATED_ROWS) ----
+    let mut gated = Vec::new();
+    for f in &fixtures {
+        let pool = &f["pool"];
+        let mut row = latency_row(
+            format!("branch acquire (WarmBranchPool warm hit) · {}", fixture_label(f)),
+            TARGET_BRANCH_ACQUIRE_MS,
+            &pool["acquire_hit_ms"],
+            1.0,
+        );
+        let hits = pool["hits"].as_u64().unwrap_or(0);
+        let misses = pool["misses"].as_u64().unwrap_or(0);
+        let hit_rate = (hits + misses > 0).then(|| round6(hits as f64 / (hits + misses) as f64));
+        let hit_ok = hit_rate.is_some_and(|r| r >= TARGET_SETTLED_HIT_RATE);
+        row["target"] = json!(format!(
+            "< {TARGET_BRANCH_ACQUIRE_MS} ms p50 on warm hits, hit rate >= {TARGET_SETTLED_HIT_RATE} (pool settled before each acquire)"
+        ));
+        row["measured_hit_rate"] = json!(hit_rate);
+        row["fixture"] = f["name"].clone();
+        row["hits"] = json!(hits);
+        row["misses"] = json!(misses);
+        row["miss_p50_ms"] = json!(p50(&pool["acquire_miss_ms"]));
+        row["requires"] = json!(APFS_PRECONDITION);
+        row["live_tree_integrity"] = json!(integrity.ok);
+        row["pass"] = gate_pass(&row["pass"], &[hit_ok, integrity.ok]);
+        gated.push(row);
+    }
+    let mut swap = latency_row(
+        "renameatx_np RENAME_SWAP commit (syscall only) · small".into(),
+        TARGET_RENAMEATX_SWAP_MS,
+        &small["renameatx_swap_ms"],
+        1.0,
+    );
+    swap["requires"] = json!(APFS_PRECONDITION);
+    swap["live_tree_integrity"] = json!(integrity.ok);
+    swap["pass"] = gate_pass(&swap["pass"], &[integrity.ok]);
+    gated.push(swap);
+    let mut rb = latency_row(
+        "rollback · caller-visible (background reap) · small".into(),
+        TARGET_ROLLBACK_CALLER_MS,
+        &small["pool"]["rollback_caller_ms"],
+        1.0,
+    );
+    rb["requires"] = json!(APFS_PRECONDITION);
+    rb["live_tree_integrity"] = json!(integrity.ok);
+    rb["pass"] = gate_pass(&rb["pass"], &[integrity.ok]);
+    gated.push(rb);
+    let ane_p50 = p50(&ane["runs"]["cpu_and_neural_engine"]);
+    let cpu_p50 = p50(&ane["runs"]["cpu_only"]);
+    gated.push(latency_row(
+        "CoreML FP16 online window model · cpuAndNeuralEngine · back-to-back calls".into(),
+        TARGET_ANE_INFERENCE_MS,
+        &ane["runs"]["cpu_and_neural_engine"],
+        1.0,
+    ));
+    gated.push(placement_row("online model executes on the Neural Engine (MLComputePlan)", &ane["compute_plan"]));
+    let speedup = ane["speedup_cpu_only_over_ane_p50"].as_f64();
+    gated.push(json!({
+        "metric": "online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly",
+        "target": format!("speedup > {TARGET_ANE_SPEEDUP} (cpuOnly p50 / cpuAndNeuralEngine p50)"),
+        "measured": {"cpuAndNeuralEngine p50 ms": ane_p50, "cpuOnly p50 ms": cpu_p50, "speedup": speedup},
+        "cpu_and_neural_engine_p50_ms": ane_p50,
+        "cpu_only_p50_ms": cpu_p50,
+        "speedup": speedup,
+        "n": ane["runs"]["cpu_and_neural_engine"]["n"].as_u64().unwrap_or(0),
+        "n_cpu_only": ane["runs"]["cpu_only"]["n"].as_u64().unwrap_or(0),
+        "pass": speedup.map(|s| s > TARGET_ANE_SPEEDUP),
+    }));
+    gated.push(placement_row("batch model executes on the Neural Engine (MLComputePlan)", &ane["batch"]["compute_plan"]));
+    gated.push(latency_row("tier-0 route (ANE + Cedar)".into(), TARGET_TIER0_ROUTE_MS, &router["tier0_route_us"], 1e-3));
+
+    // ---- informational rows (not gated) ----
+    let mut info = Vec::new();
+    for f in &fixtures {
+        let mut row = latency_row(format!("cold clonefile branch · {}", fixture_label(f)), REFERENCE_CLONEFILE_MS, &f["clonefile_ms"], 1.0);
+        row["target"] = json!(format!("< {REFERENCE_CLONEFILE_MS} ms (same reference as the pool rows)"));
+        row["fixture"] = f["name"].clone();
+        info.push(row);
+    }
+    for f in &fixtures {
+        let mut row = info_row(
+            format!("kernel time per clonefile entry (getrusage ru_stime) · {}", fixture_label(f)),
+            "— (O(entries) inside the kernel)",
+            "measured_per_entry_us",
+            f["kernel_clonefile"]["sys_us_per_entry_p50"].as_f64(),
+            None,
+        );
+        row["fixture"] = f["name"].clone();
+        row["entries"] = f["entries"].clone();
+        row["sys_us_p50"] = json!(p50(&f["kernel_clonefile"]["sys_us"]));
+        info.push(row);
+    }
+    for f in &fixtures {
+        let mut row = context_row(
+            format!("standby replenish (refill thread, off the caller's path) · {}", fixture_label(f)),
+            &f["pool"]["replenish_ms"],
+            1.0,
+        );
+        row["fixture"] = f["name"].clone();
+        info.push(row);
+    }
+    for f in &fixtures {
+        let mut row = reference_row(
+            format!("commit · caller-visible (lock + checks + RENAME_SWAP + version) · {}", fixture_label(f)),
+            TARGET_RENAMEATX_SWAP_MS,
+            &f["commit_caller_ms"],
+            1.0,
+        );
+        row["fixture"] = f["name"].clone();
+        info.push(row);
+    }
+    for f in &fixtures {
+        let ac = &f["pool"]["acquire_after_commit"];
+        let mut row = reference_row(
+            format!("acquire immediately after a commit (stale standby) · {}", fixture_label(f)),
+            TARGET_BRANCH_ACQUIRE_MS,
+            &ac["acquire_ms"],
+            1.0,
+        );
+        row["fixture"] = f["name"].clone();
+        row["measured_sources"] = ac["sources"].clone();
+        info.push(row);
+    }
+    for f in &fixtures {
+        let mut row = context_row(
+            format!("background reap per detached tree (reaper thread) · {}", fixture_label(f)),
+            &f["pool"]["background_reaper"]["reap_ms"],
+            1.0,
+        );
+        row["fixture"] = f["name"].clone();
+        info.push(row);
+    }
+    info.push(reference_row(
+        "rollback detach only (rename into trash) · small".into(),
+        TARGET_ROLLBACK_CALLER_MS,
+        &small["pool"]["rollback_detach_ms"],
+        1.0,
+    ));
+    info.push(reference_row(
+        "rollback · synchronous (detach + inline delete, phase-1 style) · small".into(),
+        TARGET_ROLLBACK_CALLER_MS,
+        &small["rollback_sync_caller_ms"],
+        1.0,
+    ));
+    info.push(reference_row(
+        "rollback right after acquire (refill clone in flight) · small".into(),
+        TARGET_ROLLBACK_CALLER_MS,
+        &small["pool"]["collisions"]["rollback_right_after_acquire_ms"],
+        1.0,
+    ));
+    info.push(reference_row(
+        "commit right after acquire (refill clone in flight) · small".into(),
+        TARGET_RENAMEATX_SWAP_MS,
+        &small["pool"]["collisions"]["commit_right_after_acquire_ms"],
+        1.0,
+    ));
+    let rb_collide = p50(&small["pool"]["collisions"]["rollback_right_after_acquire_ms"]);
+    let commit_collide = p50(&small["pool"]["collisions"]["commit_right_after_acquire_ms"]);
+    info.push(reference_row(
+        "CoreML FP16 online window model · all (compute units) · back-to-back calls".into(),
+        TARGET_ANE_INFERENCE_MS,
+        &ane["runs"]["all"],
+        1.0,
+    ));
+    let iso = &ane["isolated"];
+    let gap_ms = iso["method"]["gap_ms"].as_f64();
+    let gap_text = fmt_opt(gap_ms, 1);
+    for (key, label) in [("busy_gap", "busy CPU"), ("idle_gap", "idle CPU")] {
+        let mut row = reference_row(
+            format!("CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls ({gap_text} ms {label} gap before each)"),
+            TARGET_ANE_INFERENCE_MS,
+            &iso[key]["runs"]["cpu_and_neural_engine"],
+            1.0,
+        );
+        row["pattern"] = json!(key);
+        info.push(row);
+    }
+    for (key, label) in [("busy_gap", "busy CPU"), ("idle_gap", "idle CPU")] {
+        let runs = &iso[key]["runs"];
+        let s = iso[key]["speedup_cpu_only_over_ane_p50"].as_f64();
+        info.push(json!({
+            "metric": format!("online model, isolated calls ({gap_text} ms {label} gap): cpuAndNeuralEngine faster than cpuOnly"),
+            "target": format!("speedup > {TARGET_ANE_SPEEDUP} (reference)"),
+            "measured_speedup": s,
+            "cpu_and_neural_engine_p50_ms": p50(&runs["cpu_and_neural_engine"]),
+            "cpu_only_p50_ms": p50(&runs["cpu_only"]),
+            "cpu_and_neural_engine_p95_ms": p95(&runs["cpu_and_neural_engine"]),
+            "cpu_only_p95_ms": p95(&runs["cpu_only"]),
+            "n": runs["cpu_and_neural_engine"]["n"].as_u64().unwrap_or(0),
+            "n_cpu_only": runs["cpu_only"]["n"].as_u64().unwrap_or(0),
+            "pattern": key,
+            "pass": s.map(|v| v > TARGET_ANE_SPEEDUP),
+        }));
+    }
+    let e2e_score = &e2e["stage_us"]["ane_score"];
+    info.push(reference_row(
+        "CoreML online window model · one call per transaction (end-to-end ane_score stage, rollback path)".into(),
+        TARGET_ANE_INFERENCE_MS,
+        e2e_score,
+        1e-3,
+    ));
+    info.push(info_row(
+        "CoreML batch window model · per window, amortized (cpuAndNeuralEngine)".into(),
+        "—",
+        "measured_p50_us",
+        ane["batch"]["runs"]["cpu_and_neural_engine"]["amortized_us_per_window_p50"].as_f64(),
+        None,
+    ));
+    let batch_speedup = ane["batch"]["speedup_cpu_only_over_ane_p50"].as_f64();
+    info.push(info_row(
+        "batch model: cpuAndNeuralEngine faster than cpuOnly".into(),
+        &format!("speedup > {TARGET_ANE_SPEEDUP} (reference)"),
+        "measured_speedup",
+        batch_speedup,
+        batch_speedup.map(|s| s > TARGET_ANE_SPEEDUP),
+    ));
+    let tol = ane["parity"]["tolerance_points"].as_f64();
+    let parity_max = ane["parity"]["windows"]["max_abs_diff"].as_f64();
+    info.push(info_row(
+        "online model parity · sessions (score_window vs FP32 reference, max |diff| points)".into(),
+        &tol.map(|t| format!("<= {t} points (parity file tolerance)")).unwrap_or_else(|| "—".into()),
+        "measured_points",
+        parity_max,
+        parity_max.zip(tol).map(|(m, t)| m <= t),
+    ));
+    info.push(context_row("end-to-end rollback path (pool + score_window + Cedar) · e2e".into(), &e2e["rollback_path_ms"], 1.0));
+    info.push(json!({
+        "metric": "live-tree integrity after every APFS and end-to-end phase",
+        "target": "all checks pass; store empty after pool drop (precondition of the APFS gated rows)",
+        "measured": {"checks passed": integrity.passed, "checks": integrity.checks, "stores clean": integrity.stores_clean},
+        "pass": integrity.ok,
+    }));
+
+    // ---- note generated from the measurements ----
+    let hits: Vec<f64> = fixtures.iter().filter_map(|f| p50(&f["pool"]["acquire_hit_ms"])).collect();
+    let kernel: Vec<f64> = fixtures.iter().filter_map(|f| f["kernel_clonefile"]["sys_us_per_entry_p50"].as_f64()).collect();
+    let total_hits: u64 = fixtures.iter().filter_map(|f| f["pool"]["hits"].as_u64()).sum();
+    let total_misses: u64 = fixtures.iter().filter_map(|f| f["pool"]["misses"].as_u64()).sum();
+    let tiny = fixture("tiny");
+    let ac = &medium["pool"]["acquire_after_commit"];
+    let ac_n = ac["acquire_ms"]["n"].as_u64().unwrap_or(0);
+    let gated_pass = gated.iter().filter(|r| r["pass"] == true).count();
+    let range = |v: &[f64], d: usize| min_max(v).map(|(lo, hi)| format!("{lo:.d$}-{hi:.d$}")).unwrap_or_else(|| "n/a".into());
+    let e2e_score_ms = p50(e2e_score).map(|u| u / 1000.0);
+    let iso_ane = |k: &str| p50(&iso[k]["runs"]["cpu_and_neural_engine"]);
+    let iso_cpu = |k: &str| p50(&iso[k]["runs"]["cpu_only"]);
+    let iso_speedup = |k: &str| iso[k]["speedup_cpu_only_over_ane_p50"].as_f64();
+    let ratio = |a: Option<f64>, b: Option<f64>| a.zip(b).filter(|(_, b)| *b > 0.0).map(|(a, b)| format!("{:.2}", a / b)).unwrap_or_else(|| "n/a".into());
+    let note = format!(
+        "Rows 1-4 measure WarmBranchPool::acquire on a warm hit: one renameatx_np(RENAME_EXCL) of a standby cloned earlier, p50 {hit_range} ms across {nfx} fixtures ({total_hits} hits, {total_misses} misses; a row passes only without misses). \
+         The gated acquire and rollback rows are timed with the pool idle (settle before each acquire, rollback after the refill finished); the contended cases are reported next to them. \
+         The pool does not make clonefile cheaper: a cold clonefile is still O(entries) inside the kernel, p50 {tiny_p50} ms at {tiny_files} files and {medium_p50} ms at {medium_files} files, \
+         with getrusage ru_stime of {kernel_range} us per tree entry, and every acquire is paid for by one refill clone off the caller's path (standby replenish p50 {rep_small} ms small, {rep_medium} ms medium). \
+         An acquire right after a commit finds the standby stale: at medium {ac_cold}/{ac_n} fell back to a cold clone and {ac_wait}/{ac_n} waited for the refill in flight, p50 {ac_p50} ms. \
+         A commit or rollback issued while the refill clone runs waits behind it (small: commit {cc} ms, rollback {rc} ms p50). \
+         The commit row times the RENAME_SWAP syscall (small p50 {swap_p50} ms); the caller-visible commit (lock, checks, swap, version) has p50 {commit_caller} ms. \
+         The online-model rows time back-to-back calls (cpuAndNeuralEngine p50 {b2b} ms, cpuOnly {b2b_cpu} ms). One call after a {gap_text} ms gap takes {busy} ms with the CPU busy in the gap and {idle} ms with it idle \
+         (cpuOnly {cbusy} / {cidle} ms: cpuAndNeuralEngine is {busy_word} than cpuOnly with a busy CPU, speedup {sbusy}, and {idle_word} with an idle CPU, speedup {sidle}). \
+         The end-to-end ane_score stage, one call per transaction, has p50 {e2e_ms} ms, {e2e_vs_b2b}x the back-to-back p50 and {e2e_vs_busy}x the busy-gap isolated p50. \
+         Live-tree integrity: {ipassed}/{ichecks} checks passed, stores clean: {iclean}{ifail}. \
+         One run on {cpu}, {gated_pass}/{GATED_ROWS} gated rows passed.",
+        hit_range = range(&hits, 4),
+        nfx = fixtures.len(),
+        tiny_p50 = fmt_opt(p50(&tiny["clonefile_ms"]), 3),
+        tiny_files = tiny["files"],
+        medium_p50 = fmt_opt(p50(&medium["clonefile_ms"]), 3),
+        medium_files = medium["files"],
+        kernel_range = range(&kernel, 2),
+        rep_small = fmt_opt(p50(&small["pool"]["replenish_ms"]), 3),
+        rep_medium = fmt_opt(p50(&medium["pool"]["replenish_ms"]), 3),
+        ac_cold = ac["sources"]["cold"],
+        ac_wait = ac["sources"]["pool_after_waiting_for_refill"],
+        ac_p50 = fmt_opt(p50(&ac["acquire_ms"]), 3),
+        cc = fmt_opt(commit_collide, 3),
+        rc = fmt_opt(rb_collide, 3),
+        swap_p50 = fmt_opt(p50(&small["renameatx_swap_ms"]), 3),
+        commit_caller = fmt_opt(p50(&small["commit_caller_ms"]), 3),
+        b2b = fmt_opt(ane_p50, 3),
+        b2b_cpu = fmt_opt(cpu_p50, 3),
+        busy = fmt_opt(iso_ane("busy_gap"), 3),
+        idle = fmt_opt(iso_ane("idle_gap"), 3),
+        cbusy = fmt_opt(iso_cpu("busy_gap"), 3),
+        cidle = fmt_opt(iso_cpu("idle_gap"), 3),
+        busy_word = faster_or_slower(iso_speedup("busy_gap")),
+        idle_word = faster_or_slower(iso_speedup("idle_gap")),
+        sbusy = fmt_opt(iso_speedup("busy_gap"), 2),
+        sidle = fmt_opt(iso_speedup("idle_gap"), 2),
+        e2e_ms = fmt_opt(e2e_score_ms, 3),
+        e2e_vs_b2b = ratio(e2e_score_ms, ane_p50),
+        e2e_vs_busy = ratio(e2e_score_ms, iso_ane("busy_gap")),
+        ipassed = integrity.passed,
+        ichecks = integrity.checks,
+        iclean = integrity.stores_clean,
+        ifail = if integrity.ok { "" } else { " (FAILED: the APFS gated rows are marked failed and the benchmark exits non-zero)" },
+        cpu = host["cpu"].as_str().unwrap_or("this Mac"),
+    );
+    tag_sections(&mut gated, &mut info);
+    Summary { gated, informational: info, note, integrity_ok: integrity.ok }
+}
+
+/// Labels every summary row with the bench section it comes from (`apfs`, `ane`, `router`,
+/// `e2e`, `integrity`) so consumers can group rows without parsing metric names.
+fn tag_sections(gated: &mut [Value], info: &mut [Value]) {
+    for row in gated.iter_mut().chain(info.iter_mut()) {
+        let metric = row["metric"].as_str().unwrap_or("").to_string();
+        let section = if metric.contains("integrity") {
+            "integrity"
+        } else if metric.contains("CoreML") || metric.contains("model") {
+            "ane"
+        } else if metric.starts_with("tier-0") {
+            "router"
+        } else if metric.starts_with("end-to-end") {
+            "e2e"
+        } else {
+            "apfs"
+        };
+        row["section"] = json!(section);
+    }
+}
+
+fn print_rows(title: &str, rows: &[Value], gated: bool) {
+    println!("{title}");
+    for row in rows {
+        let verdict = match (row["pass"].as_bool(), gated) {
+            (Some(true), true) => "PASS",
+            (Some(false), true) => "MISS",
+            (None, true) => "n/a ",
+            (Some(true), false) => "info+",
+            (Some(false), false) => "info-",
+            (None, false) => "info ",
+        };
+        println!("  [{verdict}] {} — {} (target {})", row["metric"].as_str().unwrap_or(""), gate::row_text(row), row["target"].as_str().unwrap_or(""));
+    }
+}
+
+#[derive(Debug)]
+struct Options {
+    out: PathBuf,
+    scale: f64,
+    quiet_wait: Duration,
+    work_dir: Option<PathBuf>,
+    verify: Option<gate::Mode>,
+    artifact: PathBuf,
+}
+
+fn parse_args(args: impl IntoIterator<Item = String>) -> Res<Options> {
+    let mut opts = Options {
+        out: PathBuf::from(CANONICAL_OUT),
+        scale: 1.0,
+        quiet_wait: Duration::ZERO,
+        work_dir: None,
+        verify: None,
+        artifact: PathBuf::from(CANONICAL_OUT),
+    };
+    let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--out" => out = PathBuf::from(args.next().ok_or("--out needs a path")?),
-            "--quick" => scale = 0.2,
+            "--out" => opts.out = PathBuf::from(args.next().ok_or("--out needs a path")?),
+            "--quick" => opts.scale = 0.2,
+            "--scale" => {
+                opts.scale = args.next().and_then(|v| v.parse::<f64>().ok()).filter(|s| *s > 0.0).ok_or("--scale needs a positive number")?
+            }
+            "--quiet-wait" => {
+                let secs = args.next().and_then(|v| v.parse::<f64>().ok()).filter(|s| *s >= 0.0 && s.is_finite());
+                opts.quiet_wait = Duration::from_secs_f64(secs.ok_or("--quiet-wait needs a number of seconds")?);
+            }
+            "--work-dir" => opts.work_dir = Some(PathBuf::from(args.next().ok_or("--work-dir needs a directory")?)),
+            "--verify" => opts.verify = Some(gate::Mode::parse(&args.next().ok_or("--verify needs phase1 or gate")?)?),
+            "--artifact" => opts.artifact = PathBuf::from(args.next().ok_or("--artifact needs a path")?),
             other => return Err(format!("unknown argument {other}").into()),
         }
     }
-    let root = fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))?;
-    if out.is_relative() {
-        out = root.join(out);
-    }
-    let started = Instant::now();
-    let fixtures = root.join("target/aegis-bench");
-    if fixtures.exists() {
-        fs::remove_dir_all(&fixtures)?;
-    }
-    fs::create_dir_all(&fixtures)?;
+    Ok(opts)
+}
 
-    eprintln!("aegis-bench: APFS branching / commit / rollback");
-    let apfs = bench_apfs(&fixtures, &root, scale)?;
-    eprintln!("aegis-bench: CoreML FP16 + MLComputePlan");
-    let ane = bench_ane(&root, scale)?;
+fn absolute(path: &Path, root: &Path) -> PathBuf {
+    let path = if path.is_relative() { root.join(path) } else { path.to_path_buf() };
+    // Resolve `..` and symlinks in the directory part so equal files compare equal.
+    match (path.parent().and_then(|d| fs::canonicalize(d).ok()), path.file_name()) {
+        (Some(dir), Some(name)) => dir.join(name),
+        _ => path,
+    }
+}
+
+/// Output path; a reduced-scale run never overwrites the canonical artifact.
+fn resolve_out(out: &Path, scale: f64, root: &Path) -> Res<PathBuf> {
+    let out = absolute(out, root);
+    if scale < 1.0 && out == absolute(Path::new(CANONICAL_OUT), root) {
+        return Err(format!(
+            "a reduced-scale run (scale {scale}) must not overwrite {CANONICAL_OUT}; pass --out elsewhere, e.g. --out target/bench-smoke.json"
+        )
+        .into());
+    }
+    Ok(out)
+}
+
+/// Fixture directory: `target/aegis-bench` (recreated), or a new per-process directory inside
+/// `--work-dir` (never an existing one, so nothing outside the benchmark is removed).
+fn prepare_work_dir(work_dir: Option<&Path>, root: &Path) -> Res<PathBuf> {
+    let dir = match work_dir {
+        None => {
+            let dir = root.join(DEFAULT_WORK_DIR);
+            if dir.exists() {
+                fs::remove_dir_all(&dir)?;
+            }
+            dir
+        }
+        Some(base) => {
+            let dir = absolute(base, root).join(format!("aegis-bench-{}", std::process::id()));
+            if dir.exists() {
+                return Err(format!("{} already exists", dir.display()).into());
+            }
+            dir
+        }
+    };
+    fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+fn main() -> Res<()> {
+    let opts = parse_args(std::env::args().skip(1))?;
+    let root = fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))?;
+    if let Some(mode) = opts.verify {
+        return gate::verify(mode, &absolute(&opts.artifact, &root), &root);
+    }
+    let out = resolve_out(&opts.out, opts.scale, &root)?;
+
+    // Configuration first: copy .env-only values into the process environment before any thread
+    // (pool, reaper, CoreML) exists. Values are never printed.
+    let config = match aegis_config::Settings::load_default() {
+        Ok(settings) => {
+            let exported = aegis_config::export_to_process_env(&settings);
+            json!({"dotenv_path": settings.path(), "dotenv_keys_exported": exported.len(), "error": null})
+        }
+        Err(e) => json!({"dotenv_path": aegis_config::default_dotenv_path(), "dotenv_keys_exported": 0, "error": e.to_string()}),
+    };
+    eprintln!("aegis-bench: .env keys exported: {} (values not shown)", config["dotenv_keys_exported"]);
+
+    let busy_threshold = performance_cores().map(f64::from);
+    let quiet_wait = conditions::wait_for_quiet(busy_threshold, opts.quiet_wait);
+    let sources_start = source_fingerprint(&root)?;
+    let load_start = load_average();
+    let host = host_info(&root);
+    let started = Instant::now();
+    let fixtures = prepare_work_dir(opts.work_dir.as_deref(), &root)?;
+    let scale = opts.scale;
+
+    eprintln!("aegis-bench: APFS (cold clonefile, kernel time, WarmBranchPool, commit, rollback, reaper)");
+    let apfs = apfs::bench_apfs(&fixtures, &root, scale)?;
+    eprintln!("aegis-bench: CoreML window models (back-to-back and isolated calls) + MLComputePlan");
+    let ane = ane::bench_ane(&root, scale)?;
     let scorer = Arc::new(AneScorer::open_default()?);
     let gov = Arc::new(GovernanceEngine::load_default()?);
     eprintln!("aegis-bench: Cedar");
-    let cedar = bench_cedar(&gov, scale)?;
+    let cedar = flows::bench_cedar(&gov, scale)?;
     eprintln!("aegis-bench: end-to-end transactions");
-    let e2e = bench_end_to_end(&fixtures, &scorer, &gov, scale)?;
+    let e2e = flows::bench_end_to_end(&fixtures, &scorer, &gov, scale)?;
     eprintln!("aegis-bench: PayPal receipts");
-    let (paypal, rows) = bench_paypal(scorer.clone(), gov.clone(), scale)?;
+    let (paypal, rows) = flows::bench_paypal(scorer.clone(), gov.clone(), scale)?;
     eprintln!("aegis-bench: tier-0 routing + MCP");
-    let router = bench_router(scorer.clone(), gov.clone(), scale)?;
-    let mcp = bench_mcp(scorer, gov, scale)?;
+    let router = flows::bench_router(scorer.clone(), gov.clone(), scale)?;
+    let mcp = flows::bench_mcp(scorer, gov, scale)?;
+    let benchmark_seconds = round6(started.elapsed().as_secs_f64());
+    let load_end = load_average();
+    let sources_end = source_fingerprint(&root)?;
+    let run = conditions::evaluate(&Conditions {
+        scale,
+        busy_threshold,
+        load_start,
+        load_end,
+        quiet_wait,
+        sources_start: sources_start.clone(),
+        sources_end,
+    });
 
     let artifacts = out.parent().ok_or("output path has no parent")?.to_path_buf();
     fs::create_dir_all(&artifacts)?;
     fs::write(artifacts.join("paypal_aggrid_rows.json"), serde_json::to_string_pretty(&aggrid_export(&rows))? + "\n")?;
     fs::write(artifacts.join("paypal_bryntum_store.json"), serde_json::to_string_pretty(&bryntum_export(&rows))? + "\n")?;
 
-    let fixture = |name: &str| apfs["fixtures"].as_array().and_then(|f| f.iter().find(|x| x["name"] == name)).cloned().unwrap_or(Value::Null);
-    let small = fixture("small");
-    let mut summary: Vec<Value> = apfs["fixtures"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|f| target_row(&format!("clonefile branch · {} ({} files)", f["name"].as_str().unwrap_or("?"), f["files"]), TARGET_CLONEFILE_BRANCH_MS, p50(&f["clonefile_ms"])))
-        .collect();
-    summary.push(target_row("renameatx_np RENAME_SWAP · small", TARGET_RENAMEATX_SWAP_MS, p50(&small["renameatx_swap_ms"])));
-    summary.push(target_row("rollback detach · small", TARGET_ROLLBACK_MS, p50(&small["rollback_detach_ms"])));
-    summary.push(target_row("rollback detach + reclaim · small", TARGET_ROLLBACK_MS,
-        p50(&small["rollback_detach_ms"]).zip(p50(&small["rollback_reclaim_ms"])).map(|(a, b)| round6(a + b))));
-    summary.push(target_row("CoreML FP16 inference · online · cpuAndNeuralEngine", TARGET_ANE_INFERENCE_MS, p50(&ane["runs"]["cpu_and_neural_engine"])));
-    let online_on_ane = ane["compute_plan"]["preferred"]["neural_engine"] == ane["compute_plan"]["operations"];
-    let batch_on_ane = ane["batch"]["compute_plan"]["preferred"]["neural_engine"] == ane["batch"]["compute_plan"]["operations"];
-    summary.push(json!({"metric": "online model executes on the Neural Engine (MLComputePlan)", "target": "all ops on ANE", "measured": ane["compute_plan"]["preferred"], "pass": online_on_ane}));
-    summary.push(json!({"metric": "batch model executes on the Neural Engine (MLComputePlan)", "target": "all ops on ANE", "measured": ane["batch"]["compute_plan"]["preferred"], "pass": batch_on_ane}));
-    summary.push(target_row("tier-0 route (ANE + Cedar)", TARGET_TIER0_ROUTE_MS, p50(&router["tier0_route_us"]).map(|u| round6(u / 1000.0))));
-
+    let mut summary = summarize(&apfs, &ane, &router, &e2e, &host);
+    if summary.gated.len() != GATED_ROWS {
+        return Err(format!("internal: {} gated rows instead of {GATED_ROWS}", summary.gated.len()).into());
+    }
+    summary.note.push_str(&conditions::note_sentence(&run));
     let doc = json!({
-        "schema": "aegisflow.phase1.telemetry.v1",
+        "schema": gate::SCHEMA,
+        "phase": "phase-2",
         "generated_at": utc_timestamp(),
         "git": git_info(&root),
-        "host": host_info(&root),
-        "benchmark_seconds": round6(started.elapsed().as_secs_f64()),
+        "sources": sources_start,
+        "host": host,
+        "config": config,
+        "live_mode": flows::live_mode(),
+        "benchmark_seconds": benchmark_seconds,
         "scale": scale,
+        "preliminary": run["preliminary"],
+        "run_conditions": run,
         "targets": {
-            "clonefile_branch_ms": TARGET_CLONEFILE_BRANCH_MS,
+            "branch_acquire_ms": TARGET_BRANCH_ACQUIRE_MS,
+            "settled_acquire_hit_rate": TARGET_SETTLED_HIT_RATE,
             "renameatx_swap_ms": TARGET_RENAMEATX_SWAP_MS,
-            "rollback_ms": TARGET_ROLLBACK_MS,
+            "rollback_caller_ms": TARGET_ROLLBACK_CALLER_MS,
             "ane_inference_ms": TARGET_ANE_INFERENCE_MS,
+            "ane_speedup": TARGET_ANE_SPEEDUP,
             "tier0_route_ms": TARGET_TIER0_ROUTE_MS,
+            "clonefile_reference_ms": REFERENCE_CLONEFILE_MS,
         },
         "apfs": apfs,
         "ane": ane,
@@ -886,20 +699,196 @@ fn main() -> Res<()> {
             "paypal_sandbox": "see paypal_receipt.sandbox_submission",
             "chat_webhooks": "see mcp.webhooks",
         },
-        "targets_summary": summary,
+        "targets_summary": summary.gated,
+        "informational": summary.informational,
+        "targets_note": summary.note,
     });
     fs::write(&out, serde_json::to_string_pretty(&doc)? + "\n")?;
     fs::remove_dir_all(&fixtures)?;
 
     println!("wrote {}", out.display());
-    for row in doc["targets_summary"].as_array().into_iter().flatten() {
-        let verdict = match row["pass"].as_bool() {
-            Some(true) => "PASS",
-            Some(false) => "MISS",
-            None => "n/a ",
-        };
-        let measured = row.get("measured_p50_ms").and_then(Value::as_f64).map(|v| format!("{v:.4} ms")).unwrap_or_else(|| row["measured"].to_string());
-        println!("  [{verdict}] {} — {} (target {})", row["metric"].as_str().unwrap_or(""), measured, row["target"].as_str().unwrap_or(""));
+    let gated = doc["targets_summary"].as_array().cloned().unwrap_or_default();
+    let passed = gated.iter().filter(|r| r["pass"] == true).count();
+    let label = if doc["preliminary"] == true { " (PRELIMINARY run, see run_conditions)" } else { "" };
+    print_rows(&format!("gated targets: {passed}/{} passed{label}", gated.len()), &gated, true);
+    print_rows("informational (not gated):", doc["informational"].as_array().map(Vec::as_slice).unwrap_or(&[]), false);
+    println!("note: {}", doc["targets_note"].as_str().unwrap_or(""));
+    if !summary.integrity_ok {
+        // The artifact is written (the evidence stays), but a broken live tree is an error, not a
+        // missed target.
+        return Err("live-tree integrity failed (see the informational integrity row and apfs.fixtures[].integrity)".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use util::stats;
+
+    /// Samples whose p50 sits at `fraction` of `limit` (synthetic inputs derived from the targets).
+    fn at(limit: f64, fraction: f64) -> Value {
+        stats(vec![limit * fraction; 6])
+    }
+
+    fn fixture(name: &str, hits: u64, misses: u64) -> Value {
+        json!({
+            "name": name,
+            "files": 3,
+            "clonefile_ms": at(REFERENCE_CLONEFILE_MS, 2.0),
+            "renameatx_swap_ms": at(TARGET_RENAMEATX_SWAP_MS, 0.25),
+            "commit_caller_ms": at(TARGET_RENAMEATX_SWAP_MS, 0.5),
+            "pool": {
+                "acquire_hit_ms": at(TARGET_BRANCH_ACQUIRE_MS, 0.25),
+                "acquire_miss_ms": if misses > 0 { at(REFERENCE_CLONEFILE_MS, 2.0) } else { stats(Vec::new()) },
+                "hits": hits,
+                "misses": misses,
+                "rollback_caller_ms": at(TARGET_ROLLBACK_CALLER_MS, 0.5),
+            },
+            "integrity": {"checks": 7, "passed": 7},
+            "store_after_pool_drop": {"clean": true},
+        })
+    }
+
+    struct Inputs {
+        apfs: Value,
+        ane: Value,
+        router: Value,
+        e2e: Value,
+        host: Value,
+    }
+
+    fn inputs() -> Inputs {
+        let plan = json!({"operations": 4, "preferred": {"neural_engine": 4, "cpu": 0, "gpu": 0}});
+        let ane_runs = json!({
+            "cpu_and_neural_engine": at(TARGET_ANE_INFERENCE_MS, 0.25),
+            "cpu_only": at(TARGET_ANE_INFERENCE_MS, 0.5),
+            "all": at(TARGET_ANE_INFERENCE_MS, 0.25),
+        });
+        Inputs {
+            apfs: json!({"fixtures": gate::FIXTURE_NAMES.iter().map(|n| fixture(n, 6, 0)).collect::<Vec<_>>()}),
+            ane: json!({
+                "runs": ane_runs.clone(),
+                "speedup_cpu_only_over_ane_p50": 2.0,
+                "compute_plan": plan.clone(),
+                "batch": {"compute_plan": plan},
+                "isolated": {"method": {"gap_ms": util::ms(Duration::from_millis(3))}, "busy_gap": {"runs": ane_runs.clone(), "speedup_cpu_only_over_ane_p50": 2.0},
+                             "idle_gap": {"runs": ane_runs, "speedup_cpu_only_over_ane_p50": 2.0}},
+            }),
+            router: json!({"tier0_route_us": at(TARGET_TIER0_ROUTE_MS * 1000.0, 0.25)}),
+            e2e: json!({"integrity": {"checks": 2, "passed": 2}, "stage_us": {"ane_score": at(TARGET_ANE_INFERENCE_MS * 1000.0, 0.5)}}),
+            host: json!({"cpu": "test host"}),
+        }
+    }
+
+    fn run(i: &Inputs) -> Summary {
+        summarize(&i.apfs, &i.ane, &i.router, &i.e2e, &i.host)
+    }
+
+    #[test]
+    fn all_targets_met_gives_eleven_passing_rows_with_n_and_p95() {
+        let s = run(&inputs());
+        assert_eq!(s.gated.len(), GATED_ROWS);
+        assert!(s.integrity_ok);
+        for row in &s.gated {
+            assert_eq!(row["pass"], true, "{row}");
+            if row.get("measured_p50_ms").is_some() {
+                assert_eq!(row["n"], 6, "latency rows carry n: {row}");
+                assert!(row["p95_ms"].is_number(), "latency rows carry p95: {row}");
+            }
+        }
+        let tier0 = s.gated.iter().find(|r| r["metric"].as_str().unwrap().starts_with("tier-0")).unwrap();
+        assert_eq!(tier0["measured_p50_ms"].as_f64(), Some(round6(TARGET_TIER0_ROUTE_MS * 0.25)), "us converted to ms");
+        assert!(s.gated.iter().all(|r| r["measured_hit_rate"].is_null() || r["measured_hit_rate"] == 1.0));
+        let integrity = s.informational.iter().find(|r| r["section"] == "integrity").unwrap();
+        assert_eq!(integrity["pass"], true);
+    }
+
+    #[test]
+    fn a_miss_under_a_settled_pool_fails_the_acquire_row() {
+        let mut i = inputs();
+        i.apfs["fixtures"][2] = fixture("medium", 1, 59);
+        let s = run(&i);
+        let medium = s.gated.iter().find(|r| r["fixture"] == "medium").unwrap();
+        assert!(medium["measured_p50_ms"].as_f64().unwrap() < TARGET_BRANCH_ACQUIRE_MS, "warm hits alone are fast");
+        assert_eq!(medium["pass"], false, "a miss fails the row: {medium}");
+        assert!(medium["measured_hit_rate"].as_f64().unwrap() < TARGET_SETTLED_HIT_RATE);
+        assert!(medium["miss_p50_ms"].is_number());
+        assert!(gate::row_text(medium).contains("hit rate"));
+        assert_eq!(s.gated.iter().filter(|r| r["pass"] == true).count(), GATED_ROWS - 1);
+    }
+
+    #[test]
+    fn integrity_failure_fails_the_apfs_gated_rows() {
+        let mut i = inputs();
+        i.apfs["fixtures"][1]["integrity"]["passed"] = json!(6);
+        let s = run(&i);
+        assert!(!s.integrity_ok);
+        let apfs: Vec<&Value> = s.gated.iter().filter(|r| r["section"] == "apfs").collect();
+        assert_eq!(apfs.len(), 6, "4 acquire rows, commit, rollback");
+        assert!(apfs.iter().all(|r| r["pass"] == false && r["live_tree_integrity"] == false), "{apfs:?}");
+        assert!(s.gated.iter().filter(|r| r["section"] != "apfs").all(|r| r["pass"] == true));
+        assert!(s.note.contains("FAILED"));
+
+        let mut dirty_store = inputs();
+        dirty_store.apfs["fixtures"][0]["store_after_pool_drop"]["clean"] = json!(false);
+        let s = run(&dirty_store);
+        assert!(!s.integrity_ok);
+        let rollback = s.gated.iter().find(|r| r["metric"].as_str().unwrap().starts_with("rollback")).unwrap();
+        assert_eq!(rollback["pass"], false);
+    }
+
+    #[test]
+    fn missing_measurement_stays_null() {
+        let mut i = inputs();
+        i.router["tier0_route_us"] = stats(Vec::new());
+        i.apfs["fixtures"][0]["pool"]["acquire_hit_ms"] = stats(Vec::new());
+        i.apfs["fixtures"][0]["pool"]["hits"] = json!(0);
+        let s = run(&i);
+        let tier0 = s.gated.iter().find(|r| r["metric"].as_str().unwrap().starts_with("tier-0")).unwrap();
+        assert!(tier0["pass"].is_null() && tier0["n"] == 0);
+        assert!(s.gated[0]["pass"].is_null());
+    }
+
+    #[test]
+    fn isolated_and_caller_visible_rows_are_informational() {
+        let s = run(&inputs());
+        let metrics: Vec<&str> = s.informational.iter().filter_map(|r| r["metric"].as_str()).collect();
+        assert!(metrics.iter().any(|m| m.contains("isolated calls") && m.contains("busy CPU")));
+        assert!(metrics.iter().any(|m| m.contains("isolated calls") && m.contains("idle CPU")));
+        assert!(metrics.iter().any(|m| m.contains("one call per transaction")));
+        assert!(metrics.iter().filter(|m| m.starts_with("commit · caller-visible")).count() == gate::FIXTURE_NAMES.len());
+        assert!(s.gated.iter().any(|r| r["metric"].as_str().unwrap().contains("(syscall only)")));
+        assert!(s.gated.iter().filter(|r| r["section"] == "ane").any(|r| r["metric"].as_str().unwrap().contains("back-to-back")));
+        let e2e_row = s.informational.iter().find(|r| r["metric"].as_str().unwrap().contains("one call per transaction")).unwrap();
+        assert_eq!(e2e_row["section"], "ane");
+        assert_eq!(e2e_row["measured_p50_ms"].as_f64(), Some(round6(TARGET_ANE_INFERENCE_MS * 0.5)));
+        assert!(s.note.contains("idle"), "{}", s.note);
+    }
+
+    #[test]
+    fn reduced_scale_cannot_overwrite_the_canonical_artifact() {
+        let root = fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).unwrap();
+        let canonical = Path::new(CANONICAL_OUT);
+        assert!(resolve_out(canonical, 0.2, &root).is_err());
+        assert!(resolve_out(&root.join("artifacts/../artifacts/aegis_phase1_telemetry.json"), 0.1, &root).is_err());
+        assert_eq!(resolve_out(canonical, 1.0, &root).unwrap(), root.join(CANONICAL_OUT));
+        assert_eq!(resolve_out(Path::new("target/bench-smoke.json"), 0.1, &root).unwrap(), root.join("target/bench-smoke.json"));
+
+        let quick = parse_args(["--quick".to_string()]).unwrap();
+        assert!(resolve_out(&quick.out, quick.scale, &root).is_err(), "--quick without --out is refused");
+    }
+
+    #[test]
+    fn parses_verify_and_run_options() {
+        let opts = parse_args(["--verify", "gate", "--artifact", "x.json"].map(String::from)).unwrap();
+        assert_eq!(opts.verify, Some(gate::Mode::Gate));
+        assert_eq!(opts.artifact, PathBuf::from("x.json"));
+        let opts = parse_args(["--quiet-wait", "30", "--scale", "0.5", "--work-dir", "w"].map(String::from)).unwrap();
+        assert_eq!(opts.quiet_wait, Duration::from_secs(30));
+        assert_eq!(opts.scale, 0.5);
+        assert_eq!(opts.work_dir, Some(PathBuf::from("w")));
+        assert!(parse_args(["--verify", "everything"].map(String::from)).is_err());
+        assert!(parse_args(["--quiet-wait", "-1"].map(String::from)).is_err());
+    }
 }

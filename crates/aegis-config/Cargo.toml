@@ -1,0 +1,9 @@
+[package]
+name = "aegis-config"
+description = "Credential and endpoint settings for AegisFlow: process environment first, then .env"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

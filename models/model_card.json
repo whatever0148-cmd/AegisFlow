@@ -1,103 +1,3037 @@
 {
   "model": "AegisWorkflowFP16.mlpackage",
   "compiled": "AegisWorkflowFP16.mlmodelc",
+  "built_at": "2026-10-25T15:15:20Z",
+  "training_data": "SYNTHETIC: sessions from the seeded scenario simulator in models/build_model.py, labelled by the explicit window teacher documented there. Not real telemetry or incident data.",
+  "input": {
+    "name": "features",
+    "dtype": "float16",
+    "shape": [
+      1,
+      64,
+      1,
+      64
+    ],
+    "layout": "window (aegis_input_layout metadata)",
+    "semantics": "channel = feature (models/feature_schema.json order), width = last 64 events of one session, oldest -> newest, zero-padded on the left"
+  },
+  "output": {
+    "name": "risk_score",
+    "shape": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "range": "0..100 (>= 35 high impact)",
+    "semantics": "risk of the newest event given the session history in the window"
+  },
+  "architecture": {
+    "name": "mh128_b5_v8_nd",
+    "sweep_selected": "mh128_b5_v8_nd",
+    "hidden": 128,
+    "residual_blocks": 5,
+    "block_kernels": [
+      "1x3+1x1"
+    ],
+    "dilations": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "horizons": [
+      64,
+      48,
+      32,
+      24,
+      16,
+      8,
+      4,
+      1
+    ],
+    "readout": "newest+mean",
+    "readout_hidden": 64,
+    "conv_layers": 13,
+    "parameters": 468481,
+    "macs_per_window": 172097600,
+    "macs_per_prediction": 172097600,
+    "views": 8,
+    "description": "x * horizon_mask -> 8 views on the height axis (horizons [64, 48, 32, 24, 16, 8, 4, 1]); 1x1 stem conv; 5 residual blocks relu(h + conv1x1(relu(conv1x3(h)))), undilated (dilation 1 in every block); newest-position receptive field 11 events; readout concat(newest position, mean over width) per view -> (8 x 1) conv -> relu -> 1x1 conv -> sigmoid x 100",
+    "newest_position_receptive_field_events": 11,
+    "ops_in_program": [
+      "ios17.mul",
+      "ios17.conv",
+      "ios16.relu",
+      "ios17.conv",
+      "ios16.relu",
+      "ios17.conv",
+      "ios17.add",
+      "ios16.relu",
+      "ios17.conv",
+      "ios16.relu",
+      "ios17.conv",
+      "ios17.add",
+      "ios16.relu",
+      "ios17.conv",
+      "ios16.relu",
+      "ios17.conv",
+      "ios17.add",
+      "ios16.relu",
+      "ios17.conv",
+      "ios16.relu",
+      "ios17.conv",
+      "ios17.add",
+      "ios16.relu",
+      "ios17.conv",
+      "ios16.relu",
+      "ios17.conv",
+      "ios17.add",
+      "ios16.relu",
+      "ios17.slice_by_index",
+      "ios16.reduce_mean",
+      "ios17.concat",
+      "ios17.conv",
+      "ios16.relu",
+      "ios17.conv",
+      "ios16.sigmoid",
+      "ios17.mul"
+    ]
+  },
+  "precision": "float16 weights, activations, input and output (ML Program, macOS 14 opset)",
+  "weights_fp16_sha256": "30b429bb7e006029ee40db16846b0b3b49c2934a196cf5d1dd1747b08e0a5e33",
+  "placement_mlcomputeplan_cpu_and_neural_engine": {
+    "dispatched": 36,
+    "neural_engine": 36,
+    "cpu": 0,
+    "gpu": 0,
+    "all_on_neural_engine": true
+  },
+  "latency_at_build": {
+    "note": "aegis_ane_score_windows through the production Swift bridge, one full window per prediction, .cpuAndNeuralEngine and .cpuOnly interleaved in alternating rounds on a shared machine; preliminary, a quiet benchmark is authoritative",
+    "placement": {
+      "operations_dispatched": 36,
+      "neural_engine": 36,
+      "cpu": 0,
+      "gpu": 0,
+      "all_on_neural_engine": true
+    },
+    "not_on_neural_engine_by_operator": {},
+    "cpu_and_neural_engine_ms": {
+      "n": 2400,
+      "p50": 0.184625,
+      "p95": 0.236958,
+      "mean": 0.191486
+    },
+    "cpu_only_ms": {
+      "n": 2400,
+      "p50": 0.236208,
+      "p95": 0.328584,
+      "mean": 0.262544
+    },
+    "speedup_p50": 1.2794,
+    "load_average_1m": 3.78
+  },
+  "goals": {
+    "all_ops_on_neural_engine": true,
+    "p50_below_limit": true,
+    "faster_than_cpu_only": true,
+    "limits": {
+      "max_p50_ms": 0.6
+    }
+  },
   "batch_model": {
     "package": "AegisWorkflowFP16Batch.mlpackage",
     "compiled": "AegisWorkflowFP16Batch.mlmodelc",
     "input_shape": [
-      1,
+      32,
       64,
       1,
-      16384
+      64
     ],
-    "max_abs_diff_points": 0.34484
+    "windows_per_prediction": 32,
+    "semantics": "same weights as the online model; scores BATCH independent sessions per prediction (one per batch entry, aegis_input_layout=window_batch). AneScorer::score_batch(vectors) scores every vector as a session with no history, identical to AneScorer::score; AneScorer::score_windows scores whole sessions.",
+    "placement_mlcomputeplan_cpu_and_neural_engine": {
+      "dispatched": 36,
+      "neural_engine": 36,
+      "cpu": 0,
+      "gpu": 0,
+      "all_on_neural_engine": true
+    },
+    "latency_at_build": {
+      "placement": {
+        "operations_dispatched": 36,
+        "neural_engine": 36,
+        "cpu": 0,
+        "gpu": 0,
+        "all_on_neural_engine": true
+      },
+      "not_on_neural_engine_by_operator": {},
+      "cpu_and_neural_engine_ms": {
+        "n": 2400,
+        "p50": 1.639041,
+        "p95": 2.205084,
+        "mean": 1.746961
+      },
+      "cpu_only_ms": {
+        "n": 2400,
+        "p50": 5.573083,
+        "p95": 8.122,
+        "mean": 5.982484
+      },
+      "speedup_p50": 3.4002,
+      "load_average_1m": 3.63
+    },
+    "max_abs_diff_points_vs_fp32": 0.32889
   },
-  "built_at": "2026-10-25T07:48:38Z",
-  "architecture": "linear(64->32) relu linear(32->16) relu linear(16->1) sigmoid x100",
-  "precision": "float16 weights, activations, input and output (ML Program, macOS 14 opset)",
-  "parameters": 2625,
-  "weights_fp16_sha256": "86bf529879626e5691e22f95d12f13161b2af8a46f943f53c9a8b8c3e1a7ef3b",
-  "training": {
-    "seed": 20261025,
-    "train_samples": 80000,
-    "val_samples": 20000,
-    "hidden": [
-      32,
-      16
+  "teacher": {
+    "event": "feature_schema.json weights + interactions, slope/bias (phase-1 teacher) on the newest event",
+    "temporal_terms": {
+      "payment_velocity": {
+        "weight": 1.2,
+        "lookback_events": 16,
+        "free_orders": 2,
+        "saturate_orders": 8,
+        "gated_by_newest_order": true
+      },
+      "cumulative_spend": {
+        "weight": 1.5,
+        "lookback": "window",
+        "log10_dollars_start": 2.0,
+        "log10_dollars_span": 1.5,
+        "gated_by_newest_order": true
+      },
+      "repeated_secret_hits": {
+        "weight": 2.0,
+        "lookback": "window",
+        "saturate_events": 3
+      },
+      "deletion_burst": {
+        "weight": 1.5,
+        "lookback_events": 8,
+        "start": 0.25,
+        "span": 1.0
+      },
+      "command_entropy_spike": {
+        "weight": 1.0,
+        "recent_events": 8,
+        "baseline_events": 24,
+        "free_bits": 1.0,
+        "span_bits": 1.0
+      }
+    },
+    "event_types": [
+      "payment",
+      "secret",
+      "delete",
+      "build",
+      "shell_network",
+      "config",
+      "edit",
+      "idle"
     ],
-    "epochs": 45,
-    "batch_size": 256,
-    "lr": 0.003,
-    "lr_late": 0.0008,
-    "lr_switch_epoch": 32,
+    "windows_with_nonzero_term": {
+      "payment_velocity": 3311,
+      "cumulative_spend": 3500,
+      "repeated_secret_hits": 2897,
+      "deletion_burst": 2185,
+      "command_entropy_spike": 2057
+    },
+    "zero_history_equals_event_teacher": true
+  },
+  "simulation": {
+    "seed": 20261025,
+    "sessions": 10000,
+    "val_fraction": 0.15,
+    "extra_cuts_per_session": 2,
+    "first_event_cut_probability": 0.4,
+    "zero_history_copy_probability": 0.25,
     "scenario_mix": {
+      "benign_edit": 0.15,
+      "refactor": 0.1,
+      "secret_leak": 0.1,
+      "mass_delete": 0.08,
+      "build_break_loop": 0.1,
+      "procurement": 0.15,
+      "mixed": 0.12,
+      "single_event": 0.2
+    },
+    "single_event_mix": {
       "workspace_edit": 0.4,
       "build_failure": 0.2,
       "order": 0.3,
       "uniform": 0.1
     }
   },
-  "metrics": {
-    "val_mae_points": 0.0903,
-    "val_rmse_points": 0.2051,
-    "high_impact_vs_teacher": {
-      "accuracy": 0.9988,
-      "precision": 0.99919,
-      "recall": 0.99802,
-      "positive_rate_teacher": 0.4302
+  "training": {
+    "seed": 20261025,
+    "epochs": 14,
+    "batch_size": 128,
+    "lr": 0.002,
+    "weight_decay": 0.0001,
+    "zero_history_weight": 2.0,
+    "torch_threads": 4,
+    "framework": "torch 2.8.0 (CPU, float32)",
+    "train_windows": 28432,
+    "val_windows": 5136,
+    "split": "by session"
+  },
+  "validation": {
+    "scored_by": "PyTorch FP32 reference: forward pass of the trained weights in torch float32, not the shipped FP16 CoreML model (see validation_coreml_fp16 for that)",
+    "all": {
+      "windows": 5136,
+      "mae_points": 1.4217,
+      "rmse_points": 3.103,
+      "max_abs_error_points": 37.9829,
+      "accuracy_at_threshold": 0.98209,
+      "precision": 0.98277,
+      "recall": 0.98123,
+      "auc_vs_teacher_high_impact": 0.99726,
+      "teacher_high_impact_rate": 0.49786
+    },
+    "zero_history": {
+      "windows": 1726,
+      "mae_points": 0.439,
+      "rmse_points": 0.7964,
+      "max_abs_error_points": 7.3657,
+      "accuracy_at_threshold": 0.99363,
+      "precision": 0.98827,
+      "recall": 0.99557,
+      "auc_vs_teacher_high_impact": 0.99974,
+      "teacher_high_impact_rate": 0.39224
+    },
+    "with_history": {
+      "windows": 3410,
+      "mae_points": 1.9191,
+      "rmse_points": 3.7657,
+      "max_abs_error_points": 37.9829,
+      "accuracy_at_threshold": 0.97625,
+      "precision": 0.98076,
+      "recall": 0.97606,
+      "auc_vs_teacher_high_impact": 0.99641,
+      "teacher_high_impact_rate": 0.55132
+    },
+    "per_scenario_mae_points": {
+      "benign_edit": 1.6858,
+      "refactor": 2.428,
+      "secret_leak": 1.1246,
+      "mass_delete": 1.5581,
+      "build_break_loop": 1.0985,
+      "procurement": 0.7046,
+      "mixed": 1.6775,
+      "single_event": 1.0257
+    },
+    "newest_event_only_teacher_vs_window_teacher": {
+      "windows": 5136,
+      "mae_points": 6.9551,
+      "rmse_points": 17.4253,
+      "max_abs_error_points": 79.9953,
+      "accuracy_at_threshold": 0.93516,
+      "precision": 1.0,
+      "recall": 0.86977,
+      "auc_vs_teacher_high_impact": 0.95222,
+      "teacher_high_impact_rate": 0.49786
     },
     "history": [
       {
+        "epoch": 1,
+        "train_loss": 0.66762,
+        "val_mae_points": 8.2141,
+        "seconds": 114.6
+      },
+      {
+        "epoch": 2,
+        "train_loss": 0.53755,
+        "val_mae_points": 3.8243,
+        "seconds": 116.8
+      },
+      {
+        "epoch": 3,
+        "train_loss": 0.52562,
+        "val_mae_points": 4.9006,
+        "seconds": 101.3
+      },
+      {
+        "epoch": 4,
+        "train_loss": 0.52258,
+        "val_mae_points": 2.6153,
+        "seconds": 115.5
+      },
+      {
         "epoch": 5,
-        "val_mae_points": 0.3308
+        "train_loss": 0.52033,
+        "val_mae_points": 1.8983,
+        "seconds": 110.7
+      },
+      {
+        "epoch": 6,
+        "train_loss": 0.5197,
+        "val_mae_points": 1.8788,
+        "seconds": 119.2
+      },
+      {
+        "epoch": 7,
+        "train_loss": 0.51874,
+        "val_mae_points": 2.0582,
+        "seconds": 113.7
+      },
+      {
+        "epoch": 8,
+        "train_loss": 0.51844,
+        "val_mae_points": 1.7365,
+        "seconds": 117.9
+      },
+      {
+        "epoch": 9,
+        "train_loss": 0.51802,
+        "val_mae_points": 1.7589,
+        "seconds": 123.7
       },
       {
         "epoch": 10,
-        "val_mae_points": 0.4247
+        "train_loss": 0.51772,
+        "val_mae_points": 1.5673,
+        "seconds": 119.4
       },
       {
-        "epoch": 15,
-        "val_mae_points": 0.5348
+        "epoch": 11,
+        "train_loss": 0.51746,
+        "val_mae_points": 1.5214,
+        "seconds": 115.3
       },
       {
-        "epoch": 20,
-        "val_mae_points": 0.2473
+        "epoch": 12,
+        "train_loss": 0.51728,
+        "val_mae_points": 1.4297,
+        "seconds": 122.9
       },
       {
-        "epoch": 25,
-        "val_mae_points": 0.2701
+        "epoch": 13,
+        "train_loss": 0.51719,
+        "val_mae_points": 1.4354,
+        "seconds": 109.7
       },
       {
-        "epoch": 30,
-        "val_mae_points": 0.2189
-      },
-      {
-        "epoch": 35,
-        "val_mae_points": 0.0876
-      },
-      {
-        "epoch": 40,
-        "val_mae_points": 0.0956
-      },
-      {
-        "epoch": 45,
-        "val_mae_points": 0.0903
+        "epoch": 14,
+        "train_loss": 0.51712,
+        "val_mae_points": 1.4217,
+        "seconds": 105.8
       }
     ]
   },
+  "validation_coreml_fp16": {
+    "scored_by": "AegisWorkflowFP16.mlpackage: shipped CoreML FP16 ML Program, coremltools predict, .cpuAndNeuralEngine, same held-out windows as validation",
+    "all": {
+      "windows": 5136,
+      "mae_points": 1.4362,
+      "rmse_points": 3.1,
+      "max_abs_error_points": 37.7788,
+      "accuracy_at_threshold": 0.98287,
+      "precision": 0.98279,
+      "recall": 0.98279,
+      "auc_vs_teacher_high_impact": 0.99727,
+      "teacher_high_impact_rate": 0.49786
+    },
+    "zero_history": {
+      "windows": 1726,
+      "mae_points": 0.4532,
+      "rmse_points": 0.7997,
+      "max_abs_error_points": 7.3784,
+      "accuracy_at_threshold": 0.99479,
+      "precision": 0.9883,
+      "recall": 0.99852,
+      "auc_vs_teacher_high_impact": 0.99974,
+      "teacher_high_impact_rate": 0.39224
+    },
+    "with_history": {
+      "windows": 3410,
+      "mae_points": 1.9338,
+      "rmse_points": 3.7617,
+      "max_abs_error_points": 37.7788,
+      "accuracy_at_threshold": 0.97683,
+      "precision": 0.98078,
+      "recall": 0.97713,
+      "auc_vs_teacher_high_impact": 0.99641,
+      "teacher_high_impact_rate": 0.55132
+    },
+    "max_abs_diff_points_vs_fp32": 0.3229,
+    "mean_abs_diff_points_vs_fp32": 0.11173
+  },
   "parity": {
-    "vectors": 256,
-    "max_abs_diff_points": 0.11548,
-    "mean_abs_diff_points": 0.02825
+    "reference": "PyTorch FP32 forward pass of the trained weights",
+    "tolerance_points": 1.0,
+    "zero_history_vectors": 62,
+    "windows": 96,
+    "max_abs_diff_points_cpu_and_ne": 0.32889,
+    "mean_abs_diff_points_cpu_and_ne": 0.10722,
+    "max_abs_diff_points_cpu_only": 0.13529,
+    "max_abs_diff_points_batch": 0.32889
+  },
+  "paypal_bench_cases_zero_history": [
+    {
+      "case": "$42.00 known payee",
+      "zero_history_score_coreml_fp16": 11.9219,
+      "reference_fp32": 11.9246,
+      "teacher": 11.8763,
+      "risk_policy_decision": "Allow",
+      "phase1_decision": "Allow",
+      "matches_phase1": true
+    },
+    {
+      "case": "$120.00 known payee",
+      "zero_history_score_coreml_fp16": 28.5156,
+      "reference_fp32": 28.3776,
+      "teacher": 28.4486,
+      "risk_policy_decision": "Allow",
+      "phase1_decision": "Allow",
+      "matches_phase1": true
+    },
+    {
+      "case": "$480.00 new payee, high-risk country",
+      "zero_history_score_coreml_fp16": 99.375,
+      "reference_fp32": 99.3808,
+      "teacher": 99.5694,
+      "risk_policy_decision": "Deny",
+      "phase1_decision": "Deny",
+      "matches_phase1": true
+    },
+    {
+      "case": "$25.00 with redaction disabled",
+      "zero_history_score_coreml_fp16": 81.625,
+      "reference_fp32": 81.6247,
+      "teacher": 80.6105,
+      "risk_policy_decision": "Deny",
+      "phase1_decision": "Deny",
+      "matches_phase1": true
+    }
+  ],
+  "architecture_sweep": {
+    "description": "Architecture sweep for the online window model. Each candidate is built with seeded random (He) weights; MLComputePlan placement and latency do not depend on weight values for dense FP16 convolutions, and the final trained model is re-measured by the full build. Latency is the wall-clock time of aegis_ane_score_windows through the production Swift bridge (models/tools/ane_probe.swift), .cpuAndNeuralEngine and .cpuOnly interleaved in alternating rounds. Measured on a shared machine: preliminary numbers.",
+    "selection_rule": {
+      "max_p50_ms": 0.6,
+      "min_speedup": 1.15,
+      "allowed_conv_layers": [
+        12,
+        16
+      ],
+      "order": "fewest MACs per window, then fewest parameters, among passing rows"
+    },
+    "probe_settings": {
+      "rounds": 40,
+      "per_round": 60,
+      "warmup": 300
+    },
+    "measured_at": "2026-10-25T11:36:11Z",
+    "host": {
+      "cpu": "Apple M2",
+      "model": "Mac14,2",
+      "macos": "27.0.1"
+    },
+    "selected": "mh128_b5_v8_nd",
+    "rows": [
+      {
+        "name": "p128_b5",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 353793,
+        "macs_per_window": 21512256,
+        "macs_per_prediction": 21512256,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 0,
+          "cpu": 35,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 12,
+          "ios16.sigmoid": 1,
+          "ios17.add": 5,
+          "ios17.concat": 1,
+          "ios17.conv": 13,
+          "ios17.mul": 1,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.055542,
+          "p95": 0.066292,
+          "mean": 0.05726
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.055416,
+          "p95": 0.066708,
+          "mean": 0.057487
+        },
+        "speedup_p50": 0.9977,
+        "load_average_1m": 6.25,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p64_b5",
+        "config": {
+          "hidden": 64,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 95041,
+        "macs_per_window": 5513280,
+        "macs_per_prediction": 5513280,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 0,
+          "cpu": 35,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 12,
+          "ios16.sigmoid": 1,
+          "ios17.add": 5,
+          "ios17.concat": 1,
+          "ios17.conv": 13,
+          "ios17.mul": 1,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.040583,
+          "p95": 0.050334,
+          "mean": 0.041709
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.040459,
+          "p95": 0.050292,
+          "mean": 0.041722
+        },
+        "speedup_p50": 0.9969,
+        "load_average_1m": 6.25,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p192_b5",
+        "config": {
+          "hidden": 192,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 776385,
+        "macs_per_window": 47996992,
+        "macs_per_prediction": 47996992,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 0,
+          "cpu": 35,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 12,
+          "ios16.sigmoid": 1,
+          "ios17.add": 5,
+          "ios17.concat": 1,
+          "ios17.conv": 13,
+          "ios17.mul": 1,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.083666,
+          "p95": 0.092834,
+          "mean": 0.084226
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.083542,
+          "p95": 0.088834,
+          "mean": 0.083838
+        },
+        "speedup_p50": 0.9985,
+        "load_average_1m": 6.25,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p256_b5",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 1362817,
+        "macs_per_window": 84967488,
+        "macs_per_prediction": 84967488,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 35,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.233125,
+          "p95": 0.266875,
+          "mean": 0.236524
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.120541,
+          "p95": 0.141584,
+          "mean": 0.123185
+        },
+        "speedup_p50": 0.5171,
+        "load_average_1m": 5.83,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p384_b5",
+        "config": {
+          "hidden": 384,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 3027201,
+        "macs_per_window": 190365760,
+        "macs_per_prediction": 190365760,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 35,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.340458,
+          "p95": 0.3675,
+          "mean": 0.342858
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.211292,
+          "p95": 0.25625,
+          "mean": 0.222873
+        },
+        "speedup_p50": 0.6206,
+        "load_average_1m": 5.83,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p512_b5",
+        "config": {
+          "hidden": 512,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 5346945,
+        "macs_per_window": 337707072,
+        "macs_per_prediction": 337707072,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 35,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.514167,
+          "p95": 0.76575,
+          "mean": 0.585323
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.343958,
+          "p95": 0.788208,
+          "mean": 0.44768
+        },
+        "speedup_p50": 0.669,
+        "load_average_1m": 5.52,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p512_b6",
+        "config": {
+          "hidden": 512,
+          "residual_blocks": 6,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16,
+            32
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 15,
+        "parameters": 6396545,
+        "macs_per_window": 404815936,
+        "macs_per_prediction": 404815936,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 40,
+          "neural_engine": 40,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.716792,
+          "p95": 0.784875,
+          "mean": 0.725361
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.407209,
+          "p95": 0.4375,
+          "mean": 0.413024
+        },
+        "speedup_p50": 0.5681,
+        "load_average_1m": 5.35,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": false,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p512_b7",
+        "config": {
+          "hidden": 512,
+          "residual_blocks": 7,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16,
+            32,
+            32
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 17,
+        "parameters": 7446145,
+        "macs_per_window": 471924800,
+        "macs_per_prediction": 471924800,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 45,
+          "neural_engine": 45,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.91575,
+          "p95": 1.052291,
+          "mean": 0.939739
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.473,
+          "p95": 0.542042,
+          "mean": 0.4845
+        },
+        "speedup_p50": 0.5165,
+        "load_average_1m": 5.25,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": false,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": false
+        },
+        "passes": false
+      },
+      {
+        "name": "p128_b3",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 3,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 9,
+        "parameters": 222209,
+        "macs_per_window": 13123648,
+        "macs_per_prediction": 13123648,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 25,
+          "neural_engine": 0,
+          "cpu": 25,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 8,
+          "ios16.sigmoid": 1,
+          "ios17.add": 3,
+          "ios17.concat": 1,
+          "ios17.conv": 9,
+          "ios17.mul": 1,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.04675,
+          "p95": 0.059459,
+          "mean": 0.049839
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.046083,
+          "p95": 0.059042,
+          "mean": 0.049173
+        },
+        "speedup_p50": 0.9857,
+        "load_average_1m": 5.25,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": false
+        },
+        "passes": false
+      },
+      {
+        "name": "p256_b3",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 3,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 9,
+        "parameters": 837505,
+        "macs_per_window": 51413056,
+        "macs_per_prediction": 51413056,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 25,
+          "neural_engine": 0,
+          "cpu": 25,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 8,
+          "ios16.sigmoid": 1,
+          "ios17.add": 3,
+          "ios17.concat": 1,
+          "ios17.conv": 9,
+          "ios17.mul": 1,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.0855,
+          "p95": 0.089375,
+          "mean": 0.085505
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.084958,
+          "p95": 0.089,
+          "mean": 0.086344
+        },
+        "speedup_p50": 0.9937,
+        "load_average_1m": 5.25,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": false
+        },
+        "passes": false
+      },
+      {
+        "name": "p128_b7",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 7,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16,
+            32,
+            32
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 17,
+        "parameters": 485377,
+        "macs_per_window": 29900864,
+        "macs_per_prediction": 29900864,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 45,
+          "neural_engine": 0,
+          "cpu": 45,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 16,
+          "ios16.sigmoid": 1,
+          "ios17.add": 7,
+          "ios17.concat": 1,
+          "ios17.conv": 17,
+          "ios17.mul": 1,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.068417,
+          "p95": 0.074958,
+          "mean": 0.068103
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.068084,
+          "p95": 0.075583,
+          "mean": 0.06782
+        },
+        "speedup_p50": 0.9951,
+        "load_average_1m": 4.91,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": false
+        },
+        "passes": false
+      },
+      {
+        "name": "p256_b5_k11",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x1+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 707457,
+        "macs_per_window": 43024448,
+        "macs_per_prediction": 43024448,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 0,
+          "cpu": 35,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 12,
+          "ios16.sigmoid": 1,
+          "ios17.add": 5,
+          "ios17.concat": 1,
+          "ios17.conv": 13,
+          "ios17.mul": 1,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.072208,
+          "p95": 0.082917,
+          "mean": 0.073758
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.071708,
+          "p95": 0.079583,
+          "mean": 0.072378
+        },
+        "speedup_p50": 0.9931,
+        "load_average_1m": 4.91,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p256_b5_k33",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x3"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 2018177,
+        "macs_per_window": 126910528,
+        "macs_per_prediction": 126910528,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 35,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.276542,
+          "p95": 0.301334,
+          "mean": 0.279326
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.163959,
+          "p95": 0.192959,
+          "mean": 0.168083
+        },
+        "speedup_p50": 0.5929,
+        "load_average_1m": 4.91,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "p256_b5_newest",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 1346433,
+        "macs_per_window": 84951104,
+        "macs_per_prediction": 84951104,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 33,
+          "neural_engine": 33,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.230958,
+          "p95": 0.266042,
+          "mean": 0.234512
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.119208,
+          "p95": 0.136459,
+          "mean": 0.120488
+        },
+        "speedup_p50": 0.5161,
+        "load_average_1m": 4.75,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh64_b5_v4",
+        "config": {
+          "hidden": 64,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 119617,
+        "macs_per_window": 22052928,
+        "macs_per_prediction": 22052928,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 0,
+          "cpu": 36,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 12,
+          "ios16.sigmoid": 1,
+          "ios17.add": 5,
+          "ios17.concat": 1,
+          "ios17.conv": 13,
+          "ios17.mul": 2,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.064416,
+          "p95": 0.075208,
+          "mean": 0.065678
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.063875,
+          "p95": 0.075708,
+          "mean": 0.066957
+        },
+        "speedup_p50": 0.9916,
+        "load_average_1m": 4.75,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh64_b5_v8",
+        "config": {
+          "hidden": 64,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            48,
+            32,
+            24,
+            16,
+            8,
+            4,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 152385,
+        "macs_per_window": 44105792,
+        "macs_per_prediction": 44105792,
+        "views": 8,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 0,
+          "cpu": 36,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 12,
+          "ios16.sigmoid": 1,
+          "ios17.add": 5,
+          "ios17.concat": 1,
+          "ios17.conv": 13,
+          "ios17.mul": 2,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.096292,
+          "p95": 0.101791,
+          "mean": 0.097249
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.095208,
+          "p95": 0.100375,
+          "mean": 0.095296
+        },
+        "speedup_p50": 0.9887,
+        "load_average_1m": 4.75,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v2",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 370177,
+        "macs_per_window": 43024448,
+        "macs_per_prediction": 43024448,
+        "views": 2,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 0,
+          "cpu": 36,
+          "gpu": 0,
+          "all_on_neural_engine": false
+        },
+        "not_on_neural_engine_by_operator": {
+          "ios16.reduce_mean": 1,
+          "ios16.relu": 12,
+          "ios16.sigmoid": 1,
+          "ios17.add": 5,
+          "ios17.concat": 1,
+          "ios17.conv": 13,
+          "ios17.mul": 2,
+          "ios17.slice_by_index": 1
+        },
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.084041,
+          "p95": 0.086792,
+          "mean": 0.083656
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.083667,
+          "p95": 0.086542,
+          "mean": 0.08323
+        },
+        "speedup_p50": 0.9955,
+        "load_average_1m": 4.75,
+        "checks": {
+          "all_on_neural_engine": false,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v4",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 402945,
+        "macs_per_window": 86048832,
+        "macs_per_prediction": 86048832,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.18025,
+          "p95": 0.201583,
+          "mean": 0.182559
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.129917,
+          "p95": 0.156875,
+          "mean": 0.133753
+        },
+        "speedup_p50": 0.7208,
+        "load_average_1m": 4.61,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v7",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8,
+            4,
+            2,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 452097,
+        "macs_per_window": 150585408,
+        "macs_per_prediction": 150585408,
+        "views": 7,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.193834,
+          "p95": 0.229625,
+          "mean": 0.199358
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.200042,
+          "p95": 0.263167,
+          "mean": 0.217871
+        },
+        "speedup_p50": 1.032,
+        "load_average_1m": 4.61,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v8",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            48,
+            32,
+            24,
+            16,
+            8,
+            4,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 468481,
+        "macs_per_window": 172097600,
+        "macs_per_prediction": 172097600,
+        "views": 8,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.216875,
+          "p95": 0.330125,
+          "mean": 0.233476
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.240417,
+          "p95": 0.544834,
+          "mean": 0.294515
+        },
+        "speedup_p50": 1.1086,
+        "load_average_1m": 4.61,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b6_v7",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 6,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16,
+            32
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8,
+            4,
+            2,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 15,
+        "parameters": 517889,
+        "macs_per_window": 179945536,
+        "macs_per_prediction": 179945536,
+        "views": 7,
+        "placement": {
+          "operations_dispatched": 41,
+          "neural_engine": 41,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.219792,
+          "p95": 0.307625,
+          "mean": 0.230922
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.228875,
+          "p95": 0.325833,
+          "mean": 0.247988
+        },
+        "speedup_p50": 1.0413,
+        "load_average_1m": 4.64,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b6_v8",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 6,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16,
+            32
+          ],
+          "horizons": [
+            64,
+            48,
+            32,
+            24,
+            16,
+            8,
+            4,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 15,
+        "parameters": 534273,
+        "macs_per_window": 205652032,
+        "macs_per_prediction": 205652032,
+        "views": 8,
+        "placement": {
+          "operations_dispatched": 41,
+          "neural_engine": 41,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.228667,
+          "p95": 0.270583,
+          "mean": 0.232848
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.254167,
+          "p95": 0.303458,
+          "mean": 0.262516
+        },
+        "speedup_p50": 1.1115,
+        "load_average_1m": 4.64,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v7_newest",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8,
+            4,
+            2,
+            1
+          ],
+          "readout": "newest",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 394753,
+        "macs_per_window": 150528064,
+        "macs_per_prediction": 150528064,
+        "views": 7,
+        "placement": {
+          "operations_dispatched": 34,
+          "neural_engine": 34,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.188916,
+          "p95": 0.22,
+          "mean": 0.196612
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.192542,
+          "p95": 0.226875,
+          "mean": 0.197278
+        },
+        "speedup_p50": 1.0192,
+        "load_average_1m": 4.35,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v7_k33",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x3"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8,
+            4,
+            2,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 615937,
+        "macs_per_window": 223985728,
+        "macs_per_prediction": 223985728,
+        "views": 7,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.210917,
+          "p95": 0.248459,
+          "mean": 0.215059
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.284083,
+          "p95": 0.349,
+          "mean": 0.30644
+        },
+        "speedup_p50": 1.3469,
+        "load_average_1m": 4.35,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh192_b5_v4",
+        "config": {
+          "hidden": 192,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 850113,
+        "macs_per_window": 191987776,
+        "macs_per_prediction": 191987776,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.20425,
+          "p95": 0.230458,
+          "mean": 0.207637
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.232834,
+          "p95": 0.258958,
+          "mean": 0.237402
+        },
+        "speedup_p50": 1.1399,
+        "load_average_1m": 4.24,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh192_b5_v7",
+        "config": {
+          "hidden": 192,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8,
+            4,
+            2,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 923841,
+        "macs_per_window": 335978560,
+        "macs_per_prediction": 335978560,
+        "views": 7,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.271459,
+          "p95": 0.298917,
+          "mean": 0.270003
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.371875,
+          "p95": 0.398167,
+          "mean": 0.381127
+        },
+        "speedup_p50": 1.3699,
+        "load_average_1m": 4.24,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh256_b5_v4",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            2,
+            4,
+            8,
+            16
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 1461121,
+        "macs_per_window": 339869760,
+        "macs_per_prediction": 339869760,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.288625,
+          "p95": 0.321292,
+          "mean": 0.288929
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.363375,
+          "p95": 0.418458,
+          "mean": 0.374133
+        },
+        "speedup_p50": 1.259,
+        "load_average_1m": 4.46,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "p512_b7_nd",
+        "config": {
+          "hidden": 512,
+          "residual_blocks": 7,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 17,
+        "parameters": 7446145,
+        "macs_per_window": 471924800,
+        "macs_per_prediction": 471924800,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 45,
+          "neural_engine": 45,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.426292,
+          "p95": 0.469917,
+          "mean": 0.430195
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.478334,
+          "p95": 0.645709,
+          "mean": 0.51036
+        },
+        "speedup_p50": 1.1221,
+        "load_average_1m": 4.91,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": false
+        },
+        "passes": false
+      },
+      {
+        "name": "p768_b5_nd",
+        "config": {
+          "hidden": 768,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 11952513,
+        "macs_per_window": 758218816,
+        "macs_per_prediction": 758218816,
+        "views": 1,
+        "placement": {
+          "operations_dispatched": 35,
+          "neural_engine": 35,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.565917,
+          "p95": 0.6555,
+          "mean": 0.578463
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.677333,
+          "p95": 0.772083,
+          "mean": 0.694243
+        },
+        "speedup_p50": 1.1969,
+        "load_average_1m": 4.67,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh128_b5_v4_nd",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 402945,
+        "macs_per_window": 86048832,
+        "macs_per_prediction": 86048832,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.160458,
+          "p95": 0.186292,
+          "mean": 0.163506
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.129416,
+          "p95": 0.147792,
+          "mean": 0.132094
+        },
+        "speedup_p50": 0.8065,
+        "load_average_1m": 4.67,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": false,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v7_nd",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8,
+            4,
+            2,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 452097,
+        "macs_per_window": 150585408,
+        "macs_per_prediction": 150585408,
+        "views": 7,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.182375,
+          "p95": 0.206416,
+          "mean": 0.185188
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.199875,
+          "p95": 0.220959,
+          "mean": 0.206328
+        },
+        "speedup_p50": 1.096,
+        "load_average_1m": 4.67,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh128_b5_v8_nd",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            48,
+            32,
+            24,
+            16,
+            8,
+            4,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 468481,
+        "macs_per_window": 172097600,
+        "macs_per_prediction": 172097600,
+        "views": 8,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.181792,
+          "p95": 0.205333,
+          "mean": 0.185325
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.222041,
+          "p95": 0.257209,
+          "mean": 0.227116
+        },
+        "speedup_p50": 1.2214,
+        "load_average_1m": 4.46,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh128_b6_v8_nd",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 6,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            48,
+            32,
+            24,
+            16,
+            8,
+            4,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 15,
+        "parameters": 534273,
+        "macs_per_window": 205652032,
+        "macs_per_prediction": 205652032,
+        "views": 8,
+        "placement": {
+          "operations_dispatched": 41,
+          "neural_engine": 41,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.18725,
+          "p95": 0.213375,
+          "mean": 0.191108
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.259375,
+          "p95": 0.295042,
+          "mean": 0.263073
+        },
+        "speedup_p50": 1.3852,
+        "load_average_1m": 4.46,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh128_b5_v8_k33_nd",
+        "config": {
+          "hidden": 128,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x3"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            48,
+            32,
+            24,
+            16,
+            8,
+            4,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 632321,
+        "macs_per_window": 255983680,
+        "macs_per_prediction": 255983680,
+        "views": 8,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.195417,
+          "p95": 0.225333,
+          "mean": 0.198101
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.314833,
+          "p95": 0.353708,
+          "mean": 0.322972
+        },
+        "speedup_p50": 1.6111,
+        "load_average_1m": 4.46,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh160_b5_v4_nd",
+        "config": {
+          "hidden": 160,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 606049,
+        "macs_per_window": 133775424,
+        "macs_per_prediction": 133775424,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.1755,
+          "p95": 0.222292,
+          "mean": 0.185331
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.177958,
+          "p95": 0.219584,
+          "mean": 0.194591
+        },
+        "speedup_p50": 1.014,
+        "load_average_1m": 4.58,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh160_b5_v7_nd",
+        "config": {
+          "hidden": 160,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8,
+            4,
+            2,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 667489,
+        "macs_per_window": 234106944,
+        "macs_per_prediction": 234106944,
+        "views": 7,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.197541,
+          "p95": 0.223542,
+          "mean": 0.198713
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.287625,
+          "p95": 0.314875,
+          "mean": 0.294486
+        },
+        "speedup_p50": 1.456,
+        "load_average_1m": 4.58,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh192_b5_v4_nd",
+        "config": {
+          "hidden": 192,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 850113,
+        "macs_per_window": 191987776,
+        "macs_per_prediction": 191987776,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.188,
+          "p95": 0.210417,
+          "mean": 0.190863
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.233333,
+          "p95": 0.255083,
+          "mean": 0.236272
+        },
+        "speedup_p50": 1.2411,
+        "load_average_1m": 4.37,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh192_b6_v4_nd",
+        "config": {
+          "hidden": 192,
+          "residual_blocks": 6,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 15,
+        "parameters": 997953,
+        "macs_per_window": 229736512,
+        "macs_per_prediction": 229736512,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 41,
+          "neural_engine": 41,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.193042,
+          "p95": 0.222625,
+          "mean": 0.197211
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.270583,
+          "p95": 0.315625,
+          "mean": 0.276396
+        },
+        "speedup_p50": 1.4017,
+        "load_average_1m": 4.37,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      },
+      {
+        "name": "mh256_b5_v2_nd",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            1
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 1395585,
+        "macs_per_window": 169934912,
+        "macs_per_prediction": 169934912,
+        "views": 2,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.192458,
+          "p95": 0.219667,
+          "mean": 0.195825
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.200792,
+          "p95": 0.235,
+          "mean": 0.205761
+        },
+        "speedup_p50": 1.0433,
+        "load_average_1m": 4.37,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": false,
+          "conv_layers_in_range": true
+        },
+        "passes": false
+      },
+      {
+        "name": "mh256_b5_v4_nd",
+        "config": {
+          "hidden": 256,
+          "residual_blocks": 5,
+          "block_kernels": [
+            "1x3+1x1"
+          ],
+          "dilations": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "horizons": [
+            64,
+            32,
+            16,
+            8
+          ],
+          "readout": "newest+mean",
+          "readout_hidden": 64
+        },
+        "conv_layers": 13,
+        "parameters": 1461121,
+        "macs_per_window": 339869760,
+        "macs_per_prediction": 339869760,
+        "views": 4,
+        "placement": {
+          "operations_dispatched": 36,
+          "neural_engine": 36,
+          "cpu": 0,
+          "gpu": 0,
+          "all_on_neural_engine": true
+        },
+        "not_on_neural_engine_by_operator": {},
+        "cpu_and_neural_engine_ms": {
+          "n": 2400,
+          "p50": 0.219917,
+          "p95": 0.256625,
+          "mean": 0.223471
+        },
+        "cpu_only_ms": {
+          "n": 2400,
+          "p50": 0.363291,
+          "p95": 0.406084,
+          "mean": 0.370857
+        },
+        "speedup_p50": 1.6519,
+        "load_average_1m": 4.34,
+        "checks": {
+          "all_on_neural_engine": true,
+          "p50_below_limit": true,
+          "faster_than_cpu_only": true,
+          "speedup_margin": true,
+          "conv_layers_in_range": true
+        },
+        "passes": true
+      }
+    ]
   },
   "toolchain": {
     "python": "3.9.6",
     "numpy": "2.0.2",
-    "coremltools": "9.0"
+    "coremltools": "9.0",
+    "torch": "2.8.0"
   },
   "limitations": [
-    "Labels come from the heuristic teacher in feature_schema.json, not from real incidents.",
-    "Scores are only as meaningful as the feature extraction feeding them."
+    "Training data is synthetic and the labels come from a hand-written teacher; the model has not been validated on real agent sessions or incidents.",
+    "Scores are only as meaningful as the feature extraction feeding them.",
+    "Neural Engine placement and the ANE-vs-CPU latency ratio were measured on one Apple M2; MLComputePlan decides placement per machine and OS."
   ],
-  "build_seconds": 2.53
+  "build_seconds": 1653.88
 }
