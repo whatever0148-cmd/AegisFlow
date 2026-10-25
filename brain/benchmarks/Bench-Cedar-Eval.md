@@ -2,14 +2,14 @@
 tags:
   - benchmark
 status: verified
-latency_ms: 0.004541
-last_verified: 2026-10-25T15:38:36Z
-git_commit: b3f6810
+latency_ms: 0.004208
+last_verified: 2026-10-25T17:28:23Z
+git_commit: 9f1f777-dirty
 ---
 
 # Bench-Cedar-Eval
 
-**Status:** 🟢 verified · **p50:** 0.0045 ms · **commit:** `b3f6810` · **bench run: PRELIMINARY**
+**Status:** 🟢 verified · **p50:** 0.0042 ms · **commit:** `9f1f777-dirty`
 
 > Cedar `is_authorized` latency and the policy decision matrix (expected vs actual).
 
@@ -21,14 +21,12 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T15:38:39Z · bench 2026-10-25T15:38:36Z · tests 2026-10-25T08:10:13Z · commit `b3f6810`_
-
-> **PRELIMINARY: 1-min load average 13.13 at end above the busy threshold 4.** Only a quiet full-scale benchmark run decides the phase result.
+_Synced 2026-10-25T17:28:26Z · bench 2026-10-25T17:28:23Z · tests 2026-10-25T08:10:13Z · commit `9f1f777-dirty`_
 
 | Metric | Measured |
 |---|---|
-| is_authorized | p50 4.541 µs · p95 6.292 µs · n=20000 |
-| build request + authorize | p50 7.875 µs · p95 11.042 µs · n=20000 |
+| is_authorized | p50 4.208 µs · p95 4.667 µs · n=20000 |
+| build request + authorize | p50 7.625 µs · p95 8.166 µs · n=20000 |
 | ✔ speculative commit, risk 12 | Allow (permit-low-risk) |
 | ✔ commit with unredacted sensitive fields, risk 5 | Deny (default deny) |
 | ✔ high-impact commit without approval, risk 61 | Deny (forbid-high-impact-without-team-approval) |

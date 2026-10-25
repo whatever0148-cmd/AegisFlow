@@ -5,7 +5,9 @@
 //!
 //! Both require the current schema, a full-scale run and an artifact that still describes the
 //! current sources (source fingerprint). The gate also requires the live-tree integrity row and a
-//! run that is not preliminary. Pass flags are read from the artifact, never recomputed.
+//! run that is not preliminary and recorded its attributable CPU contention
+//! (`run_conditions.user_contention` with samples > 0). Pass flags are read from the artifact,
+//! never recomputed.
 
 use std::fmt;
 use std::fs;
@@ -221,17 +223,69 @@ pub fn gate_checks(doc: &Value) -> (Vec<String>, Vec<Check>) {
             integrity.iter().map(|r| r["measured"].to_string()).collect::<Vec<_>>().join("; ").chars().take(200).collect::<String>()
         ),
     ));
-    let run = &doc["run_conditions"];
-    let reasons: Vec<&str> = run["reasons"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
-    checks.push(check(
-        run["preliminary"] == false,
-        match run["preliminary"].as_bool() {
-            Some(false) => "run conditions: quiet full-scale run".to_string(),
-            Some(true) => format!("run conditions: PRELIMINARY ({}); only a quiet full-scale run decides the phase result", reasons.join("; ")),
-            None => "run conditions not recorded".to_string(),
-        },
-    ));
+    checks.push(run_conditions_check(&doc["run_conditions"]));
     (lines, checks)
+}
+
+/// Measured run conditions in one line: start load against its threshold, attributable CPU
+/// contention (mean, p95, max, samples) against its threshold, the informational total external
+/// CPU with its unattributed part, and the informational end load.
+fn run_conditions_text(run: &Value) -> String {
+    let load1 = |key: &str| run[key][0].as_f64().map_or("n/a".to_string(), |v| format!("{v:.2}"));
+    let cores = |v: &Value| v.as_f64().map_or("n/a".to_string(), |v| format!("{v:.2}"));
+    let user = &run["user_contention"];
+    let total = &run["external_cpu_total"];
+    format!(
+        "start load1 {} (busy above {}); attributable CPU contention mean {} cores, p95 {}, max {}, n={} (busy at or above {} cores); external CPU total mean {} cores, p95 {}, max {}, unattributed {} core-seconds (informational: includes root and system services responding to the benchmark); end load1 {} (informational: mostly the benchmark's own threads)",
+        load1("load_average_start"),
+        run["busy_threshold_load1"],
+        cores(&user["mean_cores"]),
+        cores(&user["p95_cores"]),
+        cores(&user["max_cores"]),
+        user["samples"].as_u64().unwrap_or(0),
+        cores(&user["busy_threshold_cores"]),
+        cores(&total["mean_cores"]),
+        cores(&total["p95_cores"]),
+        cores(&total["max_cores"]),
+        cores(&total["unattributed_core_seconds"]),
+        load1("load_average_end"),
+    )
+}
+
+/// Attributable contention was recorded: samples, process listings, mean / p95 / max, the
+/// threshold, a busy verdict, and no attribution error.
+fn contention_recorded(user: &Value) -> bool {
+    user["samples"].as_u64().is_some_and(|n| n > 0)
+        && user["listings"].as_u64().is_some_and(|n| n > 0)
+        && ["mean_cores", "p95_cores", "max_cores", "busy_threshold_cores"].iter().all(|k| user[*k].is_number())
+        && user["busy"].is_boolean()
+        && user["attribution_error"].is_null()
+}
+
+/// The run must not be preliminary, and its attributable CPU contention must have been measured
+/// (an artifact from before the attributable-contention rule does not decide the phase result).
+fn run_conditions_check(run: &Value) -> Check {
+    let reasons: Vec<&str> = run["reasons"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+    let measured = contention_recorded(&run["user_contention"]);
+    match run["preliminary"].as_bool() {
+        Some(false) if measured && run["user_contention"]["busy"] == false => {
+            check(true, format!("run conditions: quiet full-scale run; {}", run_conditions_text(run)))
+        }
+        Some(false) if measured => check(false, format!("run conditions: not marked preliminary, but attributable CPU contention is busy; {}", run_conditions_text(run))),
+        Some(false) => check(
+            false,
+            "run conditions: not marked preliminary, but attributable CPU contention (run_conditions.user_contention with samples, listings, mean / p95 / max) was not recorded (artifact predates the attributable-contention rule); rerun the benchmark".to_string(),
+        ),
+        Some(true) => check(
+            false,
+            format!(
+                "run conditions: PRELIMINARY ({}); {}; only a quiet full-scale run decides the phase result",
+                reasons.join("; "),
+                run_conditions_text(run)
+            ),
+        ),
+        None => check(false, "run conditions not recorded".to_string()),
+    }
 }
 
 /// Runs the checks of `mode` on `artifact` and prints them; Err when any check failed.
@@ -286,7 +340,12 @@ mod tests {
             "sources": {"sha256": "abc"},
             "targets_summary": rows,
             "informational": [{"metric": "live-tree integrity", "section": "integrity", "measured": {}, "pass": true}],
-            "run_conditions": {"preliminary": false, "reasons": []},
+            "run_conditions": {"preliminary": false, "reasons": [], "load_average_start": [1.0, 1.0, 1.0], "busy_threshold_load1": 4.0,
+                               "load_average_end": [12.0, 5.0, 2.0],
+                               "user_contention": {"samples": 200, "listings": 201, "mean_cores": 0.5, "p95_cores": 1.0, "max_cores": 1.5,
+                                                   "busy_threshold_cores": 2.0, "busy": false, "attribution_error": null},
+                               "external_cpu_total": {"samples": 200, "mean_cores": 3.0, "p95_cores": 4.0, "max_cores": 4.5,
+                                                      "unattributed_core_seconds": 150.0}},
         })
     }
 
@@ -300,6 +359,17 @@ mod tests {
         let (lines, checks) = gate_checks(&doc);
         assert_eq!(lines.len(), GATED_ROWS);
         assert!(all_ok(&checks), "{checks:?}");
+        let run = checks.last().unwrap();
+        for part in [
+            "start load1 1.00",
+            "attributable CPU contention mean 0.50 cores, p95 1.00, max 1.50, n=200",
+            "at or above 2.00 cores",
+            "external CPU total mean 3.00 cores",
+            "unattributed 150.00 core-seconds (informational",
+            "end load1 12.00 (informational",
+        ] {
+            assert!(run.what.contains(part), "{} lacks {part}", run.what);
+        }
         assert!(all_ok(&common_checks(&doc)));
         assert!(all_ok(&fresh_checks(&doc, &json!({"sha256": "abc", "files": 1}))));
     }
@@ -320,6 +390,25 @@ mod tests {
         preliminary["run_conditions"] = json!({"preliminary": true, "reasons": ["busy"]});
         let mut unrecorded = passing_doc();
         unrecorded.as_object_mut().unwrap().remove("run_conditions");
+        let mut no_contention = passing_doc();
+        no_contention["run_conditions"].as_object_mut().unwrap().remove("user_contention");
+        let mut no_samples = passing_doc();
+        no_samples["run_conditions"]["user_contention"]["samples"] = json!(0);
+        let mut no_listings = passing_doc();
+        no_listings["run_conditions"]["user_contention"]["listings"] = json!(0);
+        let mut no_p95 = passing_doc();
+        no_p95["run_conditions"]["user_contention"]["p95_cores"] = Value::Null;
+        let mut attribution_error = passing_doc();
+        attribution_error["run_conditions"]["user_contention"]["attribution_error"] = json!("listing failed");
+        let mut busy_unflagged = passing_doc();
+        busy_unflagged["run_conditions"]["user_contention"]["busy"] = json!(true);
+        // An artifact from the system-minus-own rule: quiet by its own measure, no attributable fields.
+        let mut old_rule = passing_doc();
+        let old_external = old_rule["run_conditions"]["user_contention"].clone();
+        let run = old_rule["run_conditions"].as_object_mut().unwrap();
+        run.remove("user_contention");
+        run.remove("external_cpu_total");
+        run.insert("external_cpu".to_string(), old_external);
         for (name, doc) in [
             ("missed", missed),
             ("null pass", null_pass),
@@ -328,6 +417,13 @@ mod tests {
             ("no integrity row", no_integrity),
             ("preliminary", preliminary),
             ("unrecorded", unrecorded),
+            ("attributable contention not recorded", no_contention),
+            ("attributable contention without samples", no_samples),
+            ("attributable contention without listings", no_listings),
+            ("attributable contention without p95", no_p95),
+            ("attribution error", attribution_error),
+            ("busy but not preliminary", busy_unflagged),
+            ("artifact from the old external-CPU rule", old_rule),
         ] {
             let (_, checks) = gate_checks(&doc);
             assert!(!all_ok(&checks), "{name} must fail the gate");

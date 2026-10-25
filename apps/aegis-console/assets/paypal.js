@@ -5,7 +5,9 @@ import { h, replace, badge, riskBar, fmtNum, fmtText, fmtTimeUTC, isNum, DASH, p
 import { get, post, describeError } from './api.js';
 import { createTimeline } from './timeline.js';
 
-const MAX_ROWS = 1000;
+// Rows shown; GET /api/paypal/orders `limit` replaces it (the daemon keeps that many), so the grid
+// shows the same orders before and after a reload.
+const DEFAULT_MAX_ROWS = 20;
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -144,6 +146,7 @@ export function createPaypalPanel() {
   };
 
   let gridApi = null;
+  let maxRows = DEFAULT_MAX_ROWS;
   let scenarios = null;
   let services = null;
   let stream = null;
@@ -182,7 +185,7 @@ export function createPaypalPanel() {
 
   function trimRows() {
     const removed = [];
-    while (ids.length > MAX_ROWS) {
+    while (ids.length > maxRows) {
       const id = ids.shift();
       const row = rowsById.get(id);
       rowsById.delete(id);
@@ -193,7 +196,7 @@ export function createPaypalPanel() {
   }
 
   function updateCount() {
-    els.count.textContent = `(${rowsById.size} row${rowsById.size === 1 ? '' : 's'}${rowsById.size >= MAX_ROWS ? `, newest ${MAX_ROWS} kept` : ''})`;
+    els.count.textContent = `(${rowsById.size} row${rowsById.size === 1 ? '' : 's'}${rowsById.size >= maxRows ? `, newest ${maxRows} kept` : ''})`;
   }
 
   function buildGrid(columnDefs, rows) {
@@ -229,6 +232,7 @@ export function createPaypalPanel() {
 
   function setOrders(data) {
     const rows = Array.isArray(data && data.rows) ? data.rows.slice() : [];
+    if (isNum(data && data.limit) && data.limit > 0) maxRows = data.limit;
     ids.length = 0;
     rowsById.clear();
     byReference.clear();
@@ -236,7 +240,9 @@ export function createPaypalPanel() {
     trimRows();
     const kept = ids.map((id) => rowsById.get(id)).reverse(); // newest first
     buildGrid(data && data.columnDefs, kept);
-    timeline.setStore((data && data.timeline) || { resources: [], events: [] });
+    const store = (data && data.timeline) || { resources: [], events: [] };
+    const events = Array.isArray(store.events) ? store.events.filter((e) => e && rowsById.has(String(e.orderId))) : [];
+    timeline.setStore({ ...store, events });
     setError('orders', null);
     updateCount();
   }
@@ -254,6 +260,7 @@ export function createPaypalPanel() {
       }
       updateCount();
       if (USES_SANDBOX_SLOT.has(row.submission)) refreshScenarios();
+      if (removed.length) timeline.removeOrders(removed.map((r) => String(r.id)));
     }
     if (events.length) timeline.addEvents(events);
   }

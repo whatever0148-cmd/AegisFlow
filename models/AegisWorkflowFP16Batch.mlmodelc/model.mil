@@ -127,7 +127,7 @@ program(1.0)
             tensor<fp16, [32, 64, 1, 1]> head_0 = conv(bias = head_0_bias_0, dilations = head_0_dilations_0, groups = head_0_groups_0, pad = head_0_pad_0, pad_type = head_0_pad_type_0, strides = head_0_strides_0, weight = head_0_weight_0, x = readout_features)[name = tensor<string, []>("head_0")];
             tensor<fp16, [32, 64, 1, 1]> head_0_relu = relu(x = head_0)[name = tensor<string, []>("head_0_relu")];
             tensor<fp16, [1, 64, 1, 1]> head_1_weight_0 = const()[name = tensor<string, []>("head_1_weight_0"), val = tensor<fp16, [1, 64, 1, 1]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(939520)))];
-            tensor<fp16, [1]> head_1_bias_0 = const()[name = tensor<string, []>("head_1_bias_0"), val = tensor<fp16, [1]>([-0x1.27cp-5])];
+            tensor<fp16, [1]> head_1_bias_0 = const()[name = tensor<string, []>("head_1_bias_0"), val = tensor<fp16, [1]>([-0x1.52p-5])];
             tensor<int32, [2]> head_1_strides_0 = const()[name = tensor<string, []>("head_1_strides_0"), val = tensor<int32, [2]>([1, 1])];
             tensor<int32, [2]> head_1_dilations_0 = const()[name = tensor<string, []>("head_1_dilations_0"), val = tensor<int32, [2]>([1, 1])];
             tensor<string, []> head_1_pad_type_0 = const()[name = tensor<string, []>("head_1_pad_type_0"), val = tensor<string, []>("custom")];

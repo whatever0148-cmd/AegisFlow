@@ -127,9 +127,14 @@ test('a run first seen through its post-finish reap does not read "running"', ()
   assert.equal(text(card().querySelector('.run__head .badge__label')), 'outcome not observed');
 });
 
-test('the daemon lag notice is recognised; other log lines are not', () => {
+test('the daemon lag notice is recognised by its dropped field, with the text as a fallback; other log lines are not', () => {
   const dropped = 1 + Math.floor(Math.random() * 50);
-  assert.ok(api.isLagNotice({ type: 'log', level: 'warn', message: `this client fell behind; ${dropped} messages were dropped` }));
+  const textOnly = `this client fell behind; ${dropped} messages were dropped`;
+  assert.ok(api.isLagNotice({ type: 'log', level: 'warn', message: textOnly, dropped }));
+  assert.ok(api.isLagNotice({ type: 'log', level: 'warn', message: 'reworded by a newer daemon', dropped }), 'the field decides, not the text');
+  assert.ok(!api.isLagNotice({ type: 'log', level: 'warn', message: textOnly, dropped: 0 }));
+  assert.ok(api.isLagNotice({ type: 'log', level: 'warn', message: textOnly }), 'older daemons: text only');
+  assert.ok(!api.isLagNotice({ type: 'run.stage', dropped }));
   assert.ok(!api.isLagNotice({ type: 'log', level: 'info', message: 'workspace reset' }));
   assert.ok(!api.isLagNotice({ type: 'run.stage', message: `fell behind; ${dropped} messages were dropped` }));
   assert.ok(!api.isLagNotice(null));

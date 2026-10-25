@@ -12,7 +12,10 @@
 // The WebSocket handshake and framing (RFC 6455) are implemented by hand with node:http and node:crypto.
 // Dev-only extra routes (not in the contract, token-protected): POST /__mock/rotate-token issues a new token
 // and drops all sockets, which simulates a daemon restart so the console's 401 / "socket refused" states can be
-// exercised; POST /__mock/emit {type, ...fields} broadcasts one message so rare shapes can be rendered.
+// exercised; POST /__mock/emit {type, ...fields} broadcasts one message so rare shapes can be rendered;
+// POST /__mock/lag {dropped} sends every socket the broadcast-lag notice (log with `dropped`), as aegis-daemon
+// does for a client that fell behind. Run messages carry the per-run `seq` and are kept for GET /api/runs
+// (newest 10, pending approvals kept), and GET /api/paypal/orders keeps the newest 20 orders, as in API.md.
 // --no-offsets omits the optional TimelineEvent.startOffsetUs field.
 
 import http from 'node:http';
@@ -240,6 +243,45 @@ function workspaceState() {
 
 let runSeq = 0;
 let approvalSeq = 0;
+
+// Run history (API.md "Run history"): run messages exactly as broadcast, newest RUNS_KEPT runs.
+const RUNS_KEPT = 10;
+const RUN_TYPES = new Set(['run.started', 'run.stage', 'run.finished']);
+const runHistory = []; // oldest run id first
+const runNumber = (id) => {
+  const m = /(\d+)$/.exec(String(id));
+  return m ? Number(m[1]) : 0;
+};
+
+/** Adds `seq` to a run message and records a copy, like aegis-daemon's RunHistory::observe. */
+function recordRunMessage(msg) {
+  if (msg.type === 'run.started') {
+    msg.seq = 1;
+    const rec = {
+      run_id: msg.run_id, scenario: msg.scenario ?? null, title: msg.title ?? null, started_at: msg.ts,
+      outcome: null, total_ms: null, queued_ms: null, stages: [], finished: [], last_seq: 1,
+    };
+    const at = runHistory.findIndex((r) => runNumber(r.run_id) > runNumber(msg.run_id));
+    runHistory.splice(at < 0 ? runHistory.length : at, 0, rec);
+    while (runHistory.length > RUNS_KEPT) {
+      const idx = runHistory.findIndex((r) => r.outcome !== 'pending_approval');
+      runHistory.splice(idx < 0 ? 0 : idx, 1);
+    }
+    return;
+  }
+  const rec = runHistory.find((r) => r.run_id === msg.run_id);
+  if (!rec) return; // no longer kept: broadcast without seq
+  rec.last_seq += 1;
+  msg.seq = rec.last_seq;
+  if (msg.type === 'run.stage') {
+    rec.stages.push({ ...msg });
+  } else {
+    rec.outcome = msg.outcome;
+    rec.total_ms = msg.total_ms;
+    if (msg.queued_ms !== null && msg.queued_ms !== undefined) rec.queued_ms = msg.queued_ms;
+    rec.finished.push({ ...msg });
+  }
+}
 const approvals = new Map();
 const runWaiters = new Map(); // run_id -> resolve(approval)
 
@@ -422,6 +464,7 @@ const STREAM_MAX_MS = 600000;
 const stream = { enabled: false, interval_ms: 2000 };
 const SANDBOX_CAP = 25;
 const sandbox = { submitted: 0, cap: SANDBOX_CAP };
+const ORDERS_KEPT = 20; // newest orders kept, with their timeline events (API.md)
 const orders = [];
 const timelineEvents = [];
 let orderSeq = 0;
@@ -491,8 +534,10 @@ function makeOrder(scenario) {
   });
   orders.push(row);
   timelineEvents.push(...events);
-  while (orders.length > 500) orders.shift();
-  while (timelineEvents.length > 3000) timelineEvents.shift();
+  while (orders.length > ORDERS_KEPT) {
+    const dropped = orders.shift();
+    for (let i = timelineEvents.length - 1; i >= 0; i -= 1) if (timelineEvents[i].orderId === dropped.id) timelineEvents.splice(i, 1);
+  }
   if (scenario === 'new_payee_large' && rand() < 0.5) {
     const a = createApproval({
       kind: 'paypal', title: `Mock order ${reference} to a new payee`, summary: 'Synthetic approval raised by a mock order.',
@@ -624,7 +669,8 @@ async function route(req, res) {
           resolved: all.filter((a) => a.status !== 'pending').sort((a, b) => String(b.resolved_at).localeCompare(String(a.resolved_at))).slice(0, 50),
         });
       }
-      case '/api/paypal/orders': return sendJson(res, 200, { rows: orders, columnDefs: COLUMN_DEFS, timeline: { resources: RESOURCES, events: timelineEvents } });
+      case '/api/runs': return sendJson(res, 200, { runs: [...runHistory].reverse(), limit: RUNS_KEPT });
+      case '/api/paypal/orders': return sendJson(res, 200, { rows: orders, columnDefs: COLUMN_DEFS, timeline: { resources: RESOURCES, events: timelineEvents }, limit: ORDERS_KEPT });
       case '/api/paypal/scenarios': return sendJson(res, 200, { scenarios: PP_SCENARIOS, stream: { ...stream }, sandbox: { enabled: services().paypal.enabled, ...sandbox } });
       default: throw new HttpError(404, 'not found');
     }
@@ -710,6 +756,12 @@ async function route(req, res) {
     broadcast(type, fields);
     return sendJson(res, 200, { emitted: type, clients: clients.size });
   }
+  if (p === '/__mock/lag') {
+    // Dev-only: the broadcast-lag notice aegis-daemon sends a client that fell behind.
+    const dropped = Number.isInteger(body.dropped) && body.dropped > 0 ? body.dropped : 1;
+    broadcast('log', { level: 'warn', message: `this client fell behind; ${dropped} messages were dropped`, dropped });
+    return sendJson(res, 200, { emitted: 'log', dropped, clients: clients.size });
+  }
   if (p === '/__mock/rotate-token') {
     TOKEN = crypto.randomBytes(24).toString('hex');
     for (const c of [...clients]) closeClient(c, 1012);
@@ -762,6 +814,7 @@ function send(client, msg) {
 
 function broadcast(type, fields = {}) {
   const msg = { type, ts: iso(), ...fields };
+  if (RUN_TYPES.has(type)) recordRunMessage(msg);
   for (const c of clients) send(c, msg);
 }
 

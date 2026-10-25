@@ -32,6 +32,17 @@ exactly the per-event label:
 where clip(.) clamps to [0, 1] and an event's type is the first match of payment, secret, delete,
 build, shell/network, config, edit, idle.
 
+Simulator and the velocity counters. An order event carries its own per-event counters
+orders_last_hour / spend_last_24h_cents. If every simulated order filled them from the session's
+order history, they would rise together with the in-window order count, and the network could fit
+T_velocity / T_spend from the newest event's counters while ignoring the history (an earlier build
+did: twelve orders with the counters at 0 scored about the same as one order, against a teacher label
+near 70). So each session draws a counter mode (SIM_CONFIG order_counter_modes: reported, absent,
+partial), a share of sessions emit orders with commerce features only (no execution context, like
+commerce_features(order, None) from payment middleware), and every session that places orders gets
+extra window cuts at its order events. The teacher is unchanged: the counters still enter z(e_T)
+through their per-event weights, and the temporal terms still count the orders inside the window.
+
 Pipeline (deterministic for a given seed and toolchain):
   1. simulate SIM_CONFIG["sessions"] sessions; cut windows; label them with the window teacher
   2. split by session into train / validation
@@ -42,7 +53,9 @@ Pipeline (deterministic for a given seed and toolchain):
      save the .mlpackage files and compile them to .mlmodelc
      (model_card.json "validation" scores the PyTorch FP32 reference; "validation_coreml_fp16" scores the
      shipped FP16 package on the same held-out windows; package metadata carries val_mae_points_fp32)
-  5. parity: CoreML FP16 vs the PyTorch FP32 forward pass on held-out windows -> parity_vectors.json
+  5. parity: CoreML FP16 vs the PyTorch FP32 forward pass on held-out windows -> parity_vectors.json;
+     history probes (HISTORY_PROBE_LENGTHS repeated orders, counters 0) with their teacher labels ->
+     parity_vectors.json history_probes and model_card.json history_probes
   6. MLComputePlan placement and interleaved .cpuAndNeuralEngine / .cpuOnly latency of the built
      models through the production Swift bridge (models/tools/ane_probe.swift) -> model_card.json
 
@@ -105,6 +118,19 @@ SIM_CONFIG = {
     "extra_cuts_per_session": 2,
     "first_event_cut_probability": 0.4,
     "zero_history_copy_probability": 0.25,
+    # Procurement windows: extra cuts at earlier order events of every session that places orders, so the
+    # window teacher's T_velocity / T_spend terms are seen often enough.
+    "extra_order_cuts_per_session": 2,
+    # How an agent's orders report the per-event velocity counters orders_last_hour / spend_last_24h_cents:
+    # "reported" fills both from the session's own order history, "absent" leaves both at 0 on every order
+    # (agents and middleware without a spend ledger: the PayPal middleware sends an empty history), "partial"
+    # drops them on a random half of the orders. Without the absent / partial sessions the counters rise with
+    # every in-window velocity window, and a network can fit T_velocity / T_spend from the counters alone.
+    "order_counter_modes": {"reported": 0.5, "absent": 0.35, "partial": 0.15},
+    "partial_counter_report_probability": 0.5,
+    # Share of sessions whose orders carry commerce features only (no execution context: agent_uncertainty,
+    # branch age, review age, concurrent branches), like commerce_features(order, None) from payment middleware.
+    "commerce_only_order_probability": 0.4,
     "scenario_mix": {
         "benign_edit": 0.15, "refactor": 0.10, "secret_leak": 0.10, "mass_delete": 0.08,
         "build_break_loop": 0.10, "procurement": 0.15, "mixed": 0.12, "single_event": 0.20,
@@ -164,6 +190,13 @@ PAYPAL_CASES = [
      "payee_country_risk": 0.05, "unformatted_sensitive_fields": True, "phase1_decision": "Deny"},
 ]
 PAYPAL_BUDGET_CENTS = 20000
+
+# History-only payment velocity probes (crates/aegis-ane-scorer/src/tests.rs
+# in_window_order_history_alone_raises_risk): the same order repeated N times in one session, as
+# commerce_features(order, None) builds it with orders_last_hour = spend_last_24h_cents = 0, so only the
+# earlier orders inside the window (T_velocity, T_spend) separate the window label from the per-event one.
+HISTORY_PROBE_ORDER = {"amount_cents": 6000, "budget_cents": 50000, "line_items": 1, "quantity": 2}
+HISTORY_PROBE_LENGTHS = [3, 12]
 
 
 # ---------------------------------------------------------------------------------------------
@@ -297,6 +330,9 @@ class SessionSimulator:
             "orders": [],  # (minute, cents)
             "budget": float(r.choice([20000, 50000, 100000])),
             "fraud": bool(r.random() < 0.3),
+            "commerce_only_orders": bool(r.random() < SIM_CONFIG["commerce_only_order_probability"]),
+            "counters": str(r.choice(list(SIM_CONFIG["order_counter_modes"]),
+                                     p=list(SIM_CONFIG["order_counter_modes"].values()))),
         }
 
     def _exec(self, ctx: Dict, raw: Dict[str, float]) -> Dict[str, float]:
@@ -425,8 +461,10 @@ class SessionSimulator:
         gap = float(r.exponential(4.0 if rising else 45.0))
         ctx["minutes"] += gap
         now = ctx["minutes"]
-        last_hour = sum(1 for m, _ in ctx["orders"] if now - m <= 60)
-        spend_24h = sum(c for m, c in ctx["orders"] if now - m <= 1440)
+        mode = ctx["counters"]
+        reported = mode == "reported" or (mode == "partial" and r.random() < SIM_CONFIG["partial_counter_report_probability"])
+        last_hour = sum(1 for m, _ in ctx["orders"] if now - m <= 60) if reported else 0
+        spend_24h = sum(c for m, c in ctx["orders"] if now - m <= 1440) if reported else 0
         cents = float(np.clip(r.lognormal(np.log(6000) + (0.4 if ctx["fraud"] else 0.0), 0.9), 100, 2_000_000))
         quantity = int(r.integers(1, 9))
         raw = {
@@ -451,7 +489,7 @@ class SessionSimulator:
         if r.random() < 0.2:
             raw["merchant_refund_rate"] = float(r.beta(1, 10))
         ctx["orders"].append((now, cents))
-        return self.norm.event(self._exec(ctx, raw))
+        return self.norm.event(raw if ctx["commerce_only_orders"] else self._exec(ctx, raw))
 
     def _idle(self, ctx: Dict) -> np.ndarray:
         return np.zeros(FEATURES, dtype=np.float32)
@@ -646,6 +684,9 @@ def build_dataset(schema: Dict) -> Dict:
             cuts.update(int(c) for c in rng.integers(0, T, size=cfg["extra_cuts_per_session"]))
             if rng.random() < cfg["first_event_cut_probability"]:
                 cuts.add(0)
+            order_events = np.nonzero(arrays["is_order"][1:] > 0)[0] + 1
+            if order_events.size:
+                cuts.update(int(c) for c in rng.choice(order_events, size=cfg["extra_order_cuts_per_session"]))
         part = split["val" if s in val_sessions else "train"]
         if s in val_sessions:
             sessions[s] = events
@@ -1293,6 +1334,23 @@ def paypal_vectors(schema: Dict) -> np.ndarray:
     return np.stack(rows)
 
 
+def history_probes(schema: Dict) -> List[Dict]:
+    """[{name, length, events [N, 64], window [64, 64], teacher, teacher_newest_event_only}] for HISTORY_PROBE_LENGTHS."""
+    norm, teacher = Normalizer(schema), WindowTeacher(schema)
+    o = HISTORY_PROBE_ORDER
+    order = norm.event({"order_amount_cents": o["amount_cents"], "budget_utilization": o["amount_cents"] / o["budget_cents"],
+                        "line_items": o["line_items"], "quantity_total": o["quantity"]})
+    order = np.round(order, 5).astype(np.float32)
+    probes = []
+    for n in HISTORY_PROBE_LENGTHS:
+        events = np.stack([order] * n)
+        y, y_event, _ = teacher.label(teacher.event_arrays(events), n - 1)
+        probes.append({"name": f"{n} identical orders, velocity counters 0", "length": n, "events": events,
+                       "window": window_tensor(events, n - 1).astype(np.float32),
+                       "teacher": 100.0 * y, "teacher_newest_event_only": 100.0 * y_event})
+    return probes
+
+
 def single_event_windows(vectors: np.ndarray) -> np.ndarray:
     w = np.zeros((len(vectors), FEATURES, WINDOW), dtype=np.float32)
     w[:, :, -1] = vectors
@@ -1349,6 +1407,7 @@ def verify_only() -> int:
     windows = np.stack([dense_from_sparse(w["events"]) for w in parity["windows"]])
     ref_win = np.array([w["reference_fp32"] for w in parity["windows"]], dtype=np.float64)
     units = ct.ComputeUnit.CPU_AND_NE
+    thr = float(load_schema()["high_impact_threshold"])
     got_vec = coreml_scores(MLPACKAGE, single_event_windows(vectors), units)
     got_win = coreml_scores(MLPACKAGE, windows, units)
     batch = json.loads(CARD.read_text())["batch_model"]["windows_per_prediction"]
@@ -1356,6 +1415,18 @@ def verify_only() -> int:
     d_vec, d_win = np.abs(got_vec - ref_vec), np.abs(got_win - ref_win)
     d_batch = np.abs(got_batch - np.concatenate([ref_vec, ref_win]))
     worst = max(d_vec.max(), d_win.max(), d_batch.max())
+    probes = parity.get("history_probes", [])
+    if not probes:
+        print("verify: parity_vectors.json has no history_probes (rebuild with harness/build_model.sh)")
+        ok = False
+    for p in probes:
+        got = float(coreml_scores(MLPACKAGE, dense_from_sparse(p["events"])[None], units)[0])
+        agrees = (got >= thr) == (p["teacher"] >= thr)
+        print(f"verify: history probe '{p['name']}': CoreML FP16 {got:.3f}, FP32 {p['reference_fp32']:.3f}, teacher "
+              f"{p['teacher']:.3f} (newest event alone {p['teacher_newest_event_only']:.3f}) -> "
+              f"{'agrees' if agrees else 'DISAGREES'} with the teacher at {thr:g}")
+        worst = max(worst, abs(got - p["reference_fp32"]))
+        ok &= agrees
     print(f"verify: parity (CoreML FP16 .cpuAndNeuralEngine vs PyTorch FP32): {len(vectors)} zero-history events max "
           f"|diff| {d_vec.max():.4f}, {len(windows)} windows max |diff| {d_win.max():.4f} (mean {d_win.mean():.4f}), "
           f"batch model max |diff| {d_batch.max():.4f}; tolerance {tolerance} points")
@@ -1474,7 +1545,21 @@ def main() -> int:
     d_vec, d_win = np.abs(ne_vec - ref_vec), np.abs(ne_win - ref_win)
     d_batch = np.abs(batch_scores - np.concatenate([ref_vec, ref_win]))
     d_cpu = np.abs(np.concatenate([cpu_vec, cpu_win]) - np.concatenate([ref_vec, ref_win]))
-    worst = float(max(d_vec.max(), d_win.max(), d_batch.max()))
+    probes = history_probes(schema)
+    probe_windows = np.stack([p["window"] for p in probes])
+    probe_ref, probe_ne = predict_torch(net, probe_windows), coreml_scores(MLPACKAGE, probe_windows, units["ne"])
+    probe_alone = coreml_scores(MLPACKAGE, single_event_windows(probes[0]["events"][-1:]), units["ne"])[0]
+    probe_rows = []
+    for p, ref, ne in zip(probes, probe_ref, probe_ne):
+        agrees = bool((ne >= thr) == (p["teacher"] >= thr))
+        probe_rows.append({"name": p["name"], "length": p["length"], "teacher": round(p["teacher"], 5),
+                           "teacher_newest_event_only": round(p["teacher_newest_event_only"], 5),
+                           "reference_fp32": round(float(ref), 5), "coreml_fp16_cpu_and_ne": round(float(ne), 5),
+                           "newest_order_alone_coreml_fp16": round(float(probe_alone), 5),
+                           "agrees_with_teacher_at_threshold": agrees})
+        print(f"history probe: {p['name']:40s} CoreML FP16 {ne:7.3f} (FP32 {ref:7.3f}), teacher {p['teacher']:7.3f}, "
+              f"order alone {probe_alone:7.3f} -> {'agrees' if agrees else 'DISAGREES'} at {thr:g}", flush=True)
+    worst = float(max(d_vec.max(), d_win.max(), d_batch.max(), np.abs(probe_ne - probe_ref).max()))
     r5 = lambda xs: [round(float(x), 5) for x in xs]
     parity = {
         "format": 2,
@@ -1502,6 +1587,9 @@ def main() -> int:
              "coreml_fp16_batch_cpu_and_ne": round(float(batch_scores[len(vec_dense) + j]), 5),
              "teacher": round(float(win_teacher[j]), 5)}
             for j, i in enumerate(picks_multi)],
+        "history_probes": [
+            {**row, "events": [[[int(i), round(float(e[i]), 5)] for i in np.nonzero(e)[0]] for e in p["events"]]}
+            for p, row in zip(probes, probe_rows)],
     }
     PARITY.write_text(json.dumps(parity, separators=(",", ":")) + "\n")
     print(f"parity: max |CoreML FP16 (cpuAndNE) - PyTorch FP32| zero-history {d_vec.max():.4f} pts, windows "
@@ -1562,6 +1650,7 @@ def main() -> int:
             "all_ops_on_neural_engine": online_checks["all_on_neural_engine"],
             "p50_below_limit": online_checks["p50_below_limit"],
             "faster_than_cpu_only": online_checks["faster_than_cpu_only"],
+            "history_probes_agree_with_teacher": all(r["agrees_with_teacher_at_threshold"] for r in probe_rows),
             "limits": {"max_p50_ms": SELECTION["max_p50_ms"]},
         },
         "batch_model": {
@@ -1598,6 +1687,14 @@ def main() -> int:
             "max_abs_diff_points_batch": round(float(d_batch.max()), 5),
         },
         "paypal_bench_cases_zero_history": paypal,
+        "history_probes": {
+            "description": ("History-only payment velocity: one order (commerce features only, orders_last_hour and "
+                            "spend_last_24h_cents 0) repeated N times in one session; parity_vectors.json "
+                            "history_probes holds the events. Scored by the shipped FP16 model (.cpuAndNeuralEngine) "
+                            "and the PyTorch FP32 reference; teacher is the window teacher label."),
+            "order": HISTORY_PROBE_ORDER,
+            "probes": probe_rows,
+        },
         "architecture_sweep": sweep,
         "toolchain": {"python": sys.version.split()[0], "numpy": np.__version__, "coremltools": ct.__version__,
                       "torch": torch.__version__},

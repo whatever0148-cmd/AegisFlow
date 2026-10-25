@@ -83,6 +83,20 @@ Example values below are type placeholders (`<number>`, `<integer>`), never meas
   "cards": { "mattermost": "disabled" | "sent" | "error: …", "slack": "…" }
 }
 
+// RunRecord (GET /api/runs): one workspace run as this daemon broadcast it
+{
+  "run_id": "r-000003", "scenario": "mass_delete", "title": "Mass delete",
+  "started_at": "<ISO8601>",             // ts of its run.started
+  "outcome": "committed" | … | null,     // latest run.finished outcome; null while in progress
+  "total_ms": <number|null>,             // latest run.finished total_ms
+  "queued_ms": <number|null>,            // the non-null queued_ms (only the first run.finished has one)
+  "stages": [ /* run.stage messages exactly as broadcast, in order:
+                 {type:"run.stage", ts, run_id, seq, stage, status, ms, detail} */ ],
+  "finished": [ /* run.finished messages exactly as broadcast: {type, ts, run_id, seq, outcome,
+                   total_ms, queued_ms}; two after an approval resolution */ ],
+  "last_seq": <integer>                  // highest seq broadcast for this run
+}
+
 // OrderRow: exactly adapter_paypal::TelemetryRow (see crates/adapter-paypal/src/lib.rs)
 // TimelineEvent (Bryntum Scheduler event-store shape)
 { "id": "…", "resourceId": "redact" | "score" | "policy" | "sign" | "verify" | "submit",
@@ -108,10 +122,11 @@ Example values below are type placeholders (`<number>`, `<integer>`), never meas
 | `GET /api/workspace` | — | `{live, files, pool:{ready, capacity, hits, misses, stale_discards, last_replenish_ms}, reaper:{queued, reaped, last_reap_ms}, versions:[{number, created_at}], scenarios:[{id, title, description, expected}]}` |
 | `POST /api/workspace/run` | `{scenario}` | `{run_id}`; progress arrives on the WebSocket |
 | `POST /api/workspace/reset` | `{}` | `GET /api/workspace` shape |
+| `GET /api/runs` | — | `{runs:[RunRecord], limit}`: the newest `limit` (10) workspace runs, newest first (see "Run history") |
 | `GET /api/approvals` | — | `{pending:[Approval], resolved:[Approval]}` (resolved: newest 50) |
 | `POST /api/approvals/{id}/approve` | `{by}` | `Approval` |
 | `POST /api/approvals/{id}/reject` | `{by}` | `Approval` |
-| `GET /api/paypal/orders` | — | `{rows:[OrderRow], columnDefs:[…], timeline:{resources:[{id,name}], events:[TimelineEvent]}}` |
+| `GET /api/paypal/orders` | — | `{rows:[OrderRow], columnDefs:[…], timeline:{resources:[{id,name}], events:[TimelineEvent]}, limit}`: the newest `limit` (20) orders, oldest first, and the timeline events of exactly those orders |
 | `POST /api/paypal/order` | `{scenario}` (ids from `GET /api/paypal/scenarios`) | `{order_id}`; result arrives on the WebSocket |
 | `GET /api/paypal/scenarios` | — | `{scenarios:[{id, title, description}], stream:{enabled, interval_ms}, sandbox:{enabled, submitted, cap}}` |
 | `POST /api/paypal/stream` | `{enabled, interval_ms}` | `{enabled, interval_ms}` |
@@ -165,16 +180,26 @@ Server → client JSON messages; every message has `type` and `ts` (ISO8601).
 | type | fields |
 |---|---|
 | `hello` | `health`, `live` (LiveStats) |
-| `run.started` | `run_id`, `scenario`, `title` |
-| `run.stage` | `run_id`, `stage` (`branch`\|`edit`\|`diff`\|`features`\|`score`\|`policy`\|`verify`\|`recover`\|`approval`\|`commit`\|`rollback`\|`reap`), `status` (`ok`\|`fail`\|`skip`\|`pending`), `ms` (number or null), `detail` (object; e.g. branch `{source:"pool"\|"cold"}`, score `{risk, units}`, policy `{allowed, determining_policies, eval_us}`, recover `{tier, model, enabled, reason, patch_applied}`) |
-| `run.finished` | `run_id`, `outcome` (`committed`\|`rolled_back`\|`pending_approval`\|`recovered`\|`error`), `total_ms`, `queued_ms` (number, or `null` after an approval resolution) |
+| `run.started` | `run_id`, `scenario`, `title`, `seq` (always `1`) |
+| `run.stage` | `run_id`, `stage` (`branch`\|`edit`\|`diff`\|`features`\|`score`\|`policy`\|`verify`\|`recover`\|`approval`\|`commit`\|`rollback`\|`reap`), `status` (`ok`\|`fail`\|`skip`\|`pending`), `ms` (number or null), `detail` (object; e.g. branch `{source:"pool"\|"cold"}`, score `{risk, units}`, policy `{allowed, determining_policies, eval_us}`, recover `{tier, model, enabled, reason, patch_applied}`), `seq` |
+| `run.finished` | `run_id`, `outcome` (`committed`\|`rolled_back`\|`pending_approval`\|`recovered`\|`error`), `total_ms`, `queued_ms` (number, or `null` after an approval resolution), `seq` |
 | `approval.created` / `approval.resolved` | `approval` |
 | `paypal.order` | `row` (OrderRow), `events` ([TimelineEvent]) |
 | `telemetry.live` | `live` (LiveStats), sent about once per second |
 | `config.changed` | `config` (same as `GET /api/config`) |
-| `log` | `level` (`info`\|`warn`\|`error`), `message` |
+| `log` | `level` (`info`\|`warn`\|`error`), `message`; `dropped` (integer) only on the broadcast-lag notice |
 
 Client → server: nothing (all actions are HTTP POSTs).
+
+`seq` (optional for clients; added with `GET /api/runs`): a per-run counter over that run's
+`run.started` (`1`), `run.stage` and `run.finished` messages, increasing by 1 per message in
+broadcast order, so `run_id` + `seq` identifies a message. It is absent on messages for a run the
+history no longer keeps (older than the newest 10). Clients written before it ignore it.
+
+Broadcast lag: a client that falls too far behind the broadcast channel misses messages. It then
+gets a `log` with `level: "warn"`, a human-readable `message`, and `dropped`: the number of
+messages it missed. Treat `dropped` as the signal (older daemons sent only the message text,
+`this client fell behind; <n> messages were dropped`) and reload from the GET endpoints.
 
 ### Run lifecycle (aegis-daemon)
 
@@ -199,6 +224,16 @@ Client → server: nothing (all actions are HTTP POSTs).
   includes the wait (counted from when the original run started running).
 - Pending approvals live in memory. On SIGINT or SIGTERM the daemon rolls their branches back;
   branches left behind by a daemon that was killed outright are discarded at the next start.
+- Run history: the daemon keeps its newest 10 workspace runs in memory (`GET /api/runs`), each
+  with its `run.stage` and `run.finished` messages exactly as broadcast, including the
+  post-approval continuation. Records are ordered by run id (request order). The oldest run is
+  dropped first, except that a run whose latest outcome is `pending_approval` is kept while any
+  other run can be dropped, so its continuation lands in the same record. Nothing survives a daemon
+  restart.
+- Reloading the console: on page load, WebSocket reconnect and after a lag notice the console reads
+  `GET /api/runs`, `GET /api/approvals` and `GET /api/paypal/orders`, and merges live messages by
+  `run_id` + `seq` (a message already in the history is not applied twice). A run whose history
+  starts at `seq` 1 and has no missing `seq` is fully observed.
 - `recover`: tier 0 (`RecoveryRouter::triage`, local CoreML + Cedar) always runs and is `ok` when
   the triage completed. Tiers 1 and 2 are `skip` with `enabled: false` and a `reason` while
   `NEBIUS_API_KEY` is not set; tier-2 events carry `detail.tavily: {enabled, reason}`.

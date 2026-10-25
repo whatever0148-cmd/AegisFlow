@@ -18,8 +18,8 @@ use crate::services::{paypal_config, scrub, PAYPAL_AGENT};
 use crate::state::{lock, AppState, DaemonOptions};
 use crate::util::iso_ms;
 
-const ROWS_KEPT: usize = 500;
-const EVENTS_KEPT: usize = 3000;
+/// Order rows kept for `GET /api/paypal/orders` (newest; their timeline events are kept with them).
+pub const ORDERS_KEPT: usize = 20;
 pub const DEFAULT_STREAM_INTERVAL_MS: u64 = 2000;
 pub const MAX_STREAM_INTERVAL_MS: u64 = 600_000;
 pub const RESOURCES: [&str; 6] = ["redact", "score", "policy", "sign", "verify", "submit"];
@@ -195,6 +195,7 @@ impl PayPalEngine {
             "rows": rows,
             "columnDefs": aggrid_export(&[])["columnDefs"],
             "timeline": {"resources": resources, "events": store.events},
+            "limit": ORDERS_KEPT,
         })
     }
 
@@ -271,12 +272,11 @@ impl PayPalEngine {
         {
             let mut store = lock(&self.store);
             store.rows.push_back(row.clone());
-            while store.rows.len() > ROWS_KEPT {
-                store.rows.pop_front();
-            }
             store.events.extend(events.iter().cloned());
-            while store.events.len() > EVENTS_KEPT {
-                store.events.pop_front();
+            while store.rows.len() > ORDERS_KEPT {
+                if let Some(old) = store.rows.pop_front() {
+                    store.events.retain(|e| e["orderId"] != old.id.as_str());
+                }
             }
         }
         state.events.send("paypal.order", json!({"row": row, "events": events}));

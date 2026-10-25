@@ -82,3 +82,36 @@ async fn bench_style_cases_keep_their_decisions() {
     assert_eq!(live["counters"]["orders_blocked"], 2);
     assert_eq!(live["counters"]["orders_sent"], 0);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn orders_keep_the_newest_twenty_rows_with_their_timeline_events() {
+    use aegis_daemon::paypal::ORDERS_KEPT;
+    assert_eq!(ORDERS_KEPT, 20);
+    let fx = Fixture::new("paypal-cap", "").await;
+    let state = fx.state.clone();
+    let total = ORDERS_KEPT + 5;
+    let placed = tokio::task::spawn_blocking(move || {
+        (0..total)
+            .map(|i| {
+                let scenario = OrderScenario::ALL[i % OrderScenario::ALL.len()];
+                let prepared = state.paypal.prepare(scenario).unwrap();
+                let (row, events) = state.paypal.complete(&state, prepared);
+                (row.id, events.len())
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .unwrap();
+
+    let (status, orders) = fx.json(fx.get("/api/paypal/orders")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(orders["limit"], ORDERS_KEPT);
+    let rows: Vec<&str> = orders["rows"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap()).collect();
+    let kept: Vec<&str> = placed[total - ORDERS_KEPT..].iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(rows, kept, "the newest {ORDERS_KEPT} rows, oldest first");
+    let events = orders["timeline"]["events"].as_array().unwrap();
+    assert!(events.iter().all(|e| kept.contains(&e["orderId"].as_str().unwrap())), "timeline events of dropped rows remain");
+    let expected: usize = placed[total - ORDERS_KEPT..].iter().map(|(_, n)| n).sum();
+    assert_eq!(events.len(), expected, "every kept row keeps all of its timeline events");
+    assert_eq!(fx.state.live_json()["counters"]["orders"], total as u64, "counters still count every order");
+}

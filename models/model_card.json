@@ -1,7 +1,7 @@
 {
   "model": "AegisWorkflowFP16.mlpackage",
   "compiled": "AegisWorkflowFP16.mlmodelc",
-  "built_at": "2026-10-25T15:15:20Z",
+  "built_at": "2026-10-25T16:58:11Z",
   "training_data": "SYNTHETIC: sessions from the seeded scenario simulator in models/build_model.py, labelled by the explicit window teacher documented there. Not real telemetry or incident data.",
   "input": {
     "name": "features",
@@ -100,7 +100,7 @@
     ]
   },
   "precision": "float16 weights, activations, input and output (ML Program, macOS 14 opset)",
-  "weights_fp16_sha256": "30b429bb7e006029ee40db16846b0b3b49c2934a196cf5d1dd1747b08e0a5e33",
+  "weights_fp16_sha256": "dba24e9112a5727137756911f7d66e7d210ce59bf26881afea1a778d820ffe4b",
   "placement_mlcomputeplan_cpu_and_neural_engine": {
     "dispatched": 36,
     "neural_engine": 36,
@@ -120,23 +120,24 @@
     "not_on_neural_engine_by_operator": {},
     "cpu_and_neural_engine_ms": {
       "n": 2400,
-      "p50": 0.184625,
-      "p95": 0.236958,
-      "mean": 0.191486
+      "p50": 0.192125,
+      "p95": 0.215417,
+      "mean": 0.192901
     },
     "cpu_only_ms": {
       "n": 2400,
-      "p50": 0.236208,
-      "p95": 0.328584,
-      "mean": 0.262544
+      "p50": 0.222416,
+      "p95": 0.238625,
+      "mean": 0.224974
     },
-    "speedup_p50": 1.2794,
-    "load_average_1m": 3.78
+    "speedup_p50": 1.1577,
+    "load_average_1m": 7.7
   },
   "goals": {
     "all_ops_on_neural_engine": true,
     "p50_below_limit": true,
     "faster_than_cpu_only": true,
+    "history_probes_agree_with_teacher": true,
     "limits": {
       "max_p50_ms": 0.6
     }
@@ -170,20 +171,20 @@
       "not_on_neural_engine_by_operator": {},
       "cpu_and_neural_engine_ms": {
         "n": 2400,
-        "p50": 1.639041,
-        "p95": 2.205084,
-        "mean": 1.746961
+        "p50": 1.521875,
+        "p95": 1.625291,
+        "mean": 1.538235
       },
       "cpu_only_ms": {
         "n": 2400,
-        "p50": 5.573083,
-        "p95": 8.122,
-        "mean": 5.982484
+        "p50": 5.246125,
+        "p95": 5.396625,
+        "mean": 5.269283
       },
-      "speedup_p50": 3.4002,
-      "load_average_1m": 3.63
+      "speedup_p50": 3.4471,
+      "load_average_1m": 6.16
     },
-    "max_abs_diff_points_vs_fp32": 0.32889
+    "max_abs_diff_points_vs_fp32": 0.30123
   },
   "teacher": {
     "event": "feature_schema.json weights + interactions, slope/bias (phase-1 teacher) on the newest event",
@@ -232,11 +233,11 @@
       "idle"
     ],
     "windows_with_nonzero_term": {
-      "payment_velocity": 3311,
-      "cumulative_spend": 3500,
-      "repeated_secret_hits": 2897,
-      "deletion_burst": 2185,
-      "command_entropy_spike": 2057
+      "payment_velocity": 5929,
+      "cumulative_spend": 6314,
+      "repeated_secret_hits": 2942,
+      "deletion_burst": 2278,
+      "command_entropy_spike": 2317
     },
     "zero_history_equals_event_teacher": true
   },
@@ -247,6 +248,14 @@
     "extra_cuts_per_session": 2,
     "first_event_cut_probability": 0.4,
     "zero_history_copy_probability": 0.25,
+    "extra_order_cuts_per_session": 2,
+    "order_counter_modes": {
+      "reported": 0.5,
+      "absent": 0.35,
+      "partial": 0.15
+    },
+    "partial_counter_report_probability": 0.5,
+    "commerce_only_order_probability": 0.4,
     "scenario_mix": {
       "benign_edit": 0.15,
       "refactor": 0.1,
@@ -273,206 +282,206 @@
     "zero_history_weight": 2.0,
     "torch_threads": 4,
     "framework": "torch 2.8.0 (CPU, float32)",
-    "train_windows": 28432,
-    "val_windows": 5136,
+    "train_windows": 31683,
+    "val_windows": 5768,
     "split": "by session"
   },
   "validation": {
     "scored_by": "PyTorch FP32 reference: forward pass of the trained weights in torch float32, not the shipped FP16 CoreML model (see validation_coreml_fp16 for that)",
     "all": {
-      "windows": 5136,
-      "mae_points": 1.4217,
-      "rmse_points": 3.103,
-      "max_abs_error_points": 37.9829,
-      "accuracy_at_threshold": 0.98209,
-      "precision": 0.98277,
-      "recall": 0.98123,
-      "auc_vs_teacher_high_impact": 0.99726,
-      "teacher_high_impact_rate": 0.49786
+      "windows": 5768,
+      "mae_points": 1.5458,
+      "rmse_points": 3.4632,
+      "max_abs_error_points": 44.6052,
+      "accuracy_at_threshold": 0.98006,
+      "precision": 0.97701,
+      "recall": 0.98614,
+      "auc_vs_teacher_high_impact": 0.99744,
+      "teacher_high_impact_rate": 0.53797
     },
     "zero_history": {
-      "windows": 1726,
-      "mae_points": 0.439,
-      "rmse_points": 0.7964,
-      "max_abs_error_points": 7.3657,
-      "accuracy_at_threshold": 0.99363,
-      "precision": 0.98827,
-      "recall": 0.99557,
-      "auc_vs_teacher_high_impact": 0.99974,
-      "teacher_high_impact_rate": 0.39224
+      "windows": 1832,
+      "mae_points": 0.4294,
+      "rmse_points": 0.8593,
+      "max_abs_error_points": 10.4181,
+      "accuracy_at_threshold": 0.99072,
+      "precision": 0.99057,
+      "recall": 0.98658,
+      "auc_vs_teacher_high_impact": 0.99966,
+      "teacher_high_impact_rate": 0.40666
     },
     "with_history": {
-      "windows": 3410,
-      "mae_points": 1.9191,
-      "rmse_points": 3.7657,
-      "max_abs_error_points": 37.9829,
-      "accuracy_at_threshold": 0.97625,
-      "precision": 0.98076,
-      "recall": 0.97606,
-      "auc_vs_teacher_high_impact": 0.99641,
-      "teacher_high_impact_rate": 0.55132
+      "windows": 3936,
+      "mae_points": 2.0655,
+      "rmse_points": 4.1512,
+      "max_abs_error_points": 44.6052,
+      "accuracy_at_threshold": 0.9751,
+      "precision": 0.9728,
+      "recall": 0.98601,
+      "auc_vs_teacher_high_impact": 0.99683,
+      "teacher_high_impact_rate": 0.59909
     },
     "per_scenario_mae_points": {
-      "benign_edit": 1.6858,
-      "refactor": 2.428,
-      "secret_leak": 1.1246,
-      "mass_delete": 1.5581,
-      "build_break_loop": 1.0985,
-      "procurement": 0.7046,
-      "mixed": 1.6775,
-      "single_event": 1.0257
+      "benign_edit": 1.5005,
+      "refactor": 2.7597,
+      "secret_leak": 0.9016,
+      "mass_delete": 1.6454,
+      "build_break_loop": 0.8851,
+      "procurement": 1.0655,
+      "mixed": 2.3706,
+      "single_event": 1.061
     },
     "newest_event_only_teacher_vs_window_teacher": {
-      "windows": 5136,
-      "mae_points": 6.9551,
-      "rmse_points": 17.4253,
-      "max_abs_error_points": 79.9953,
-      "accuracy_at_threshold": 0.93516,
+      "windows": 5768,
+      "mae_points": 9.0302,
+      "rmse_points": 21.0051,
+      "max_abs_error_points": 87.8053,
+      "accuracy_at_threshold": 0.90777,
       "precision": 1.0,
-      "recall": 0.86977,
-      "auc_vs_teacher_high_impact": 0.95222,
-      "teacher_high_impact_rate": 0.49786
+      "recall": 0.82855,
+      "auc_vs_teacher_high_impact": 0.94249,
+      "teacher_high_impact_rate": 0.53797
     },
     "history": [
       {
         "epoch": 1,
-        "train_loss": 0.66762,
-        "val_mae_points": 8.2141,
-        "seconds": 114.6
+        "train_loss": 0.65248,
+        "val_mae_points": 6.2707,
+        "seconds": 122.0
       },
       {
         "epoch": 2,
-        "train_loss": 0.53755,
-        "val_mae_points": 3.8243,
-        "seconds": 116.8
+        "train_loss": 0.52371,
+        "val_mae_points": 4.1712,
+        "seconds": 107.8
       },
       {
         "epoch": 3,
-        "train_loss": 0.52562,
-        "val_mae_points": 4.9006,
-        "seconds": 101.3
+        "train_loss": 0.51222,
+        "val_mae_points": 3.0406,
+        "seconds": 107.3
       },
       {
         "epoch": 4,
-        "train_loss": 0.52258,
-        "val_mae_points": 2.6153,
-        "seconds": 115.5
+        "train_loss": 0.50828,
+        "val_mae_points": 2.8907,
+        "seconds": 105.6
       },
       {
         "epoch": 5,
-        "train_loss": 0.52033,
-        "val_mae_points": 1.8983,
-        "seconds": 110.7
+        "train_loss": 0.50701,
+        "val_mae_points": 2.4923,
+        "seconds": 104.8
       },
       {
         "epoch": 6,
-        "train_loss": 0.5197,
-        "val_mae_points": 1.8788,
-        "seconds": 119.2
+        "train_loss": 0.50618,
+        "val_mae_points": 2.362,
+        "seconds": 105.2
       },
       {
         "epoch": 7,
-        "train_loss": 0.51874,
-        "val_mae_points": 2.0582,
-        "seconds": 113.7
+        "train_loss": 0.50551,
+        "val_mae_points": 1.9302,
+        "seconds": 112.7
       },
       {
         "epoch": 8,
-        "train_loss": 0.51844,
-        "val_mae_points": 1.7365,
-        "seconds": 117.9
+        "train_loss": 0.50497,
+        "val_mae_points": 1.8973,
+        "seconds": 106.9
       },
       {
         "epoch": 9,
-        "train_loss": 0.51802,
-        "val_mae_points": 1.7589,
-        "seconds": 123.7
+        "train_loss": 0.50441,
+        "val_mae_points": 1.8274,
+        "seconds": 103.0
       },
       {
         "epoch": 10,
-        "train_loss": 0.51772,
-        "val_mae_points": 1.5673,
-        "seconds": 119.4
+        "train_loss": 0.50411,
+        "val_mae_points": 1.6401,
+        "seconds": 103.5
       },
       {
         "epoch": 11,
-        "train_loss": 0.51746,
-        "val_mae_points": 1.5214,
-        "seconds": 115.3
+        "train_loss": 0.50382,
+        "val_mae_points": 1.6289,
+        "seconds": 103.0
       },
       {
         "epoch": 12,
-        "train_loss": 0.51728,
-        "val_mae_points": 1.4297,
-        "seconds": 122.9
+        "train_loss": 0.50363,
+        "val_mae_points": 1.6172,
+        "seconds": 103.1
       },
       {
         "epoch": 13,
-        "train_loss": 0.51719,
-        "val_mae_points": 1.4354,
-        "seconds": 109.7
+        "train_loss": 0.50351,
+        "val_mae_points": 1.5476,
+        "seconds": 104.4
       },
       {
         "epoch": 14,
-        "train_loss": 0.51712,
-        "val_mae_points": 1.4217,
-        "seconds": 105.8
+        "train_loss": 0.50344,
+        "val_mae_points": 1.5458,
+        "seconds": 102.1
       }
     ]
   },
   "validation_coreml_fp16": {
     "scored_by": "AegisWorkflowFP16.mlpackage: shipped CoreML FP16 ML Program, coremltools predict, .cpuAndNeuralEngine, same held-out windows as validation",
     "all": {
-      "windows": 5136,
-      "mae_points": 1.4362,
-      "rmse_points": 3.1,
-      "max_abs_error_points": 37.7788,
-      "accuracy_at_threshold": 0.98287,
-      "precision": 0.98279,
-      "recall": 0.98279,
-      "auc_vs_teacher_high_impact": 0.99727,
-      "teacher_high_impact_rate": 0.49786
+      "windows": 5768,
+      "mae_points": 1.564,
+      "rmse_points": 3.4639,
+      "max_abs_error_points": 44.527,
+      "accuracy_at_threshold": 0.97972,
+      "precision": 0.97608,
+      "recall": 0.98646,
+      "auc_vs_teacher_high_impact": 0.99744,
+      "teacher_high_impact_rate": 0.53797
     },
     "zero_history": {
-      "windows": 1726,
-      "mae_points": 0.4532,
-      "rmse_points": 0.7997,
-      "max_abs_error_points": 7.3784,
-      "accuracy_at_threshold": 0.99479,
-      "precision": 0.9883,
-      "recall": 0.99852,
-      "auc_vs_teacher_high_impact": 0.99974,
-      "teacher_high_impact_rate": 0.39224
+      "windows": 1832,
+      "mae_points": 0.4587,
+      "rmse_points": 0.8767,
+      "max_abs_error_points": 10.4883,
+      "accuracy_at_threshold": 0.99017,
+      "precision": 0.98923,
+      "recall": 0.98658,
+      "auc_vs_teacher_high_impact": 0.99966,
+      "teacher_high_impact_rate": 0.40666
     },
     "with_history": {
-      "windows": 3410,
-      "mae_points": 1.9338,
-      "rmse_points": 3.7617,
-      "max_abs_error_points": 37.7788,
-      "accuracy_at_threshold": 0.97683,
-      "precision": 0.98078,
-      "recall": 0.97713,
-      "auc_vs_teacher_high_impact": 0.99641,
-      "teacher_high_impact_rate": 0.55132
+      "windows": 3936,
+      "mae_points": 2.0784,
+      "rmse_points": 4.1504,
+      "max_abs_error_points": 44.527,
+      "accuracy_at_threshold": 0.97485,
+      "precision": 0.972,
+      "recall": 0.98643,
+      "auc_vs_teacher_high_impact": 0.99683,
+      "teacher_high_impact_rate": 0.59909
     },
-    "max_abs_diff_points_vs_fp32": 0.3229,
-    "mean_abs_diff_points_vs_fp32": 0.11173
+    "max_abs_diff_points_vs_fp32": 0.33617,
+    "mean_abs_diff_points_vs_fp32": 0.10645
   },
   "parity": {
     "reference": "PyTorch FP32 forward pass of the trained weights",
     "tolerance_points": 1.0,
     "zero_history_vectors": 62,
     "windows": 96,
-    "max_abs_diff_points_cpu_and_ne": 0.32889,
-    "mean_abs_diff_points_cpu_and_ne": 0.10722,
-    "max_abs_diff_points_cpu_only": 0.13529,
-    "max_abs_diff_points_batch": 0.32889
+    "max_abs_diff_points_cpu_and_ne": 0.30123,
+    "mean_abs_diff_points_cpu_and_ne": 0.10923,
+    "max_abs_diff_points_cpu_only": 0.13857,
+    "max_abs_diff_points_batch": 0.30123
   },
   "paypal_bench_cases_zero_history": [
     {
       "case": "$42.00 known payee",
-      "zero_history_score_coreml_fp16": 11.9219,
-      "reference_fp32": 11.9246,
+      "zero_history_score_coreml_fp16": 11.6328,
+      "reference_fp32": 11.5929,
       "teacher": 11.8763,
       "risk_policy_decision": "Allow",
       "phase1_decision": "Allow",
@@ -480,8 +489,8 @@
     },
     {
       "case": "$120.00 known payee",
-      "zero_history_score_coreml_fp16": 28.5156,
-      "reference_fp32": 28.3776,
+      "zero_history_score_coreml_fp16": 28.9844,
+      "reference_fp32": 28.8367,
       "teacher": 28.4486,
       "risk_policy_decision": "Allow",
       "phase1_decision": "Allow",
@@ -489,8 +498,8 @@
     },
     {
       "case": "$480.00 new payee, high-risk country",
-      "zero_history_score_coreml_fp16": 99.375,
-      "reference_fp32": 99.3808,
+      "zero_history_score_coreml_fp16": 99.5625,
+      "reference_fp32": 99.5518,
       "teacher": 99.5694,
       "risk_policy_decision": "Deny",
       "phase1_decision": "Deny",
@@ -498,14 +507,45 @@
     },
     {
       "case": "$25.00 with redaction disabled",
-      "zero_history_score_coreml_fp16": 81.625,
-      "reference_fp32": 81.6247,
+      "zero_history_score_coreml_fp16": 82.5,
+      "reference_fp32": 82.6072,
       "teacher": 80.6105,
       "risk_policy_decision": "Deny",
       "phase1_decision": "Deny",
       "matches_phase1": true
     }
   ],
+  "history_probes": {
+    "description": "History-only payment velocity: one order (commerce features only, orders_last_hour and spend_last_24h_cents 0) repeated N times in one session; parity_vectors.json history_probes holds the events. Scored by the shipped FP16 model (.cpuAndNeuralEngine) and the PyTorch FP32 reference; teacher is the window teacher label.",
+    "order": {
+      "amount_cents": 6000,
+      "budget_cents": 50000,
+      "line_items": 1,
+      "quantity": 2
+    },
+    "probes": [
+      {
+        "name": "3 identical orders, velocity counters 0",
+        "length": 3,
+        "teacher": 9.29423,
+        "teacher_newest_event_only": 8.23645,
+        "reference_fp32": 10.13184,
+        "coreml_fp16_cpu_and_ne": 10.32812,
+        "newest_order_alone_coreml_fp16": 8.60156,
+        "agrees_with_teacher_at_threshold": true
+      },
+      {
+        "name": "12 identical orders, velocity counters 0",
+        "length": 12,
+        "teacher": 69.45841,
+        "teacher_newest_event_only": 8.23645,
+        "reference_fp32": 69.09668,
+        "coreml_fp16_cpu_and_ne": 68.9375,
+        "newest_order_alone_coreml_fp16": 8.60156,
+        "agrees_with_teacher_at_threshold": true
+      }
+    ]
+  },
   "architecture_sweep": {
     "description": "Architecture sweep for the online window model. Each candidate is built with seeded random (He) weights; MLComputePlan placement and latency do not depend on weight values for dense FP16 convolutions, and the final trained model is re-measured by the full build. Latency is the wall-clock time of aegis_ane_score_windows through the production Swift bridge (models/tools/ane_probe.swift), .cpuAndNeuralEngine and .cpuOnly interleaved in alternating rounds. Measured on a shared machine: preliminary numbers.",
     "selection_rule": {
@@ -3033,5 +3073,5 @@
     "Scores are only as meaningful as the feature extraction feeding them.",
     "Neural Engine placement and the ANE-vs-CPU latency ratio were measured on one Apple M2; MLComputePlan decides placement per machine and OS."
   ],
-  "build_seconds": 1653.88
+  "build_seconds": 1535.33
 }

@@ -39,6 +39,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/workspace", get(get_workspace))
         .route("/api/workspace/run", post(post_run))
         .route("/api/workspace/reset", post(post_reset))
+        .route("/api/runs", get(get_runs))
         .route("/api/approvals", get(get_approvals))
         .route("/api/approvals/{id}/approve", post(post_approve))
         .route("/api/approvals/{id}/reject", post(post_reject))
@@ -244,6 +245,10 @@ async fn post_reset(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
+async fn get_runs(State(state): State<Arc<AppState>>) -> Json<Value> {
+    Json(state.events.runs_json())
+}
+
 async fn get_approvals(State(state): State<Arc<AppState>>) -> Json<Value> {
     Json(lock(&state.approvals).list_json())
 }
@@ -397,7 +402,7 @@ async fn client(state: Arc<AppState>, mut socket: WebSocket) {
                     }
                 }
                 Err(RecvError::Lagged(skipped)) => {
-                    let note = Events::message("log", json!({"level": "warn", "message": format!("this client fell behind; {skipped} messages were dropped")}));
+                    let note = Events::lag_notice(skipped);
                     if socket.send(Message::Text(note.as_ref().into())).await.is_err() {
                         return;
                     }

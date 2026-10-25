@@ -51,6 +51,13 @@ export function createTimeline({ host, tableHost, noteEl, scaleBtn, labelFor }) 
     if (doRender) schedule();
   }
 
+  /** Drops the windows of these orders (their grid rows were trimmed). */
+  function removeOrders(orderIds) {
+    let changed = false;
+    for (const id of orderIds) changed = orders.delete(id) || changed;
+    if (changed) schedule();
+  }
+
   function setStore(store) {
     resources = Array.isArray(store && store.resources) ? store.resources.map((r) => ({ id: r.id, name: r.name || r.id })) : [];
     orders.clear();
@@ -233,5 +240,5 @@ export function createTimeline({ host, tableHost, noteEl, scaleBtn, labelFor }) 
     }).observe(host);
   }
 
-  return { setStore, addEvents, refresh: schedule };
+  return { setStore, addEvents, removeOrders, refresh: schedule };
 }

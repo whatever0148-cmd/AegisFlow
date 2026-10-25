@@ -167,15 +167,53 @@ Design points that matter for the requirements:
   settled was a warm hit (`measured_hit_rate` = 1); the APFS gated rows require live-tree
   integrity in every phase and a clean store after the pool is dropped.
 * Run conditions: `run_conditions.preliminary` is true for a reduced-scale run, when the 1-minute
-  load average at start or end is above the performance-core count, or when the source
-  fingerprint (`sources`: SHA-256 over the tracked and untracked-but-not-ignored files under
-  `crates`, `policies`, `models`, `Cargo.toml`, `Cargo.lock`) changed during the run.
-  `--quiet-wait S` waits up to S seconds for the load to drop before measuring. A reduced-scale
-  run refuses to write the canonical artifact.
+  load average at the start is above the performance-core count, when other programs contended
+  for the CPU during the run (attributable contention, below), when that contention could not be
+  measured, or when the source fingerprint (`sources`: SHA-256 over the tracked and
+  untracked-but-not-ignored files under `crates`, `policies`, `models`, `Cargo.toml`,
+  `Cargo.lock`) changed during the run. `--quiet-wait S` waits up to S seconds for the load to
+  drop before measuring. A reduced-scale run refuses to write the canonical artifact.
+* Fixture directory: `target/aegis-bench.noindex`, or a new `aegis-bench-<pid>.noindex` inside
+  `--work-dir`. The `.noindex` suffix makes Spotlight skip the clone and delete churn, so `mds` /
+  `mdworker` do not index fixtures during the run (FSEvents still records the changes).
+* CPU contention (`aegis-bench/src/external.rs`): a background thread samples about once per
+  second from the first fixture to the last MCP call and, right after each tick snapshot, lists
+  every process (`proc_listallpids` + `proc_pid_rusage(RUSAGE_INFO_V1)`, keyed by pid and start
+  time).
+  * `run_conditions.user_contention` (the rule's input): per interval, the CPU delta of every
+    readable process (in practice the same user's processes: compiles, training, browsers,
+    IDEs) plus the rise of its reaped-children CPU (`ri_child_user_time` +
+    `ri_child_system_time`), excluding this process and its descendants (`bench_child`), divided
+    by the interval. A process that started during the run counts from its start; one that
+    starts and exits between two listings counts through its readable parent when the parent
+    reaps it. When a tracked child vanishes, its last cumulative CPU is matched against the
+    parent's next children-CPU rise first, so nothing is counted twice. The run is busy when the
+    time-weighted mean (attributable core-seconds / sampled seconds) is at or above 25% of the
+    logical CPUs (`busy_threshold_cores`); p95 and max over the per-interval values, sample and
+    listing counts, and the top contending processes are recorded. Missing data makes the run
+    preliminary with a reason: the sampler could not start, stopped early or recorded no samples;
+    no listing succeeded; a listing failed; or an interval has no attribution. Not attributed:
+    other users' processes (unreadable), CPU after the last listing that saw a process unless a
+    readable parent reaps it, and short processes whose parent is unreadable (launchd) or reaps
+    them after the run.
+  * `run_conditions.external_cpu_total` (informational): system busy cores = (user + system +
+    nice tick delta / all-tick delta of `host_statistics(HOST_CPU_LOAD_INFO)`) x logical CPUs;
+    own cores = `getrusage(RUSAGE_SELF)` CPU delta / interval; external cores = max(0, system -
+    own); mean, p95, max, and `unattributed_core_seconds` = external core-seconds minus the CPU
+    of all readable processes (benchmark descendants included). It includes root and system
+    services (`kernel_task`, `mds`, `fseventsd`, `aned`, `ANECompilerService`) that mostly
+    respond to the benchmark's own filesystem and CoreML activity, so it is not a measure of
+    interference and never decides.
+  * `load_average_end` is recorded but informational: the 1-minute EWMA after minutes of the
+    benchmark's own APFS, reaper and CoreML loops mostly reflects its own threads.
 * Harness: the benchmark runs once per pass (T17). `aegis-bench --verify phase1` (T12) and
   `--verify gate` (T18) check the written artifact: schema, scale, and a fingerprint equal to
   the working tree; the gate additionally needs 11/11 gated rows, the integrity row and a run that
-  is not preliminary.
+  is not preliminary and recorded attributable contention (`user_contention` with samples > 0,
+  listings > 0, mean / p95 / max, a busy verdict and no attribution error; an artifact from the
+  older system-minus-own rule fails); it prints the start load, the attributable contention mean
+  / p95 / max / n against the threshold, the informational total external CPU with its
+  unattributed core-seconds, and the informational end load.
 
 ## Error handling
 

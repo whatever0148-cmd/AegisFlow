@@ -16,6 +16,7 @@ use crate::approvals::ApprovalStore;
 use crate::keepwarm::KeepWarm;
 use crate::live::LiveStats;
 use crate::paypal::PayPalEngine;
+use crate::runs::RunHistory;
 use crate::util::{now_iso, random_token};
 use crate::workspace::WorkspaceEngine;
 
@@ -83,34 +84,60 @@ fn canonical(path: PathBuf) -> PathBuf {
     std::fs::canonicalize(&path).unwrap_or(path)
 }
 
-/// WebSocket fan-out. Every message is a JSON object with `type` and `ts`.
+/// WebSocket fan-out. Every message is a JSON object with `type` and `ts`. Run messages
+/// (`run.started`, `run.stage`, `run.finished`) also get their per-run `seq` and are recorded in
+/// the run history (`GET /api/runs`) under the same lock as the broadcast, so history order and
+/// `seq` order are broadcast order.
 #[derive(Debug, Clone)]
 pub struct Events {
     tx: broadcast::Sender<Arc<str>>,
+    history: Arc<Mutex<RunHistory>>,
 }
 
 impl Events {
     pub fn new(capacity: usize) -> Self {
-        Self { tx: broadcast::channel(capacity).0 }
+        Self { tx: broadcast::channel(capacity).0, history: Arc::new(Mutex::new(RunHistory::default())) }
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<Arc<str>> {
         self.tx.subscribe()
     }
 
-    /// Serialises `{type, ts, ...fields}`. Never blocks: slow receivers lag, senders do not wait.
-    pub fn message(kind: &str, fields: Value) -> Arc<str> {
+    fn object(kind: &str, fields: Value) -> Map<String, Value> {
         let mut obj = match fields {
             Value::Object(map) => map,
             _ => Map::new(),
         };
         obj.insert("type".into(), json!(kind));
         obj.insert("ts".into(), json!(now_iso()));
-        Arc::from(Value::Object(obj).to_string())
+        obj
     }
 
+    /// Serialises `{type, ts, ...fields}` (never recorded in the run history; see [`Events::send`]).
+    pub fn message(kind: &str, fields: Value) -> Arc<str> {
+        Arc::from(Value::Object(Self::object(kind, fields)).to_string())
+    }
+
+    /// The notice a WebSocket client gets after the broadcast channel dropped `dropped` messages
+    /// for it: a `log` warning whose `dropped` field is the machine-readable count (API.md).
+    pub fn lag_notice(dropped: u64) -> Arc<str> {
+        Self::message(
+            "log",
+            json!({"level": "warn", "message": format!("this client fell behind; {dropped} messages were dropped"), "dropped": dropped}),
+        )
+    }
+
+    /// Broadcasts `{type, ts, ...fields}`. Never blocks on receivers: slow ones lag, senders do not wait.
     pub fn send(&self, kind: &str, fields: Value) {
-        let _ = self.tx.send(Self::message(kind, fields));
+        let mut obj = Self::object(kind, fields);
+        // Held until the message is on the channel: two senders for the same run cannot broadcast
+        // in an order different from their `seq` order.
+        let _history = RunHistory::tracks(kind).then(|| {
+            let mut history = lock(&self.history);
+            history.observe(&mut obj);
+            history
+        });
+        let _ = self.tx.send(Arc::from(Value::Object(obj).to_string()));
     }
 
     pub fn log(&self, level: &str, message: impl Into<String>) {
@@ -119,6 +146,11 @@ impl Events {
 
     pub fn stage(&self, run_id: &str, stage: &str, status: &str, ms: Option<f64>, detail: Value) {
         self.send("run.stage", json!({"run_id": run_id, "stage": stage, "status": status, "ms": ms, "detail": detail}));
+    }
+
+    /// `GET /api/runs`.
+    pub fn runs_json(&self) -> Value {
+        lock(&self.history).list_json()
     }
 }
 
@@ -254,4 +286,37 @@ fn git_commit(repo: &Path) -> Value {
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .filter(|s| !s.is_empty())
         .map_or(Value::Null, Value::String)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lag_notice_carries_the_dropped_count_as_a_field() {
+        let dropped = u64::from(std::process::id() % 97) + 1;
+        let notice: Value = serde_json::from_str(&Events::lag_notice(dropped)).unwrap();
+        assert_eq!(notice["type"], "log");
+        assert_eq!(notice["level"], "warn");
+        assert_eq!(notice["dropped"], dropped);
+        assert!(notice["message"].as_str().unwrap().contains(&format!("{dropped} messages were dropped")));
+        assert!(notice["ts"].is_string());
+    }
+
+    #[test]
+    fn run_messages_get_seq_and_are_recorded_other_messages_are_not() {
+        let events = Events::new(16);
+        let mut rx = events.subscribe();
+        events.send("run.started", json!({"run_id": "r-000001", "scenario": "secret_leak", "title": "t"}));
+        events.stage("r-000001", "branch", "ok", None, json!({}));
+        events.log("info", "not a run message");
+        let started: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        let stage: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        let log: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!((started["seq"].clone(), stage["seq"].clone()), (json!(1), json!(2)));
+        assert!(log.get("seq").is_none());
+        let runs = events.runs_json();
+        assert_eq!(runs["runs"][0]["stages"], json!([stage]));
+        assert_eq!(runs["runs"][0]["started_at"], started["ts"]);
+    }
 }

@@ -15,7 +15,7 @@ use tower::ServiceExt;
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn wrong_host_is_forbidden_everywhere() {
     let fx = Fixture::new("host", "").await;
-    for uri in ["/api/health", "/", "/assets/app.js", "/ws", "/no-such-path"] {
+    for uri in ["/api/health", "/api/runs", "/api/paypal/orders", "/api/approvals", "/", "/assets/app.js", "/ws", "/no-such-path"] {
         for host in ["evil.example:4173", "localhost", "127.0.0.1:9999", "localhost.evil.example:4173"] {
             let req = Request::get(uri).header("host", host).body(Body::empty()).unwrap();
             let (status, body) = fx.json(req).await;
@@ -34,6 +34,8 @@ async fn wrong_host_is_forbidden_everywhere() {
 async fn foreign_origin_is_forbidden() {
     let fx = Fixture::new("origin", "").await;
     for origin in ["http://evil.example", "https://localhost:4173", "null", "http://localhost:4174"] {
+        let req = Request::get("/api/runs").header("host", HOST).header("origin", origin).body(Body::empty()).unwrap();
+        assert_eq!(fx.send(req).await.0, StatusCode::FORBIDDEN, "GET /api/runs with Origin {origin}");
         let req = Request::get("/api/health").header("host", HOST).header("origin", origin).body(Body::empty()).unwrap();
         assert_eq!(fx.send(req).await.0, StatusCode::FORBIDDEN, "GET with Origin {origin}");
         let mut req = fx.post("/api/paypal/stream", &json!({"enabled": false, "interval_ms": 2000}));
@@ -224,6 +226,10 @@ async fn health_and_telemetry_shapes() {
     let (_, orders) = fx.json(fx.get("/api/paypal/orders")).await;
     assert!(orders["columnDefs"].as_array().unwrap().iter().any(|c| c["field"] == "risk_score"));
     assert_eq!(orders["timeline"]["resources"].as_array().unwrap().len(), 6);
+    assert_eq!(orders["limit"], aegis_daemon::paypal::ORDERS_KEPT);
+    let (status, runs) = fx.json(fx.get("/api/runs")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(runs, json!({"runs": [], "limit": aegis_daemon::runs::RUNS_KEPT}));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

@@ -1,5 +1,7 @@
 // Panel 1: Live Speculative Workspace & Self-Healing.
-// Scenario buttons come from GET /api/workspace; each run's stage pipeline is filled from run.stage events.
+// Scenario buttons come from GET /api/workspace; each run's stage pipeline is filled from the daemon's
+// run history (GET /api/runs, on load, reconnect and after a lag notice) and live run.stage events,
+// merged by run_id + seq so no message is applied twice.
 
 import { h, replace, badge, riskBar, chips, kvList, fmtMs, fmtUs, fmtNum, fmtText, fmtTime, fmtValue, humanize, isNum, DASH, debounce } from './dom.js';
 import { get, post, describeError } from './api.js';
@@ -30,7 +32,8 @@ const OUTCOME = {
   recovered: ['Recovered', 'ok'],
   error: ['Error', 'fail'],
 };
-const MAX_RUNS = 6;
+// Runs shown; GET /api/runs `limit` replaces it (the daemon keeps that many).
+const DEFAULT_MAX_RUNS = 10;
 const MAX_LOG = 150;
 
 const NOT_OBSERVED = ['not observed', 'neutral'];
@@ -41,13 +44,78 @@ function statusBadge(status) {
   return badge(label, kind);
 }
 
+/** Number of a run id (`r-000042` → 42), for newest-first ordering; -1 when it has none. */
+export function runNumber(runId) {
+  const m = /(\d+)$/.exec(String(runId));
+  return m ? Number(m[1]) : -1;
+}
+
+/** Newest first: higher run number first, then by id text. */
+export function compareRuns(a, b) {
+  return (runNumber(b) - runNumber(a)) || (b < a ? -1 : b > a ? 1 : 0);
+}
+
 /**
- * True when this page has every event of the run: it received run.started, and the live stream had
- * no gap (disconnect or dropped messages) while the run was tracked. The daemon does not replay
- * events, so a run first seen after a page load, reload or reconnect is only partially observed.
+ * True when the run's messages that carry `seq` (API.md) leave no hole: 1 (run.started) up to the
+ * highest seq seen or reported by the history. Runs without seq information (older daemons) pass.
+ */
+export function seqComplete(run) {
+  if (!run.seqs || run.seqs.size === 0) return true;
+  const top = Math.max(...run.seqs, isNum(run.lastSeq) ? run.lastSeq : 0);
+  for (let i = 1; i <= top; i += 1) if (!run.seqs.has(i)) return false;
+  return true;
+}
+
+/**
+ * Adds one run.stage event to `run.events`, kept in seq order. Returns false (and changes nothing)
+ * when the event is already there: same seq, or, for events without seq, the same stage, status,
+ * ms, ts and detail.
+ */
+export function mergeStage(run, ev) {
+  if (isNum(ev.seq)) {
+    if (run.seqs.has(ev.seq)) return false;
+    run.seqs.add(ev.seq);
+    let i = run.events.length;
+    while (i > 0 && isNum(run.events[i - 1].seq) && run.events[i - 1].seq > ev.seq) i -= 1;
+    run.events.splice(i, 0, ev);
+    return true;
+  }
+  const detail = JSON.stringify(ev.detail);
+  const dup = run.events.some((e) => !isNum(e.seq) && e.stage === ev.stage && e.status === ev.status
+    && e.ms === ev.ms && e.ts === ev.ts && JSON.stringify(e.detail) === detail);
+  if (dup) return false;
+  run.events.push(ev);
+  return true;
+}
+
+/**
+ * Applies one run.finished. The outcome and total come from the highest-seq run.finished (a stale
+ * history response cannot undo a newer live one); queued_ms is kept from whichever carries one.
+ * Returns false for a run.finished already applied.
+ */
+export function applyFinished(run, f) {
+  if (isNum(f.seq)) {
+    if (run.seqs.has(f.seq)) return false;
+    run.seqs.add(f.seq);
+  }
+  if (isNum(f.queued_ms)) run.queued_ms = f.queued_ms;
+  if (isNum(f.seq) && f.seq < run.outcomeSeq) return true;
+  if (isNum(f.seq)) run.outcomeSeq = f.seq;
+  run.outcome = f.outcome;
+  run.total_ms = f.total_ms;
+  return true;
+}
+
+const stageEvent = (m) => ({ seq: m.seq, stage: m.stage, status: m.status, ms: m.ms, detail: m.detail, ts: m.ts });
+
+/**
+ * True when this page has every event of the run: it saw run.started (live, or through the daemon's
+ * run history), no stream gap (disconnect or dropped messages) is still unresolved by a later history
+ * load, and no seq is missing. A run older than the history whose first event seen live is mid-way is
+ * only partially observed.
  */
 export function runComplete(run) {
-  return Boolean(run.observedStart) && !run.gap;
+  return Boolean(run.observedStart) && !run.gap && seqComplete(run);
 }
 
 /**
@@ -88,6 +156,8 @@ export function createWorkspacePanel() {
   let workspace = null;
   let services = null;
   let counters = null;
+  let maxRuns = DEFAULT_MAX_RUNS;
+  let gapGen = 0; // bumped by every stream gap; a history load clears gaps from before it started
   const runs = new Map();
   const order = [];
   const busy = new Set();
@@ -204,21 +274,32 @@ export function createWorkspacePanel() {
   }, 300);
 
   // ---- runs ------------------------------------------------------------
+  /** Sorts `order` newest first, drops runs beyond `maxRuns` and puts the cards in that order. */
+  function sortAndTrim() {
+    order.sort(compareRuns);
+    while (order.length > maxRuns) {
+      const old = order.pop();
+      const r = runs.get(old);
+      if (r && r.el) r.el.remove();
+      runs.delete(old);
+    }
+    for (const id of order) {
+      const r = runs.get(id);
+      if (r && r.el) els.runs.appendChild(r.el);
+    }
+    els.runsEmpty.hidden = runs.size > 0;
+  }
+
   function ensureRun(runId, init = {}) {
     let run = runs.get(runId);
     if (!run) {
       run = {
         run_id: runId, scenario: init.scenario || null, title: init.title || null, events: [], outcome: null, total_ms: null, queued_ms: null,
-        started: init.ts || null, observedStart: false, gap: null, el: null,
+        started: init.ts || null, observedStart: false, gap: null, el: null, seqs: new Set(), outcomeSeq: 0, lastSeq: null,
       };
       runs.set(runId, run);
-      order.unshift(runId);
-      while (order.length > MAX_RUNS) {
-        const old = order.pop();
-        const r = runs.get(old);
-        if (r && r.el) r.el.remove();
-        runs.delete(old);
-      }
+      order.push(runId);
+      sortAndTrim();
     } else {
       if (init.scenario && !run.scenario) run.scenario = init.scenario;
       if (init.title && !run.title) run.title = init.title;
@@ -279,13 +360,15 @@ export function createWorkspacePanel() {
 
   function partialNote(run) {
     const parts = [];
-    if (!run.observedStart) parts.push('This page did not see this run start (it began before the page loaded or while the live stream was down), and the daemon does not replay earlier events.');
-    if (run.gap) parts.push(`At ${fmtTime(run.gap.ts)} ${GAP_REASONS[run.gap.reason] || fmtText(run.gap.reason)}, so later events may be missing${run.outcome ? ' and the outcome may be out of date' : ''}.`);
+    if (!run.observedStart) parts.push('This page did not see this run start (it began before the page loaded or while the live stream was down), and it is not in the daemon\'s run history (GET /api/runs keeps only the newest runs).');
+    if (run.gap) parts.push(`At ${fmtTime(run.gap.ts)} ${GAP_REASONS[run.gap.reason] || fmtText(run.gap.reason)}, so later events may be missing${run.outcome ? ' and the outcome may be out of date' : ''} until the run history is read again.`);
+    else if (run.observedStart && !seqComplete(run)) parts.push('Some of this run\'s messages were not received (its seq numbers have gaps).');
     parts.push('Stages without events read “not observed”, not “not run”.');
     return h('p', { class: 'run__note small muted', role: 'note', text: parts.join(' ') });
   }
 
   function renderRun(run) {
+    if (runs.get(run.run_id) !== run) return; // trimmed: older than every run shown
     const [outLabel, outKind] = runOutcome(run);
     const finished = Boolean(run.outcome);
     const complete = runComplete(run);
@@ -327,14 +410,16 @@ export function createWorkspacePanel() {
     switch (msg.type) {
       case 'run.started': {
         const run = ensureRun(msg.run_id, { scenario: msg.scenario, title: msg.title, ts: msg.ts });
+        const seen = isNum(msg.seq) && run.seqs.has(msg.seq);
+        if (isNum(msg.seq)) run.seqs.add(msg.seq);
         run.observedStart = true;
         renderRun(run);
-        log('info', `run ${msg.run_id} started: ${fmtText(msg.title || msg.scenario)}`, msg.ts);
+        if (!seen) log('info', `run ${msg.run_id} started: ${fmtText(msg.title || msg.scenario)}`, msg.ts);
         break;
       }
       case 'run.stage': {
         const run = ensureRun(msg.run_id, { ts: msg.ts });
-        run.events.push({ stage: msg.stage, status: msg.status, ms: msg.ms, detail: msg.detail, ts: msg.ts });
+        if (!mergeStage(run, stageEvent(msg))) break; // already loaded from GET /api/runs
         renderRun(run);
         const level = msg.status === 'fail' ? 'warn' : 'info';
         log(level, `${msg.run_id} ${msg.stage}: ${fmtText(msg.status)}${isNum(msg.ms) ? ` in ${fmtMs(msg.ms)}` : ''}`, msg.ts);
@@ -343,11 +428,9 @@ export function createWorkspacePanel() {
       }
       case 'run.finished': {
         const run = ensureRun(msg.run_id, { ts: msg.ts });
-        run.outcome = msg.outcome;
-        run.total_ms = msg.total_ms;
         // The second run.finished after an approval resolution carries queued_ms: null; the wait
-        // reported by the first one still describes this run, so it is kept.
-        if (isNum(msg.queued_ms)) run.queued_ms = msg.queued_ms;
+        // reported by the first one still describes this run, so it is kept (applyFinished).
+        if (!applyFinished(run, msg)) break; // already loaded from GET /api/runs
         renderRun(run);
         const [label] = OUTCOME[msg.outcome] || [msg.outcome];
         log(msg.outcome === 'error' ? 'error' : 'info', `run ${msg.run_id} finished: ${fmtText(label)} (total ${fmtMs(msg.total_ms)}${isNum(msg.queued_ms) ? `, queued ${fmtMs(msg.queued_ms)}` : ''})`, msg.ts);
@@ -394,9 +477,50 @@ export function createWorkspacePanel() {
    */
   function markGap(reason, ts) {
     const at = ts || new Date().toISOString();
+    gapGen += 1;
     for (const run of runs.values()) {
-      if (!run.gap) run.gap = { reason, ts: at };
+      if (!run.gap) run.gap = { reason, ts: at, gen: gapGen };
+      else run.gap.gen = gapGen;
       if (run.el) renderRun(run);
+    }
+  }
+
+  /**
+   * Merges GET /api/runs into the panel. `gen` is the gap generation when the request was made: the
+   * daemon's history covers every message broadcast before it answered, so gaps up to `gen` are
+   * filled for the runs it lists; a gap marked while the request was in flight stays.
+   */
+  function setRuns(data, gen = gapGen) {
+    const list = Array.isArray(data && data.runs) ? data.runs : [];
+    if (isNum(data && data.limit) && data.limit > 0) maxRuns = data.limit;
+    const touched = [];
+    for (const rec of list) {
+      if (!rec || typeof rec.run_id !== 'string') continue;
+      const run = ensureRun(rec.run_id, { scenario: rec.scenario, title: rec.title, ts: rec.started_at });
+      run.observedStart = true;
+      run.seqs.add(1); // a history record starts with the run's run.started (seq 1)
+      if (isNum(rec.last_seq)) run.lastSeq = Math.max(isNum(run.lastSeq) ? run.lastSeq : 0, rec.last_seq);
+      for (const m of Array.isArray(rec.stages) ? rec.stages : []) if (m) mergeStage(run, stageEvent(m));
+      for (const f of Array.isArray(rec.finished) ? rec.finished : []) if (f) applyFinished(run, f);
+      if (run.gap && run.gap.gen <= gen) run.gap = null;
+      touched.push(run);
+    }
+    sortAndTrim();
+    for (const run of touched) renderRun(run);
+    els.runsEmpty.hidden = runs.size > 0;
+  }
+
+  function failRuns(err) {
+    log('warn', `GET /api/runs: ${describeError(err)}; runs that started before this page loaded are not shown`);
+  }
+
+  /** GET /api/runs → setRuns, remembering which stream gaps the answer can fill. */
+  async function loadRuns() {
+    const gen = gapGen;
+    try {
+      setRuns(await get('/api/runs'), gen);
+    } catch (err) {
+      failRuns(err);
     }
   }
 
@@ -422,5 +546,5 @@ export function createWorkspacePanel() {
     if (!workspace) replace(els.scenarios, h('p', { class: 'muted', text: 'Scenarios unavailable until the daemon answers.' }));
   }
 
-  return { setWorkspace, setServices, setCounters, onMessage, markGap, fail, log, refresh };
+  return { setWorkspace, setServices, setCounters, onMessage, markGap, setRuns, loadRuns, failRuns, fail, log, refresh };
 }

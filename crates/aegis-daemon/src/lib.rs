@@ -9,6 +9,8 @@
 //!   `RecoveryRouter` tiers; remote tiers run only with Nebius/Tavily keys configured.
 //! * Panel 2 — simulated agent purchase intents processed by `adapter_paypal` (redaction, score,
 //!   Cedar budget rules, ed25519 receipts); Sandbox submission only with PayPal credentials.
+//! * Runs — the newest workspace runs with their broadcast messages ([`runs::RunHistory`],
+//!   `GET /api/runs`), so a reloaded console can show them again.
 //! * Panel 3 — in-memory team approvals (Mattermost/Slack cards only with webhooks configured),
 //!   the benchmark artifact, and live statistics over this daemon's own measurements.
 //!
@@ -21,6 +23,7 @@ pub mod demo;
 pub mod keepwarm;
 pub mod live;
 pub mod paypal;
+pub mod runs;
 pub mod security;
 pub mod services;
 pub mod state;

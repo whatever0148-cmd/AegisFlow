@@ -378,15 +378,22 @@ fn session_history_raises_risk() {
     );
 }
 
-/// Stricter form of the purchase half above: every order reports orders_last_hour = 0 and
-/// spend_last_24h_cents = 0, so only the earlier orders inside the window (the teacher's
-/// T_velocity and T_spend, models/build_model.py) can raise the twelfth order's score.
+/// Stricter form of the purchase half above: every order carries commerce features only, with
+/// orders_last_hour = 0 and spend_last_24h_cents = 0 (as payment middleware without a spend ledger
+/// builds them), so only the earlier orders inside the window (the window teacher's T_velocity and
+/// T_spend, models/build_model.py) can move the newest order's score. The build stores these windows
+/// with their window-teacher labels in parity_vectors.json `history_probes`: three orders (two earlier
+/// orders are within the teacher's free allowance, so the label stays near the order alone, below 35)
+/// and twelve orders (eleven earlier orders and their spend push the label above 35). The model must
+/// take the teacher's side of the 35 threshold on every probe and stay within 10 points of its label,
+/// and the twelve-order window must score at least 20 points above the same order alone.
 #[test]
-#[ignore = "known gap of the shipped model: it barely reacts to in-window order history when the \
-            per-event velocity counters are zero, although the window teacher labels that window high \
-            impact; needs a retrain (bash harness/build_model.sh); run with --ignored to check a new model"]
 fn in_window_order_history_alone_raises_risk() {
+    const THRESHOLD: f32 = 35.0;
+    const MAX_TEACHER_GAP: f32 = 10.0;
+    const MIN_RISE: f32 = 20.0;
     let scorer = AneScorer::open_default().unwrap();
+    let doc = parity();
     let order = commerce_features(
         &CommerceContext {
             amount_cents: 6000,
@@ -400,9 +407,39 @@ fn in_window_order_history_alone_raises_risk() {
         None,
     );
     let alone = scorer.score(&order).unwrap();
-    let in_spree = scorer.score_window(&ContextWindow::from_events(scorer.window_len(), vec![order; 12])).unwrap();
-    assert!(
-        in_spree > alone + 10.0,
-        "order alone {alone}, the same order after eleven earlier orders (counters at 0) {in_spree}"
-    );
+    let probes = doc["history_probes"].as_array().expect("parity_vectors.json history_probes (rebuild the model)");
+    let mut lengths = Vec::new();
+    for probe in probes {
+        let name = probe["name"].as_str().expect("probe name");
+        let length = probe["length"].as_u64().expect("probe length") as usize;
+        let teacher = probe["teacher"].as_f64().expect("probe teacher label") as f32;
+        let events = probe["events"].as_array().expect("probe events");
+        assert_eq!(events.len(), length, "{name}: stored event count");
+        let stored = window(&probe["events"], scorer.window_len());
+        for event in stored.iter() {
+            for (a, b) in order.0.iter().zip(event.0.iter()) {
+                assert!((a - b).abs() < 1e-4, "{name}: Rust features differ from build_model.py's");
+            }
+        }
+        let risk = scorer.score_window(&ContextWindow::from_events(scorer.window_len(), vec![order; length])).unwrap();
+        assert_eq!(
+            risk >= THRESHOLD,
+            teacher >= THRESHOLD,
+            "{name}: model {risk}, window teacher {teacher}, order alone {alone} (decisions at {THRESHOLD} differ)"
+        );
+        assert!(
+            (risk - teacher).abs() <= MAX_TEACHER_GAP,
+            "{name}: model {risk}, window teacher {teacher} (more than {MAX_TEACHER_GAP} points apart)"
+        );
+        if length == 12 {
+            assert!(alone < THRESHOLD && teacher >= THRESHOLD, "{name}: teacher {teacher} should flip the order alone {alone}");
+            assert!(
+                risk >= alone + MIN_RISE,
+                "{name}: model {risk}, order alone {alone} (history must add at least {MIN_RISE} points)"
+            );
+        }
+        lengths.push(length);
+    }
+    lengths.sort_unstable();
+    assert_eq!(lengths, [3, 12], "history probes in parity_vectors.json");
 }

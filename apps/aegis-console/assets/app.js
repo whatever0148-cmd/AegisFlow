@@ -1,5 +1,6 @@
-// Aegis Console entry point: loads every panel from the daemon's GET endpoints, then keeps them
-// current from the WebSocket. Contract: apps/aegis-console/API.md.
+// Aegis Console entry point: loads every panel from the daemon's GET endpoints (again after a
+// WebSocket reconnect or a broadcast-lag notice), then keeps them current from the WebSocket.
+// Contract: apps/aegis-console/API.md.
 
 import { TOKEN_MISSING, bus, get, isLagNotice, LiveSocket } from './api.js';
 import { setHealth, setConnState, showBanner, hideBanner, bindRetry } from './shell.js';
@@ -58,6 +59,7 @@ function loadAll() {
     load('/api/telemetry', scoreboard.setTelemetry, scoreboard.fail),
     load('/api/config', settings.setConfig, settings.fail),
     load('/api/workspace', workspace.setWorkspace, workspace.fail),
+    workspace.loadRuns(),
     load('/api/approvals', approvals.setApprovals, approvals.fail),
     load('/api/paypal/orders', paypal.setOrders, paypal.failOrders),
     load('/api/paypal/scenarios', paypal.setScenarios, paypal.failScenarios),
@@ -76,9 +78,9 @@ function onMessage(msg) {
       hideBanner('offline');
       hideBanner('ws-refused');
       if (hellos > 1) {
-        // Runs tracked across the gap were marked partial when the socket closed (onState below):
-        // the daemon does not replay run events.
-        workspace.log('info', 'reconnected; state reloaded from the daemon (run events from the gap are not replayed)', msg.ts);
+        // Runs tracked across the gap were marked partial when the socket closed (onState below);
+        // GET /api/runs (in loadAll) fills in what the daemon broadcast meanwhile.
+        workspace.log('info', 'reconnected; runs, approvals and orders reloaded from the daemon', msg.ts);
         loadAll();
       }
       break;

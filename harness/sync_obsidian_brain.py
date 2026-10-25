@@ -21,8 +21,9 @@ script never re-judges a measurement. A node without data stays `status: pending
 `latency_ms: null`; values are copied from the telemetry files or left empty. A node whose gated
 rows exist but none match it stays `pending` (it is never `verified` just because a latency exists).
 A failed live-tree integrity row marks the APFS nodes `failing`. A preliminary run (reduced scale,
-busy machine; `run_conditions` in the artifact) is labelled PRELIMINARY in every note, the canvas
-card and the log.
+busy machine at the start, external CPU contention during the run or no external-CPU data;
+`run_conditions` in the artifact) is labelled PRELIMINARY in every note, the canvas card and the
+log, with the benchmark's reasons.
 
 Every sync compares the vault before and after writing: canvas node positions and sizes, user
 nodes and edges, and every `<!-- aegis:user:start -->` block (notes and Kiro tasks.md) must be
@@ -1040,7 +1041,7 @@ def append_log(ctx: Ctx) -> bool:
               "One row per `aegis-bench` run (p50 values; `small` APFS fixture). Source: `artifacts/aegis_phase1_telemetry.json`. "
               "`clonefile` is the cold clone; `rollback` is caller-visible (detach only for phase-1 rows, which have no pool, "
               "reaper, speedup or gate columns); `gated` counts passed rows of `targets_summary`; `scale` < 1 marks a reduced run; "
-              "`run` is `preliminary` for a reduced-scale or busy-machine run (`run_conditions`), `quiet` otherwise, `—` when not recorded.",
+              "`run` is `preliminary` for a reduced-scale run, a busy machine at the start or external CPU contention during the run (`run_conditions`), `quiet` otherwise, `—` when not recorded.",
               "", "Back to [[00-AegisFlow-Index]]", "", LOG_START,
               "| bench generated_at | commit | tests pass/fail | clonefile ms | RENAME_SWAP ms | rollback ms | ANE ms | Cedar µs "
               "| e2e rollback ms | pool acquire ms | reap ms | ANE speedup | gated | scale | run |",

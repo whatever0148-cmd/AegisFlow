@@ -2,15 +2,15 @@
 tags:
   - core
 status: verified
-latency_ms: 0.175125
-last_verified: 2026-10-25T15:38:36Z
-git_commit: b3f6810
+latency_ms: 0.182041
+last_verified: 2026-10-25T17:28:23Z
+git_commit: 9f1f777-dirty
 crate: aegis_ane_scorer
 ---
 
 # Core-ANE-Classifier
 
-**Status:** 🟢 verified · **p50:** 0.1751 ms · **commit:** `b3f6810` · **bench run: PRELIMINARY**
+**Status:** 🟢 verified · **p50:** 0.1820 ms · **commit:** `9f1f777-dirty`
 
 > CoreML FP16 context-window risk model: one prediction scores the newest event of an agent session given the events before it (`ContextWindow` -> `score_window`), loaded with `.cpuAndNeuralEngine` through the Swift `@_cdecl` bridge. Device placement is read back from `MLComputePlan`. Weights are trained on synthetic sessions labelled by the documented teacher in models/build_model.py; this is not a validated production risk model.
 
@@ -23,24 +23,22 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T15:38:39Z · bench 2026-10-25T15:38:36Z · tests 2026-10-25T08:10:13Z · commit `b3f6810`_
-
-> **PRELIMINARY: 1-min load average 13.13 at end above the busy threshold 4.** Only a quiet full-scale benchmark run decides the phase result.
+_Synced 2026-10-25T17:28:26Z · bench 2026-10-25T17:28:23Z · tests 2026-10-25T08:10:13Z · commit `9f1f777-dirty`_
 
 | Metric | Measured |
 |---|---|
 | cargo test --release | 14 passed, 0 failed (2 suites) |
 | architecture (models/model_card.json) | mh128_b5_v8_nd · 13 convs · 128 hidden · 8 horizon views · 468481 parameters · 172097600 MACs/prediction |
 | input | window layout · last 64 events x 64 features |
-| inference · cpuAndNeuralEngine · back-to-back | p50 0.1751 ms · p95 0.1968 ms · n=2400 |
-| inference · cpuOnly · back-to-back | p50 0.2198 ms · p95 0.2760 ms · n=2400 |
-| speedup (cpuOnly p50 / cpuAndNeuralEngine p50) · back-to-back | 1.255 |
-| inference · isolated calls (busy CPU gap) · cpuAndNeuralEngine vs cpuOnly | p50 0.3682 ms · p95 0.4632 ms · n=400 vs p50 0.2118 ms · p95 0.2248 ms · n=400 · speedup 0.5753 |
-| inference · isolated calls (idle CPU gap) · cpuAndNeuralEngine vs cpuOnly | p50 0.8507 ms · p95 1.220 ms · n=400 vs p50 1.461 ms · p95 2.436 ms · n=400 · speedup 1.717 |
-| one call per transaction (end-to-end ane_score stage) | p50 373.9 µs · p95 486.5 µs · n=200 |
+| inference · cpuAndNeuralEngine · back-to-back | p50 0.1820 ms · p95 0.2098 ms · n=2400 |
+| inference · cpuOnly · back-to-back | p50 0.2228 ms · p95 0.2605 ms · n=2400 |
+| speedup (cpuOnly p50 / cpuAndNeuralEngine p50) · back-to-back | 1.224 |
+| inference · isolated calls (busy CPU gap) · cpuAndNeuralEngine vs cpuOnly | p50 0.3618 ms · p95 0.4031 ms · n=400 vs p50 0.2205 ms · p95 0.2505 ms · n=400 · speedup 0.6095 |
+| inference · isolated calls (idle CPU gap) · cpuAndNeuralEngine vs cpuOnly | p50 0.7304 ms · p95 0.9235 ms · n=400 vs p50 1.210 ms · p95 1.929 ms · n=400 · speedup 1.657 |
+| one call per transaction (end-to-end ane_score stage) | p50 369.1 µs · p95 401.3 µs · n=200 |
 | MLComputePlan per op (.cpuAndNeuralEngine) | mul x2 -> ANE, conv x13 -> ANE, relu x12 -> ANE, add x5 -> ANE, slice_by_index x1 -> ANE, reduce_mean x1 -> ANE, concat x1 -> ANE, sigmoid x1 -> ANE |
-| parity · single events vs FP32 reference (max \|diff\| points) | 0.3289 |
-| parity · sessions (score_window) vs FP32 reference | max 0.3056 · mean 0.1014 points · 96/96 within 1.000 |
+| parity · single events vs FP32 reference (max \|diff\| points) | 0.3012 |
+| parity · sessions (score_window) vs FP32 reference | max 0.2746 · mean 0.1024 points · 96/96 within 1.000 |
 | device placement (MLComputePlan) | MLComputePlan (.cpuAndNeuralEngine) placed the online window model (window layout, 64 events x 64 features) as ANE 36 / CPU 0 / GPU 0 of 36 dispatched ops (135 including constants); the batch model (32 windows per prediction) as ANE 36 / CPU 0 / GPU 0 of 36. |
 <!-- aegis:telemetry:end -->
 

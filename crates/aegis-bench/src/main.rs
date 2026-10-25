@@ -14,15 +14,20 @@
 //! Results (sample counts and percentiles, missed targets included) go to
 //! `artifacts/aegis_phase1_telemetry.json` (the file name is kept for the existing consumers).
 //! `targets_summary` holds exactly the gated targets; `informational` holds context rows;
-//! `run_conditions` says whether the run is preliminary (reduced scale, busy machine, sources
-//! changed during the run); `sources` fingerprints the measured code.
+//! `run_conditions` says whether the run is preliminary (reduced scale, busy machine at the
+//! start, attributable CPU contention from other programs during the run, contention not
+//! measured, sources changed during the run); `sources` fingerprints the measured code.
 //!
 //!   cargo run --release -p aegis-bench -- [--out PATH] [--quick | --scale F] [--quiet-wait S] [--work-dir DIR]
 //!   cargo run --release -p aegis-bench -- --verify phase1|gate [--artifact PATH]
 //!
 //! A reduced-scale run (`--quick`, `--scale` < 1) refuses to write the canonical artifact; pass
 //! `--out` elsewhere. `--quiet-wait S` waits up to S seconds for the 1-minute load average to drop
-//! to the busy threshold before measuring. `--verify` checks an existing artifact (see `gate`).
+//! to the busy threshold before measuring; during the run a background sampler measures the CPU
+//! other programs use (`external`, rule in `conditions`). Fixtures live in
+//! `target/aegis-bench.noindex` (or `aegis-bench-<pid>.noindex` under `--work-dir`); the
+//! `.noindex` suffix keeps Spotlight from indexing them. `--verify` checks an existing artifact
+//! (see `gate`).
 //!
 //! `.env` is loaded through `aegis-config` before anything else. Remote services are never
 //! called unless `AEGIS_BENCH_LIVE=1` and their credentials are set.
@@ -30,6 +35,7 @@
 mod ane;
 mod apfs;
 mod conditions;
+mod external;
 mod flows;
 mod gate;
 mod util;
@@ -61,7 +67,10 @@ const TARGET_SETTLED_HIT_RATE: f64 = 1.0;
 const REFERENCE_CLONEFILE_MS: f64 = 0.5;
 const GATED_ROWS: usize = 11;
 const CANONICAL_OUT: &str = "artifacts/aegis_phase1_telemetry.json";
-const DEFAULT_WORK_DIR: &str = "target/aegis-bench";
+/// Fixture directories end in `.noindex`, which Spotlight skips, so the benchmark's clone and
+/// delete churn does not start `mds` / `mdworker` indexing work during the run.
+const NOINDEX_SUFFIX: &str = ".noindex";
+const DEFAULT_WORK_DIR: &str = "target/aegis-bench.noindex";
 const APFS_PRECONDITION: &str = "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop";
 
 /// Latency row from a stats summary (`n`, `p50`, `p95`) whose unit is `to_ms` milliseconds.
@@ -575,25 +584,25 @@ fn resolve_out(out: &Path, scale: f64, root: &Path) -> Res<PathBuf> {
     Ok(out)
 }
 
-/// Fixture directory: `target/aegis-bench` (recreated), or a new per-process directory inside
+/// Fixture directory path: `target/aegis-bench.noindex`, or `aegis-bench-<pid>.noindex` inside
+/// `--work-dir`. Both end in `.noindex` so Spotlight does not index the fixtures.
+fn work_dir_path(work_dir: Option<&Path>, root: &Path, pid: u32) -> PathBuf {
+    match work_dir {
+        None => root.join(DEFAULT_WORK_DIR),
+        Some(base) => absolute(base, root).join(format!("aegis-bench-{pid}{NOINDEX_SUFFIX}")),
+    }
+}
+
+/// Fixture directory: the default one (recreated), or a new per-process directory inside
 /// `--work-dir` (never an existing one, so nothing outside the benchmark is removed).
 fn prepare_work_dir(work_dir: Option<&Path>, root: &Path) -> Res<PathBuf> {
-    let dir = match work_dir {
-        None => {
-            let dir = root.join(DEFAULT_WORK_DIR);
-            if dir.exists() {
-                fs::remove_dir_all(&dir)?;
-            }
-            dir
+    let dir = work_dir_path(work_dir, root, std::process::id());
+    if dir.exists() {
+        if work_dir.is_some() {
+            return Err(format!("{} already exists", dir.display()).into());
         }
-        Some(base) => {
-            let dir = absolute(base, root).join(format!("aegis-bench-{}", std::process::id()));
-            if dir.exists() {
-                return Err(format!("{} already exists", dir.display()).into());
-            }
-            dir
-        }
-    };
+        fs::remove_dir_all(&dir)?;
+    }
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }
@@ -622,6 +631,7 @@ fn main() -> Res<()> {
     let sources_start = source_fingerprint(&root)?;
     let load_start = load_average();
     let host = host_info(&root);
+    let sampler = external::Sampler::start(external::SAMPLE_INTERVAL);
     let started = Instant::now();
     let fixtures = prepare_work_dir(opts.work_dir.as_deref(), &root)?;
     let scale = opts.scale;
@@ -642,6 +652,7 @@ fn main() -> Res<()> {
     let router = flows::bench_router(scorer.clone(), gov.clone(), scale)?;
     let mcp = flows::bench_mcp(scorer, gov, scale)?;
     let benchmark_seconds = round6(started.elapsed().as_secs_f64());
+    let external = sampler.finish();
     let load_end = load_average();
     let sources_end = source_fingerprint(&root)?;
     let run = conditions::evaluate(&Conditions {
@@ -652,6 +663,7 @@ fn main() -> Res<()> {
         quiet_wait,
         sources_start: sources_start.clone(),
         sources_end,
+        external,
     });
 
     let artifacts = out.parent().ok_or("output path has no parent")?.to_path_buf();
@@ -877,6 +889,25 @@ mod tests {
 
         let quick = parse_args(["--quick".to_string()]).unwrap();
         assert!(resolve_out(&quick.out, quick.scale, &root).is_err(), "--quick without --out is refused");
+    }
+
+    #[test]
+    fn work_dirs_end_in_noindex_so_spotlight_skips_them() {
+        let root = fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).unwrap();
+        let default = work_dir_path(None, &root, 7);
+        assert_eq!(default, root.join("target/aegis-bench.noindex"));
+        let base = std::env::temp_dir().join(format!("aegis-bench-workdir-{}", std::process::id()));
+        fs::create_dir_all(&base).unwrap();
+        let per_process = work_dir_path(Some(&base), &root, 7);
+        assert_eq!(per_process.file_name().unwrap(), "aegis-bench-7.noindex");
+        for dir in [&default, &per_process] {
+            assert!(dir.extension().is_some_and(|e| e == "noindex"), "{}", dir.display());
+        }
+        // A per-process directory is created fresh and never reused.
+        let made = prepare_work_dir(Some(&base), &root).unwrap();
+        assert!(made.is_dir() && made.to_string_lossy().ends_with(NOINDEX_SUFFIX), "{}", made.display());
+        assert!(prepare_work_dir(Some(&base), &root).is_err(), "an existing per-process directory is refused");
+        fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]

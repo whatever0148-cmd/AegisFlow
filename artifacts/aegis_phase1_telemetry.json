@@ -1,14 +1,14 @@
 {
   "schema": "aegisflow.telemetry.v2",
   "phase": "phase-2",
-  "generated_at": "2026-10-25T15:38:36Z",
+  "generated_at": "2026-10-25T17:28:23Z",
   "git": {
-    "commit": "b3f6810",
-    "dirty": false
+    "commit": "9f1f777",
+    "dirty": true
   },
   "sources": {
-    "sha256": "edbddc3dcb0a35ab5c0518e445e29d2cb24d379b96dfbfcbd10028e37b3c0030",
-    "files": 88,
+    "sha256": "d8ad51ce73e61df84092032e68d9d3b4c0444c3078d8a605bbf87d1e82d0ab3f",
+    "files": 91,
     "paths": [
       "crates",
       "policies",
@@ -30,7 +30,7 @@
     "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
     "swiftc": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)",
     "coremltools": "9.0",
-    "load_average_at_start": "{ 3.71 7.44 9.23 }"
+    "load_average_at_start": "{ 3.77 5.80 4.90 }"
   },
   "config": {
     "dotenv_path": "/Users/ahmed/AegisFlow/crates/aegis-config/../../.env",
@@ -38,39 +38,177 @@
     "error": null
   },
   "live_mode": false,
-  "benchmark_seconds": 78.39565,
+  "benchmark_seconds": 72.919034,
   "scale": 1.0,
-  "preliminary": true,
+  "preliminary": false,
   "run_conditions": {
-    "preliminary": true,
-    "reasons": [
-      "1-min load average 13.13 at end above the busy threshold 4"
-    ],
+    "preliminary": false,
+    "reasons": [],
     "scale": 1.0,
     "full_scale": true,
     "busy_threshold_load1": 4.0,
-    "busy_threshold_basis": "performance-core count (hw.perflevel0.physicalcpu, else hw.physicalcpu)",
+    "busy_threshold_basis": "performance-core count (hw.perflevel0.physicalcpu, else hw.physicalcpu); applied to the 1-min load average at the start only",
     "load_average_start": [
-      3.86,
-      7.53,
-      9.28
+      3.77,
+      5.8,
+      4.9
     ],
     "load_average_end": [
-      13.13,
-      9.73,
-      9.96
+      5.24,
+      5.82,
+      4.98
     ],
+    "load_average_end_note": "informational only, not part of the rule: the 1-min load average is an EWMA of runnable threads, and after minutes of tight APFS / reaper / CoreML loops it mostly reflects the benchmark's own threads; user_contention measures other programs",
+    "user_contention": {
+      "method": "background sampler, one process listing per interval: proc_listallpids + proc_pid_rusage(RUSAGE_INFO_V1) per (pid, start time); per interval, the user+system CPU delta of every readable process (in practice the processes of the same user) plus the rise of its reaped-children CPU (ri_child_user_time + ri_child_system_time; a tracked child's last cumulative CPU is matched first, so nothing is counted twice), excluding this benchmark process and its descendants (bench_child), divided by the interval; a process that started during the run counts from its start; mean is time-weighted (attributable core-seconds / sampled seconds), p95 and max are over the per-interval values; a reaped child's CPU is credited in the interval its parent reaps it",
+      "not_attributed": "processes of other users (root and system daemons such as kernel_task, mds, fseventsd, aned, ANECompilerService are unreadable; see external_cpu_total); CPU a process spends after the last listing that saw it unless a readable parent reaps it; short processes whose parent is unreadable (launchd) or reaps them after the run",
+      "interval_s": 1.0,
+      "logical_cpus": 8,
+      "busy_fraction_of_logical_cpus": 0.25,
+      "busy_threshold_cores": 2.0,
+      "samples": 73,
+      "attributed_samples": 73,
+      "sampled_seconds": 72.919007,
+      "mean_cores": 0.78211,
+      "p95_cores": 1.664273,
+      "max_cores": 1.827937,
+      "core_seconds": 57.030707,
+      "listings": 74,
+      "listing_errors": [],
+      "attribution_error": null,
+      "sampler_error": null,
+      "processes": {
+        "method": "proc_listallpids + proc_pid_rusage(RUSAGE_INFO_V1) per (pid, start time) at every sample, names from proc_name (else proc_pidpath); cpu_seconds = own CPU + reaped-children CPU credited during the run; processes of other users are usually unreadable and are counted, not attributed",
+        "top_contending": [
+          {
+            "pid": 645,
+            "name": "Finder",
+            "cpu_seconds": 11.691064,
+            "mean_cores": 0.160329,
+            "own_cpu_seconds": 11.691064,
+            "reaped_children_cpu_seconds": 0.0,
+            "bench_child": false
+          },
+          {
+            "pid": 98236,
+            "name": "com.apple.appkit.xpc.openAndSav",
+            "cpu_seconds": 10.850816,
+            "mean_cores": 0.148806,
+            "own_cpu_seconds": 10.850816,
+            "reaped_children_cpu_seconds": 0.0,
+            "bench_child": false
+          },
+          {
+            "pid": 17017,
+            "name": "mediaanalysisd",
+            "cpu_seconds": 10.703591,
+            "mean_cores": 0.146787,
+            "own_cpu_seconds": 10.703591,
+            "reaped_children_cpu_seconds": 0.0,
+            "bench_child": false
+          },
+          {
+            "pid": 19325,
+            "name": "textunderstandingd",
+            "cpu_seconds": 5.599449,
+            "mean_cores": 0.07679,
+            "own_cpu_seconds": 5.599449,
+            "reaped_children_cpu_seconds": 0.0,
+            "bench_child": false
+          },
+          {
+            "pid": 19372,
+            "name": "com.apple.appkit.xpc.openAndSav",
+            "cpu_seconds": 5.497298,
+            "mean_cores": 0.075389,
+            "own_cpu_seconds": 5.497298,
+            "reaped_children_cpu_seconds": 0.0,
+            "bench_child": false
+          },
+          {
+            "pid": 7058,
+            "name": "Claude Helper",
+            "cpu_seconds": 2.198029,
+            "mean_cores": 0.030143,
+            "own_cpu_seconds": 2.198029,
+            "reaped_children_cpu_seconds": 0.0,
+            "bench_child": false
+          },
+          {
+            "pid": 624,
+            "name": "Google Chrome",
+            "cpu_seconds": 1.435773,
+            "mean_cores": 0.01969,
+            "own_cpu_seconds": 1.39162,
+            "reaped_children_cpu_seconds": 0.044153,
+            "bench_child": false
+          },
+          {
+            "pid": 7124,
+            "name": "Claude Helper (Renderer)",
+            "cpu_seconds": 1.04862,
+            "mean_cores": 0.014381,
+            "own_cpu_seconds": 1.04862,
+            "reaped_children_cpu_seconds": 0.0,
+            "bench_child": false
+          }
+        ],
+        "bench_children": [],
+        "coreml_daemons": [
+          {
+            "pid": 16726,
+            "name": "ANECompilerService",
+            "readable": false,
+            "cpu_seconds": null,
+            "mean_cores": null
+          },
+          {
+            "pid": 35952,
+            "name": "aned",
+            "readable": false,
+            "cpu_seconds": null,
+            "mean_cores": null
+          }
+        ],
+        "readable_processes": 417,
+        "unreadable_processes": 231,
+        "user_cpu_seconds": 57.030707,
+        "bench_child_cpu_seconds": 0.0,
+        "listings": 74,
+        "list_errors": []
+      },
+      "busy": false
+    },
+    "external_cpu_total": {
+      "note": "informational, not part of the rule: system busy cores minus this process's own cores includes unattributable root and system services (kernel_task, mds, fseventsd, aned, ANECompilerService), which mostly respond to the benchmark's own filesystem (clonefile trees, deletions, FSEvents) and CoreML activity; user_contention measures interference from other programs",
+      "method": "system busy cores = (user+system+nice tick delta / all-tick delta) x logical CPUs from host_statistics(HOST_CPU_LOAD_INFO); own cores = getrusage(RUSAGE_SELF) user+system CPU delta / interval; external cores = max(0, system - own); mean is time-weighted over the sampled intervals; unattributed core-seconds = external core-seconds - attributed core-seconds (readable processes including the benchmark's descendants; may be slightly negative from tick vs rusage accounting)",
+      "interval_s": 1.0,
+      "logical_cpus": 8,
+      "samples": 73,
+      "sampled_seconds": 72.919007,
+      "mean_cores": 2.731546,
+      "p95_cores": 4.220064,
+      "max_cores": 4.349646,
+      "mean_system_busy_cores": 3.721263,
+      "mean_own_cores": 0.989717,
+      "external_core_seconds": 199.181624,
+      "attributed_core_seconds": 57.030707,
+      "user_contention_core_seconds": 57.030707,
+      "bench_child_core_seconds": 0.0,
+      "unattributed_core_seconds": 142.150917,
+      "error": null
+    },
     "quiet_wait": {
       "max_wait_s": 300.0,
-      "waited_s": 135.308457,
+      "waited_s": 115.282909,
       "load_average_after_wait": [
-        3.86,
-        7.53,
-        9.28
+        3.77,
+        5.8,
+        4.9
       ]
     },
     "sources_unchanged_during_run": true,
-    "rule": "preliminary when reduced-scale, when the 1-min load average at start or end is above the busy threshold, or when the measured sources changed during the run; only a run that is not preliminary decides the phase result (T18)"
+    "rule": "preliminary when reduced-scale; when the 1-min load average at the start (after --quiet-wait) is above the busy threshold (performance-core count); when the time-weighted mean attributable CPU contention over the run is at or above 25% of the logical CPUs (attributable contention = user+system CPU of the other processes the benchmark can read, in practice same-user processes, from proc_listallpids + proc_pid_rusage per (pid, start time) about once per second, including CPU of children they reaped, excluding the benchmark process and its descendants, divided by the sampled seconds); when that contention could not be measured (CPU sampler failed or recorded no samples, no process listing succeeded, a listing failed, or an interval has no attribution); or when the measured sources changed during the run. Informational only: the end-of-run load average (it mostly reflects the benchmark's own threads) and external_cpu_total (system busy cores from host_statistics minus this process's getrusage), which includes unattributable root and system services (kernel_task, mds, fseventsd, aned) that mostly respond to the benchmark's own filesystem and CoreML activity. Only a run that is not preliminary decides the phase result (T18)"
   },
   "targets": {
     "branch_acquire_ms": 0.5,
@@ -96,42 +234,42 @@
         "collision_iterations": 200,
         "clonefile_ms": {
           "n": 400,
-          "min": 0.147458,
-          "p50": 0.172291,
-          "p95": 0.195292,
-          "p99": 0.2215,
-          "max": 0.407334,
-          "mean": 0.173741
+          "min": 0.157209,
+          "p50": 0.170584,
+          "p95": 0.20725,
+          "p99": 0.215584,
+          "max": 0.222,
+          "mean": 0.176762
         },
         "branch_total_ms": {
           "n": 400,
-          "min": 0.176292,
-          "p50": 0.212875,
-          "p95": 0.24375,
-          "p99": 0.304375,
-          "max": 0.458,
-          "mean": 0.21312
+          "min": 0.186458,
+          "p50": 0.206541,
+          "p95": 0.253708,
+          "p99": 0.265,
+          "max": 0.274792,
+          "mean": 0.215014
         },
         "kernel_clonefile": {
           "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
           "iterations": 400,
           "wall_us": {
             "n": 400,
-            "min": 140.083,
-            "p50": 160.958,
-            "p95": 211.875,
-            "p99": 274.542,
-            "max": 366.125,
-            "mean": 168.795328
+            "min": 141.75,
+            "p50": 160.125,
+            "p95": 214.541,
+            "p99": 283.042,
+            "max": 391.25,
+            "mean": 170.587528
           },
           "sys_us": {
             "n": 400,
-            "min": 140.0,
-            "p50": 161.0,
-            "p95": 208.0,
-            "p99": 259.0,
-            "max": 308.0,
-            "mean": 167.945
+            "min": 141.0,
+            "p50": 160.0,
+            "p95": 214.0,
+            "p99": 277.0,
+            "max": 286.0,
+            "mean": 170.235
           },
           "user_us": {
             "n": 400,
@@ -139,108 +277,108 @@
             "p50": 1.0,
             "p95": 1.0,
             "p99": 1.0,
-            "max": 1.0,
-            "mean": 0.6225
+            "max": 6.0,
+            "mean": 0.6075
           },
-          "sys_us_per_entry_p50": 13.416667,
-          "wall_us_per_entry_p50": 13.413167,
-          "sys_share_of_wall_p50": 1.000261,
+          "sys_us_per_entry_p50": 13.333333,
+          "wall_us_per_entry_p50": 13.34375,
+          "sys_share_of_wall_p50": 0.999219,
           "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 400,
-          "min": 0.105208,
-          "p50": 0.11925,
-          "p95": 0.138084,
-          "p99": 0.164167,
-          "max": 0.212625,
-          "mean": 0.120995
+          "min": 0.104542,
+          "p50": 0.116167,
+          "p95": 0.126125,
+          "p99": 0.130875,
+          "max": 0.142417,
+          "mean": 0.116104
         },
         "commit_total_ms": {
           "n": 400,
-          "min": 0.255333,
-          "p50": 0.299833,
-          "p95": 0.337167,
-          "p99": 0.3735,
-          "max": 0.44475,
-          "mean": 0.300366
+          "min": 0.250542,
+          "p50": 0.28575,
+          "p95": 0.318875,
+          "p99": 0.334166,
+          "max": 0.346958,
+          "mean": 0.286777
         },
         "commit_caller_ms": {
           "n": 400,
-          "min": 0.310709,
-          "p50": 0.448291,
-          "p95": 0.502542,
-          "p99": 0.538458,
-          "max": 0.649791,
-          "mean": 0.447836
+          "min": 0.29775,
+          "p50": 0.413833,
+          "p95": 0.475666,
+          "p99": 0.488333,
+          "max": 0.514875,
+          "mean": 0.422597
         },
         "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 400,
-          "min": 0.072375,
-          "p50": 0.085541,
-          "p95": 0.098625,
-          "p99": 0.110083,
-          "max": 0.119959,
-          "mean": 0.084988
+          "min": 0.0725,
+          "p50": 0.080209,
+          "p95": 0.098875,
+          "p99": 0.107083,
+          "max": 0.115625,
+          "mean": 0.082361
         },
         "rollback_caller_background_ms": {
           "n": 400,
-          "min": 0.073834,
-          "p50": 0.08725,
-          "p95": 0.100875,
-          "p99": 0.111917,
-          "max": 0.122292,
-          "mean": 0.086834
+          "min": 0.074042,
+          "p50": 0.081833,
+          "p95": 0.100708,
+          "p99": 0.109291,
+          "max": 0.117334,
+          "mean": 0.084121
         },
         "rollback_background_reaper": {
           "reap_ms": {
             "n": 400,
-            "min": 0.545875,
-            "p50": 0.624125,
-            "p95": 0.687583,
-            "p99": 0.73625,
-            "max": 1.327083,
-            "mean": 0.622589
+            "min": 0.550125,
+            "p50": 0.590167,
+            "p95": 0.681084,
+            "p99": 0.693792,
+            "max": 0.804625,
+            "mean": 0.607727
           },
           "queue_wait_ms": {
             "n": 400,
-            "min": 0.002291,
-            "p50": 0.003083,
-            "p95": 0.004,
-            "p99": 0.00475,
-            "max": 0.010167,
-            "mean": 0.003154
+            "min": 0.002125,
+            "p50": 0.003125,
+            "p95": 0.003875,
+            "p99": 0.004416,
+            "max": 0.022292,
+            "mean": 0.003149
           },
           "failed": 0,
           "records_missing": 0
         },
         "rollback_sync_caller_ms": {
           "n": 400,
-          "min": 0.616792,
-          "p50": 0.710666,
-          "p95": 0.808083,
-          "p99": 0.93875,
-          "max": 1.063708,
-          "mean": 0.709625
+          "min": 0.608166,
+          "p50": 0.661666,
+          "p95": 0.767625,
+          "p99": 0.790875,
+          "max": 0.924209,
+          "mean": 0.682531
         },
         "rollback_sync_detach_ms": {
           "n": 400,
-          "min": 0.073,
-          "p50": 0.088042,
-          "p95": 0.097833,
-          "p99": 0.104791,
-          "max": 0.177333,
-          "mean": 0.087189
+          "min": 0.07275,
+          "p50": 0.085042,
+          "p95": 0.100792,
+          "p99": 0.107917,
+          "max": 0.115375,
+          "mean": 0.086036
         },
         "rollback_reclaim_ms": {
           "n": 400,
-          "min": 0.538875,
-          "p50": 0.620291,
-          "p95": 0.715625,
-          "p99": 0.841041,
-          "max": 0.968834,
-          "mean": 0.621892
+          "min": 0.534291,
+          "p50": 0.57875,
+          "p95": 0.671917,
+          "p99": 0.70025,
+          "max": 0.815625,
+          "mean": 0.59596
         },
         "pool": {
           "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
@@ -252,91 +390,91 @@
           },
           "acquire_hit_ms": {
             "n": 400,
-            "min": 0.080375,
-            "p50": 0.100166,
-            "p95": 0.113042,
-            "p99": 0.120417,
-            "max": 0.227292,
-            "mean": 0.098878
+            "min": 0.080709,
+            "p50": 0.094583,
+            "p95": 0.1145,
+            "p99": 0.118709,
+            "max": 0.122084,
+            "mean": 0.096158
           },
           "acquire_hit_rename_ms": {
             "n": 400,
-            "min": 0.076458,
-            "p50": 0.091584,
-            "p95": 0.103333,
-            "p99": 0.111375,
-            "max": 0.221584,
-            "mean": 0.091086
+            "min": 0.076334,
+            "p50": 0.088416,
+            "p95": 0.104583,
+            "p99": 0.108375,
+            "max": 0.112166,
+            "mean": 0.089156
           },
           "acquire_hit_standby_age_ms": {
             "n": 400,
-            "min": 0.665042,
-            "p50": 1.030875,
-            "p95": 1.105875,
-            "p99": 1.2255,
-            "max": 1.408,
-            "mean": 1.020879
+            "min": 0.748792,
+            "p50": 0.964709,
+            "p95": 1.112042,
+            "p99": 1.221542,
+            "max": 1.317875,
+            "mean": 0.993669
           },
           "acquire_miss_ms": {
             "n": 0
           },
           "acquire_all_ms": {
             "n": 400,
-            "min": 0.080375,
-            "p50": 0.100166,
-            "p95": 0.113042,
-            "p99": 0.120417,
-            "max": 0.227292,
-            "mean": 0.098878
+            "min": 0.080709,
+            "p50": 0.094583,
+            "p95": 0.1145,
+            "p99": 0.118709,
+            "max": 0.122084,
+            "mean": 0.096158
           },
           "hits": 400,
           "misses": 0,
           "replenish_ms": {
             "n": 400,
-            "min": 0.153916,
-            "p50": 0.18775,
-            "p95": 0.210292,
-            "p99": 0.229333,
-            "max": 0.514375,
-            "mean": 0.188325
+            "min": 0.155125,
+            "p50": 0.181167,
+            "p95": 0.213833,
+            "p99": 0.222084,
+            "max": 0.273375,
+            "mean": 0.183669
           },
           "rollback_caller_ms": {
             "n": 400,
-            "min": 0.068958,
-            "p50": 0.086708,
-            "p95": 0.096208,
-            "p99": 0.099959,
-            "max": 0.103334,
-            "mean": 0.084805
+            "min": 0.068833,
+            "p50": 0.078792,
+            "p95": 0.098208,
+            "p99": 0.10175,
+            "max": 0.115875,
+            "mean": 0.081958
           },
           "rollback_detach_ms": {
             "n": 400,
-            "min": 0.066292,
-            "p50": 0.083875,
-            "p95": 0.093333,
-            "p99": 0.097416,
-            "max": 0.100542,
-            "mean": 0.081972
+            "min": 0.06625,
+            "p50": 0.075875,
+            "p95": 0.095209,
+            "p99": 0.098292,
+            "max": 0.113209,
+            "mean": 0.079079
           },
           "rollback_while_refill_in_flight": 0,
           "background_reaper": {
             "reap_ms": {
               "n": 400,
-              "min": 0.568417,
-              "p50": 0.647417,
-              "p95": 0.697375,
-              "p99": 0.8085,
-              "max": 0.837,
-              "mean": 0.644588
+              "min": 0.565167,
+              "p50": 0.615584,
+              "p95": 0.6955,
+              "p99": 0.833292,
+              "max": 0.905583,
+              "mean": 0.627706
             },
             "queue_wait_ms": {
               "n": 400,
-              "min": 0.002167,
-              "p50": 0.0025,
-              "p95": 0.003375,
-              "p99": 0.003833,
-              "max": 0.006958,
-              "mean": 0.00272
+              "min": 0.002125,
+              "p50": 0.002917,
+              "p95": 0.003875,
+              "p99": 0.005,
+              "max": 0.021709,
+              "mean": 0.002934
             },
             "failed": 0,
             "records_missing": 0
@@ -344,59 +482,59 @@
           "acquire_after_commit": {
             "acquire_ms": {
               "n": 400,
-              "min": 0.322708,
-              "p50": 0.507541,
-              "p95": 0.682333,
-              "p99": 0.794958,
-              "max": 0.849417,
-              "mean": 0.520731
+              "min": 0.238416,
+              "p50": 0.442,
+              "p95": 0.528167,
+              "p99": 0.553625,
+              "max": 0.601875,
+              "mean": 0.445575
             },
             "sources": {
               "pool_ready": 0,
-              "pool_after_waiting_for_refill": 395,
-              "cold": 5
+              "pool_after_waiting_for_refill": 382,
+              "cold": 18
             },
-            "stale_discarded": 5,
+            "stale_discarded": 18,
             "waited_for_refill_ms": {
-              "n": 395,
-              "min": 0.286167,
-              "p50": 0.387084,
-              "p95": 0.565,
-              "p99": 0.672709,
-              "max": 0.718792,
-              "mean": 0.406059
+              "n": 382,
+              "min": 0.287667,
+              "p50": 0.334042,
+              "p95": 0.399667,
+              "p99": 0.42775,
+              "max": 0.509625,
+              "mean": 0.342613
             }
           },
           "collisions": {
             "rollback_right_after_acquire_ms": {
               "n": 200,
-              "min": 0.080459,
-              "p50": 0.194416,
-              "p95": 0.361875,
-              "p99": 0.428875,
-              "max": 0.442083,
-              "mean": 0.214503
+              "min": 0.075584,
+              "p50": 0.186583,
+              "p95": 0.208125,
+              "p99": 0.230584,
+              "max": 0.251166,
+              "mean": 0.184226
             },
             "commit_right_after_acquire_ms": {
               "n": 200,
-              "min": 0.394291,
-              "p50": 0.550167,
-              "p95": 0.687333,
-              "p99": 0.809208,
-              "max": 0.847875,
-              "mean": 0.558336
+              "min": 0.380041,
+              "p50": 0.529083,
+              "p95": 0.587834,
+              "p99": 0.655875,
+              "max": 0.931125,
+              "mean": 0.528992
             }
           },
           "counters": {
-            "hits": 1600,
-            "misses": 5,
-            "stale_discards": 417,
-            "replenished": 2018,
-            "replenish_races": 183,
+            "hits": 1587,
+            "misses": 18,
+            "stale_discards": 411,
+            "replenished": 1999,
+            "replenish_races": 189,
             "replenish_failures": 0,
-            "fs_events": 420,
-            "fs_events_ignored": 1008,
-            "invalidations": 1017,
+            "fs_events": 414,
+            "fs_events_ignored": 991,
+            "invalidations": 1011,
             "watching_fs_events": true,
             "last_error": null
           }
@@ -473,151 +611,151 @@
         "collision_iterations": 150,
         "clonefile_ms": {
           "n": 300,
-          "min": 0.854625,
-          "p50": 1.01375,
-          "p95": 1.198625,
-          "p99": 1.265875,
-          "max": 1.424708,
-          "mean": 1.022234
+          "min": 0.887333,
+          "p50": 1.001125,
+          "p95": 1.167208,
+          "p99": 1.196667,
+          "max": 1.483041,
+          "mean": 1.020893
         },
         "branch_total_ms": {
           "n": 300,
-          "min": 0.888125,
-          "p50": 1.058292,
-          "p95": 1.235,
-          "p99": 1.33475,
-          "max": 1.478541,
-          "mean": 1.065757
+          "min": 0.924458,
+          "p50": 1.045167,
+          "p95": 1.213,
+          "p99": 1.2475,
+          "max": 1.527708,
+          "mean": 1.065042
         },
         "kernel_clonefile": {
           "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
           "iterations": 300,
           "wall_us": {
             "n": 300,
-            "min": 851.166,
-            "p50": 1093.167,
-            "p95": 2037.375,
-            "p99": 2403.125,
-            "max": 2715.25,
-            "mean": 1203.533593
+            "min": 842.625,
+            "p50": 998.083,
+            "p95": 1136.625,
+            "p99": 1294.209,
+            "max": 1405.166,
+            "mean": 1010.988383
           },
           "sys_us": {
             "n": 300,
-            "min": 852.0,
-            "p50": 1091.0,
-            "p95": 1865.0,
-            "p99": 2199.0,
-            "max": 2588.0,
-            "mean": 1172.84
+            "min": 843.0,
+            "p50": 999.0,
+            "p95": 1133.0,
+            "p99": 1274.0,
+            "max": 1393.0,
+            "mean": 1009.31
           },
           "user_us": {
             "n": 300,
             "min": 0.0,
             "p50": 1.0,
-            "p95": 2.0,
-            "p99": 3.0,
-            "max": 5.0,
-            "mean": 0.77
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 6.0,
+            "mean": 0.65
           },
-          "sys_us_per_entry_p50": 7.905797,
-          "wall_us_per_entry_p50": 7.9215,
-          "sys_share_of_wall_p50": 0.998018,
+          "sys_us_per_entry_p50": 7.23913,
+          "wall_us_per_entry_p50": 7.232486,
+          "sys_share_of_wall_p50": 1.000919,
           "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 300,
-          "min": 0.110167,
-          "p50": 0.129625,
-          "p95": 0.150958,
-          "p99": 0.170791,
-          "max": 0.309834,
-          "mean": 0.131928
+          "min": 0.111792,
+          "p50": 0.126084,
+          "p95": 0.133458,
+          "p99": 0.139125,
+          "max": 0.161917,
+          "mean": 0.125741
         },
         "commit_total_ms": {
           "n": 300,
-          "min": 0.264958,
-          "p50": 0.317459,
-          "p95": 0.369875,
-          "p99": 0.493,
-          "max": 0.818792,
-          "mean": 0.32218
+          "min": 0.271125,
+          "p50": 0.303792,
+          "p95": 0.329916,
+          "p99": 0.339166,
+          "max": 0.382584,
+          "mean": 0.303872
         },
         "commit_caller_ms": {
           "n": 300,
-          "min": 0.344917,
-          "p50": 0.465042,
-          "p95": 0.536834,
-          "p99": 0.666791,
-          "max": 1.337,
-          "mean": 0.470771
+          "min": 0.313792,
+          "p50": 0.444291,
+          "p95": 0.480917,
+          "p99": 0.499208,
+          "max": 0.568333,
+          "mean": 0.441335
         },
         "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 300,
-          "min": 0.076625,
+          "min": 0.075041,
           "p50": 0.091375,
-          "p95": 0.103459,
-          "p99": 0.124334,
-          "max": 0.132292,
-          "mean": 0.091101
+          "p95": 0.1005,
+          "p99": 0.109167,
+          "max": 0.136,
+          "mean": 0.090581
         },
         "rollback_caller_background_ms": {
           "n": 300,
-          "min": 0.078625,
-          "p50": 0.093292,
-          "p95": 0.106417,
-          "p99": 0.128916,
-          "max": 0.135792,
-          "mean": 0.093165
+          "min": 0.076917,
+          "p50": 0.093334,
+          "p95": 0.102417,
+          "p99": 0.111166,
+          "max": 0.138208,
+          "mean": 0.092534
         },
         "rollback_background_reaper": {
           "reap_ms": {
             "n": 300,
-            "min": 4.2325,
-            "p50": 4.813958,
-            "p95": 5.45175,
-            "p99": 7.138125,
-            "max": 9.309708,
-            "mean": 4.882979
+            "min": 4.591542,
+            "p50": 4.797083,
+            "p95": 5.017041,
+            "p99": 5.1415,
+            "max": 5.168583,
+            "mean": 4.810761
           },
           "queue_wait_ms": {
             "n": 300,
-            "min": 0.002542,
-            "p50": 0.00325,
-            "p95": 0.0045,
-            "p99": 0.008541,
-            "max": 0.091959,
-            "mean": 0.003775
+            "min": 0.002417,
+            "p50": 0.003083,
+            "p95": 0.004166,
+            "p99": 0.005459,
+            "max": 0.008666,
+            "mean": 0.003208
           },
           "failed": 0,
           "records_missing": 0
         },
         "rollback_sync_caller_ms": {
           "n": 300,
-          "min": 4.310459,
-          "p50": 5.0825,
-          "p95": 6.598833,
-          "p99": 7.668208,
-          "max": 25.276292,
-          "mean": 5.291567
+          "min": 4.608334,
+          "p50": 4.919917,
+          "p95": 5.182833,
+          "p99": 5.529417,
+          "max": 16.194458,
+          "mean": 4.968013
         },
         "rollback_sync_detach_ms": {
           "n": 300,
-          "min": 0.076334,
-          "p50": 0.091958,
-          "p95": 0.116666,
-          "p99": 0.302834,
-          "max": 0.497584,
-          "mean": 0.09704
+          "min": 0.075083,
+          "p50": 0.092083,
+          "p95": 0.101708,
+          "p99": 0.106833,
+          "max": 0.229625,
+          "mean": 0.091548
         },
         "rollback_reclaim_ms": {
           "n": 300,
-          "min": 4.221708,
-          "p50": 4.982417,
-          "p95": 6.252209,
-          "p99": 7.465083,
-          "max": 25.166958,
-          "mean": 5.193687
+          "min": 4.519,
+          "p50": 4.826,
+          "p95": 5.101125,
+          "p99": 5.437584,
+          "max": 16.114458,
+          "mean": 4.875754
         },
         "pool": {
           "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
@@ -629,91 +767,91 @@
           },
           "acquire_hit_ms": {
             "n": 300,
-            "min": 0.085583,
-            "p50": 0.107375,
-            "p95": 0.131791,
-            "p99": 0.166958,
-            "max": 0.274,
-            "mean": 0.108445
+            "min": 0.086375,
+            "p50": 0.105042,
+            "p95": 0.118875,
+            "p99": 0.123458,
+            "max": 0.135625,
+            "mean": 0.104802
           },
           "acquire_hit_rename_ms": {
             "n": 300,
-            "min": 0.079833,
-            "p50": 0.097208,
-            "p95": 0.117,
-            "p99": 0.13,
-            "max": 0.242,
-            "mean": 0.09816
+            "min": 0.080708,
+            "p50": 0.095041,
+            "p95": 0.107292,
+            "p99": 0.111833,
+            "max": 0.122625,
+            "mean": 0.095299
           },
           "acquire_hit_standby_age_ms": {
             "n": 300,
-            "min": 5.37775,
-            "p50": 6.389917,
-            "p95": 7.491458,
-            "p99": 8.882792,
-            "max": 14.3535,
-            "mean": 6.510122
+            "min": 5.232125,
+            "p50": 6.134708,
+            "p95": 6.357584,
+            "p99": 6.518417,
+            "max": 7.955167,
+            "mean": 6.128741
           },
           "acquire_miss_ms": {
             "n": 0
           },
           "acquire_all_ms": {
             "n": 300,
-            "min": 0.085583,
-            "p50": 0.107375,
-            "p95": 0.131791,
-            "p99": 0.166958,
-            "max": 0.274,
-            "mean": 0.108445
+            "min": 0.086375,
+            "p50": 0.105042,
+            "p95": 0.118875,
+            "p99": 0.123458,
+            "max": 0.135625,
+            "mean": 0.104802
           },
           "hits": 300,
           "misses": 0,
           "replenish_ms": {
             "n": 300,
-            "min": 0.868083,
-            "p50": 1.116791,
-            "p95": 1.365667,
-            "p99": 1.623291,
-            "max": 2.801291,
-            "mean": 1.135093
+            "min": 0.882166,
+            "p50": 1.023125,
+            "p95": 1.167125,
+            "p99": 1.357292,
+            "max": 2.215917,
+            "mean": 1.032163
           },
           "rollback_caller_ms": {
             "n": 300,
-            "min": 0.075292,
-            "p50": 0.088333,
-            "p95": 0.108083,
-            "p99": 0.146958,
-            "max": 0.3915,
-            "mean": 0.091127
+            "min": 0.07425,
+            "p50": 0.08925,
+            "p95": 0.097792,
+            "p99": 0.104834,
+            "max": 0.236541,
+            "mean": 0.088384
           },
           "rollback_detach_ms": {
             "n": 300,
-            "min": 0.071958,
-            "p50": 0.084666,
-            "p95": 0.103667,
-            "p99": 0.142792,
-            "max": 0.382959,
-            "mean": 0.087663
+            "min": 0.071417,
+            "p50": 0.08625,
+            "p95": 0.0945,
+            "p99": 0.09975,
+            "max": 0.233292,
+            "mean": 0.085305
           },
           "rollback_while_refill_in_flight": 0,
           "background_reaper": {
             "reap_ms": {
               "n": 300,
-              "min": 4.315834,
-              "p50": 5.053166,
-              "p95": 6.016042,
-              "p99": 7.293667,
-              "max": 12.923458,
-              "mean": 5.171309
+              "min": 4.498958,
+              "p50": 4.915833,
+              "p95": 5.121209,
+              "p99": 5.19925,
+              "max": 5.545333,
+              "mean": 4.901443
             },
             "queue_wait_ms": {
               "n": 300,
-              "min": 0.002459,
-              "p50": 0.003541,
-              "p95": 0.007041,
-              "p99": 0.03875,
-              "max": 0.148166,
-              "mean": 0.005031
+              "min": 0.002375,
+              "p50": 0.00325,
+              "p95": 0.004625,
+              "p99": 0.0075,
+              "max": 0.029,
+              "mean": 0.003576
             },
             "failed": 0,
             "records_missing": 0
@@ -721,59 +859,59 @@
           "acquire_after_commit": {
             "acquire_ms": {
               "n": 300,
-              "min": 1.125209,
-              "p50": 1.699875,
-              "p95": 2.33525,
-              "p99": 2.890959,
-              "max": 8.237833,
-              "mean": 1.778101
+              "min": 1.227584,
+              "p50": 1.41775,
+              "p95": 1.691,
+              "p99": 1.797583,
+              "max": 3.285834,
+              "mean": 1.451054
             },
             "sources": {
               "pool_ready": 0,
-              "pool_after_waiting_for_refill": 155,
-              "cold": 145
+              "pool_after_waiting_for_refill": 92,
+              "cold": 208
             },
-            "stale_discarded": 145,
+            "stale_discarded": 208,
             "waited_for_refill_ms": {
-              "n": 155,
-              "min": 1.283542,
-              "p50": 1.69475,
-              "p95": 2.356208,
-              "p99": 2.828667,
-              "max": 8.13375,
-              "mean": 1.80851
+              "n": 92,
+              "min": 1.314875,
+              "p50": 1.457792,
+              "p95": 1.659542,
+              "p99": 1.790416,
+              "max": 1.790416,
+              "mean": 1.479484
             }
           },
           "collisions": {
             "rollback_right_after_acquire_ms": {
               "n": 150,
-              "min": 0.125708,
-              "p50": 1.288583,
-              "p95": 2.063583,
-              "p99": 2.54125,
-              "max": 2.578542,
-              "mean": 1.376123
+              "min": 0.906959,
+              "p50": 1.088791,
+              "p95": 1.253625,
+              "p99": 1.415042,
+              "max": 1.496917,
+              "mean": 1.099733
             },
             "commit_right_after_acquire_ms": {
               "n": 150,
-              "min": 1.207375,
-              "p50": 1.642916,
-              "p95": 2.466375,
-              "p99": 2.733375,
-              "max": 3.052709,
-              "mean": 1.720637
+              "min": 1.218292,
+              "p50": 1.404958,
+              "p95": 1.606333,
+              "p99": 1.701042,
+              "max": 2.108917,
+              "mean": 1.414608
             }
           },
           "counters": {
-            "hits": 1060,
-            "misses": 145,
-            "stale_discards": 343,
-            "replenished": 1404,
-            "replenish_races": 107,
+            "hits": 997,
+            "misses": 208,
+            "stale_discards": 372,
+            "replenished": 1370,
+            "replenish_races": 78,
             "replenish_failures": 0,
-            "fs_events": 342,
-            "fs_events_ignored": 1531,
-            "invalidations": 792,
+            "fs_events": 372,
+            "fs_events_ignored": 1429,
+            "invalidations": 822,
             "watching_fs_events": true,
             "last_error": null
           }
@@ -850,151 +988,151 @@
         "collision_iterations": 30,
         "clonefile_ms": {
           "n": 60,
-          "min": 6.113583,
-          "p50": 7.7285,
-          "p95": 11.302125,
-          "p99": 13.607458,
-          "max": 13.607458,
-          "mean": 8.475188
+          "min": 6.355458,
+          "p50": 7.459375,
+          "p95": 8.259667,
+          "p99": 8.908084,
+          "max": 8.908084,
+          "mean": 7.480988
         },
         "branch_total_ms": {
           "n": 60,
-          "min": 6.160375,
-          "p50": 7.788416,
-          "p95": 11.374333,
-          "p99": 13.666292,
-          "max": 13.666292,
-          "mean": 8.53271
+          "min": 6.399917,
+          "p50": 7.52075,
+          "p95": 8.315834,
+          "p99": 8.961459,
+          "max": 8.961459,
+          "mean": 7.536697
         },
         "kernel_clonefile": {
           "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
           "iterations": 60,
           "wall_us": {
             "n": 60,
-            "min": 6400.792,
-            "p50": 8917.417,
-            "p95": 12768.5,
-            "p99": 14670.5,
-            "max": 14670.5,
-            "mean": 9271.01595
+            "min": 5793.583,
+            "p50": 6378.458,
+            "p95": 7387.125,
+            "p99": 8696.208,
+            "max": 8696.208,
+            "mean": 6518.973617
           },
           "sys_us": {
             "n": 60,
-            "min": 6401.0,
-            "p50": 8856.0,
-            "p95": 12685.0,
-            "p99": 14456.0,
-            "max": 14456.0,
-            "mean": 9171.766667
+            "min": 5794.0,
+            "p50": 6368.0,
+            "p95": 7387.0,
+            "p99": 8510.0,
+            "max": 8510.0,
+            "mean": 6500.183333
           },
           "user_us": {
             "n": 60,
-            "min": 1.0,
-            "p50": 2.0,
-            "p95": 5.0,
-            "p99": 6.0,
-            "max": 6.0,
-            "mean": 2.483333
+            "min": 0.0,
+            "p50": 1.0,
+            "p95": 2.0,
+            "p99": 2.0,
+            "max": 2.0,
+            "mean": 1.133333
           },
-          "sys_us_per_entry_p50": 8.37051,
-          "wall_us_per_entry_p50": 8.42856,
-          "sys_share_of_wall_p50": 0.993113,
+          "sys_us_per_entry_p50": 6.018904,
+          "wall_us_per_entry_p50": 6.028788,
+          "sys_share_of_wall_p50": 0.99836,
           "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 60,
-          "min": 0.12025,
-          "p50": 0.142334,
-          "p95": 0.173208,
-          "p99": 0.389042,
-          "max": 0.389042,
-          "mean": 0.149806
+          "min": 0.1225,
+          "p50": 0.133292,
+          "p95": 0.145167,
+          "p99": 0.156208,
+          "max": 0.156208,
+          "mean": 0.13494
         },
         "commit_total_ms": {
           "n": 60,
-          "min": 0.292667,
-          "p50": 0.340167,
-          "p95": 0.442833,
-          "p99": 0.994875,
-          "max": 0.994875,
-          "mean": 0.362656
+          "min": 0.293583,
+          "p50": 0.321917,
+          "p95": 0.345208,
+          "p99": 0.42875,
+          "max": 0.42875,
+          "mean": 0.326093
         },
         "commit_caller_ms": {
           "n": 60,
-          "min": 0.342792,
-          "p50": 0.498708,
-          "p95": 0.628667,
-          "p99": 1.35025,
-          "max": 1.35025,
-          "mean": 0.51752
+          "min": 0.335916,
+          "p50": 0.458166,
+          "p95": 0.510042,
+          "p99": 0.62625,
+          "max": 0.62625,
+          "mean": 0.4608
         },
         "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 60,
-          "min": 0.082417,
-          "p50": 0.09625,
-          "p95": 0.161416,
-          "p99": 0.50825,
-          "max": 0.50825,
-          "mean": 0.113002
+          "min": 0.085083,
+          "p50": 0.096209,
+          "p95": 0.114167,
+          "p99": 0.122083,
+          "max": 0.122083,
+          "mean": 0.097785
         },
         "rollback_caller_background_ms": {
           "n": 60,
-          "min": 0.084917,
-          "p50": 0.099542,
-          "p95": 0.167625,
-          "p99": 0.511875,
-          "max": 0.511875,
-          "mean": 0.116646
+          "min": 0.088417,
+          "p50": 0.099167,
+          "p95": 0.117,
+          "p99": 0.125625,
+          "max": 0.125625,
+          "mean": 0.10098
         },
         "rollback_background_reaper": {
           "reap_ms": {
             "n": 60,
-            "min": 32.990417,
-            "p50": 36.197375,
-            "p95": 39.977583,
-            "p99": 74.460167,
-            "max": 74.460167,
-            "mean": 37.151234
+            "min": 32.979667,
+            "p50": 36.653417,
+            "p95": 40.440209,
+            "p99": 40.995125,
+            "max": 40.995125,
+            "mean": 36.934456
           },
           "queue_wait_ms": {
             "n": 60,
-            "min": 0.004291,
-            "p50": 0.006333,
-            "p95": 0.008167,
-            "p99": 0.010042,
-            "max": 0.010042,
-            "mean": 0.006403
+            "min": 0.003916,
+            "p50": 0.00525,
+            "p95": 0.00675,
+            "p99": 0.009625,
+            "max": 0.009625,
+            "mean": 0.005489
           },
           "failed": 0,
           "records_missing": 0
         },
         "rollback_sync_caller_ms": {
           "n": 60,
-          "min": 32.585875,
-          "p50": 36.277667,
-          "p95": 40.883625,
-          "p99": 45.623042,
-          "max": 45.623042,
-          "mean": 36.79216
+          "min": 34.988667,
+          "p50": 36.162708,
+          "p95": 38.123667,
+          "p99": 44.914958,
+          "max": 44.914958,
+          "mean": 36.489992
         },
         "rollback_sync_detach_ms": {
           "n": 60,
-          "min": 0.082625,
-          "p50": 0.092041,
-          "p95": 0.113625,
-          "p99": 0.259541,
-          "max": 0.259541,
-          "mean": 0.097059
+          "min": 0.086667,
+          "p50": 0.095917,
+          "p95": 0.109166,
+          "p99": 0.142709,
+          "max": 0.142709,
+          "mean": 0.097574
         },
         "rollback_reclaim_ms": {
           "n": 60,
-          "min": 32.47725,
-          "p50": 36.161708,
-          "p95": 40.78775,
-          "p99": 45.522417,
-          "max": 45.522417,
-          "mean": 36.693751
+          "min": 34.897459,
+          "p50": 36.073042,
+          "p95": 37.979,
+          "p99": 44.812125,
+          "max": 44.812125,
+          "mean": 36.391071
         },
         "pool": {
           "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
@@ -1006,91 +1144,91 @@
           },
           "acquire_hit_ms": {
             "n": 60,
-            "min": 0.098375,
-            "p50": 0.146541,
-            "p95": 0.179417,
-            "p99": 0.227958,
-            "max": 0.227958,
-            "mean": 0.147348
+            "min": 0.104417,
+            "p50": 0.120417,
+            "p95": 0.147083,
+            "p99": 0.165208,
+            "max": 0.165208,
+            "mean": 0.123106
           },
           "acquire_hit_rename_ms": {
             "n": 60,
-            "min": 0.090208,
-            "p50": 0.125334,
-            "p95": 0.150917,
-            "p99": 0.2085,
-            "max": 0.2085,
-            "mean": 0.126067
+            "min": 0.092458,
+            "p50": 0.106209,
+            "p95": 0.1295,
+            "p99": 0.14025,
+            "max": 0.14025,
+            "mean": 0.108591
           },
           "acquire_hit_standby_age_ms": {
             "n": 60,
-            "min": 40.568708,
-            "p50": 47.173042,
-            "p95": 80.296833,
-            "p99": 429.407875,
-            "max": 429.407875,
-            "mean": 55.905144
+            "min": 38.871,
+            "p50": 43.498167,
+            "p95": 45.69675,
+            "p99": 62.226333,
+            "max": 62.226333,
+            "mean": 43.830344
           },
           "acquire_miss_ms": {
             "n": 0
           },
           "acquire_all_ms": {
             "n": 60,
-            "min": 0.098375,
-            "p50": 0.146541,
-            "p95": 0.179417,
-            "p99": 0.227958,
-            "max": 0.227958,
-            "mean": 0.147348
+            "min": 0.104417,
+            "p50": 0.120417,
+            "p95": 0.147083,
+            "p99": 0.165208,
+            "max": 0.165208,
+            "mean": 0.123106
           },
           "hits": 60,
           "misses": 0,
           "replenish_ms": {
             "n": 60,
-            "min": 6.637542,
-            "p50": 7.943417,
-            "p95": 9.945333,
-            "p99": 10.560292,
-            "max": 10.560292,
-            "mean": 8.222749
+            "min": 6.356833,
+            "p50": 6.817041,
+            "p95": 7.674667,
+            "p99": 8.063709,
+            "max": 8.063709,
+            "mean": 6.914939
           },
           "rollback_caller_ms": {
             "n": 60,
-            "min": 0.086542,
-            "p50": 0.113042,
-            "p95": 0.193667,
-            "p99": 0.409041,
-            "max": 0.409041,
-            "mean": 0.125003
+            "min": 0.079375,
+            "p50": 0.090875,
+            "p95": 0.115292,
+            "p99": 0.151459,
+            "max": 0.151459,
+            "mean": 0.093099
           },
           "rollback_detach_ms": {
             "n": 60,
-            "min": 0.082791,
-            "p50": 0.1065,
-            "p95": 0.179333,
-            "p99": 0.383,
-            "max": 0.383,
-            "mean": 0.117261
+            "min": 0.075458,
+            "p50": 0.085459,
+            "p95": 0.108167,
+            "p99": 0.144167,
+            "max": 0.144167,
+            "mean": 0.088372
           },
           "rollback_while_refill_in_flight": 0,
           "background_reaper": {
             "reap_ms": {
               "n": 60,
-              "min": 33.287042,
-              "p50": 38.497791,
-              "p95": 69.912416,
-              "p99": 421.193625,
-              "max": 421.193625,
-              "mean": 47.46469
+              "min": 35.316417,
+              "p50": 36.306208,
+              "p95": 37.739708,
+              "p99": 54.759833,
+              "max": 54.759833,
+              "mean": 36.767151
             },
             "queue_wait_ms": {
               "n": 60,
-              "min": 0.003667,
-              "p50": 0.0055,
-              "p95": 0.01625,
-              "p99": 0.043417,
-              "max": 0.043417,
-              "mean": 0.006972
+              "min": 0.0035,
+              "p50": 0.004333,
+              "p95": 0.006625,
+              "p99": 0.01325,
+              "max": 0.01325,
+              "mean": 0.004749
             },
             "failed": 0,
             "records_missing": 0
@@ -1098,59 +1236,59 @@
           "acquire_after_commit": {
             "acquire_ms": {
               "n": 60,
-              "min": 9.720042,
-              "p50": 10.820125,
-              "p95": 15.167667,
-              "p99": 20.048834,
-              "max": 20.048834,
-              "mean": 11.377226
+              "min": 9.209583,
+              "p50": 10.058125,
+              "p95": 10.886542,
+              "p99": 16.646583,
+              "max": 16.646583,
+              "mean": 10.184484
             },
             "sources": {
               "pool_ready": 0,
-              "pool_after_waiting_for_refill": 59,
-              "cold": 1
+              "pool_after_waiting_for_refill": 60,
+              "cold": 0
             },
-            "stale_discarded": 1,
+            "stale_discarded": 0,
             "waited_for_refill_ms": {
-              "n": 59,
-              "min": 9.602042,
-              "p50": 10.704792,
-              "p95": 16.216375,
-              "p99": 19.6525,
-              "max": 19.6525,
-              "mean": 11.248094
+              "n": 60,
+              "min": 9.094541,
+              "p50": 9.938334,
+              "p95": 10.756958,
+              "p99": 16.525458,
+              "max": 16.525458,
+              "mean": 10.058673
             }
           },
           "collisions": {
             "rollback_right_after_acquire_ms": {
               "n": 30,
-              "min": 7.139,
-              "p50": 9.647708,
-              "p95": 11.457375,
-              "p99": 12.700792,
-              "max": 12.700792,
-              "mean": 9.732
+              "min": 6.463667,
+              "p50": 7.515958,
+              "p95": 8.444209,
+              "p99": 8.958542,
+              "max": 8.958542,
+              "mean": 7.579404
             },
             "commit_right_after_acquire_ms": {
               "n": 30,
-              "min": 7.661625,
-              "p50": 9.698292,
-              "p95": 11.97975,
-              "p99": 12.248,
-              "max": 12.248,
-              "mean": 9.721875
+              "min": 6.900958,
+              "p50": 7.739875,
+              "p95": 8.82825,
+              "p99": 15.179709,
+              "max": 15.179709,
+              "mean": 8.021969
             }
           },
           "counters": {
-            "hits": 244,
-            "misses": 1,
-            "stale_discards": 61,
+            "hits": 245,
+            "misses": 0,
+            "stale_discards": 60,
             "replenished": 306,
-            "replenish_races": 29,
+            "replenish_races": 30,
             "replenish_failures": 0,
-            "fs_events": 61,
-            "fs_events_ignored": 457,
-            "invalidations": 151,
+            "fs_events": 60,
+            "fs_events_ignored": 456,
+            "invalidations": 150,
             "watching_fs_events": true,
             "last_error": null
           }
@@ -1219,50 +1357,50 @@
       },
       {
         "name": "aegisflow_src",
-        "files": 108,
+        "files": 111,
         "dirs": 51,
-        "entries": 159,
-        "bytes": 5520493,
+        "entries": 162,
+        "bytes": 5588034,
         "iterations": 200,
         "collision_iterations": 100,
         "clonefile_ms": {
           "n": 200,
-          "min": 1.073208,
-          "p50": 1.337625,
-          "p95": 2.061375,
-          "p99": 2.387542,
-          "max": 3.076833,
-          "mean": 1.473414
+          "min": 1.114583,
+          "p50": 1.263917,
+          "p95": 1.447958,
+          "p99": 1.535625,
+          "max": 1.729625,
+          "mean": 1.278289
         },
         "branch_total_ms": {
           "n": 200,
-          "min": 1.106042,
-          "p50": 1.377209,
-          "p95": 2.106292,
-          "p99": 2.423708,
-          "max": 3.114834,
-          "mean": 1.514102
+          "min": 1.151083,
+          "p50": 1.306166,
+          "p95": 1.506125,
+          "p99": 1.581667,
+          "max": 1.776792,
+          "mean": 1.32119
         },
         "kernel_clonefile": {
           "method": "getrusage(RUSAGE_SELF) ru_stime/ru_utime delta around one clonefile(CLONE_NOFOLLOW|CLONE_NOOWNERCOPY) of the live tree; no pool, reaper idle, CoreML not loaded",
           "iterations": 200,
           "wall_us": {
             "n": 200,
-            "min": 1064.75,
-            "p50": 1485.041,
-            "p95": 2226.917,
-            "p99": 2572.291,
-            "max": 2718.75,
-            "mean": 1556.19276
+            "min": 1070.125,
+            "p50": 1231.958,
+            "p95": 1416.084,
+            "p99": 1485.042,
+            "max": 1578.708,
+            "mean": 1243.90828
           },
           "sys_us": {
             "n": 200,
-            "min": 1065.0,
-            "p50": 1458.0,
-            "p95": 2185.0,
-            "p99": 2475.0,
-            "max": 2683.0,
-            "mean": 1530.91
+            "min": 1070.0,
+            "p50": 1231.0,
+            "p95": 1411.0,
+            "p99": 1480.0,
+            "max": 1570.0,
+            "mean": 1242.345
           },
           "user_us": {
             "n": 200,
@@ -1271,107 +1409,107 @@
             "p95": 1.0,
             "p99": 2.0,
             "max": 2.0,
-            "mean": 0.79
+            "mean": 0.83
           },
-          "sys_us_per_entry_p50": 9.169811,
-          "wall_us_per_entry_p50": 9.339881,
-          "sys_share_of_wall_p50": 0.981791,
+          "sys_us_per_entry_p50": 7.598765,
+          "wall_us_per_entry_p50": 7.604679,
+          "sys_share_of_wall_p50": 0.999222,
           "sys_zero_samples": 0
         },
         "renameatx_swap_ms": {
           "n": 200,
-          "min": 0.112875,
-          "p50": 0.127208,
-          "p95": 0.145167,
-          "p99": 0.163459,
-          "max": 0.208791,
-          "mean": 0.129112
+          "min": 0.111667,
+          "p50": 0.127791,
+          "p95": 0.145584,
+          "p99": 0.157042,
+          "max": 0.162125,
+          "mean": 0.129004
         },
         "commit_total_ms": {
           "n": 200,
-          "min": 0.27075,
-          "p50": 0.314208,
-          "p95": 0.355625,
-          "p99": 0.423708,
-          "max": 2.638208,
-          "mean": 0.327821
+          "min": 0.271542,
+          "p50": 0.309833,
+          "p95": 0.364209,
+          "p99": 0.401125,
+          "max": 0.433792,
+          "mean": 0.314872
         },
         "commit_caller_ms": {
           "n": 200,
-          "min": 0.382,
-          "p50": 0.459625,
-          "p95": 0.521625,
-          "p99": 0.578208,
-          "max": 2.795042,
-          "mean": 0.47353
+          "min": 0.369417,
+          "p50": 0.449791,
+          "p95": 0.531916,
+          "p99": 0.600333,
+          "max": 0.660375,
+          "mean": 0.456921
         },
         "commit_while_refill_in_flight": 0,
         "rollback_detach_ms": {
           "n": 200,
-          "min": 0.076791,
-          "p50": 0.087542,
-          "p95": 0.099458,
-          "p99": 0.10525,
-          "max": 0.108041,
-          "mean": 0.088544
+          "min": 0.078083,
+          "p50": 0.086667,
+          "p95": 0.100333,
+          "p99": 0.105375,
+          "max": 0.107917,
+          "mean": 0.089146
         },
         "rollback_caller_background_ms": {
           "n": 200,
-          "min": 0.078542,
-          "p50": 0.089583,
-          "p95": 0.101375,
-          "p99": 0.107209,
-          "max": 0.110125,
-          "mean": 0.090563
+          "min": 0.079958,
+          "p50": 0.089125,
+          "p95": 0.1025,
+          "p99": 0.107625,
+          "max": 0.109917,
+          "mean": 0.09147
         },
         "rollback_background_reaper": {
           "reap_ms": {
             "n": 200,
-            "min": 6.999875,
-            "p50": 7.481417,
-            "p95": 7.795875,
-            "p99": 8.355291,
-            "max": 21.536333,
-            "mean": 7.582207
+            "min": 6.904,
+            "p50": 7.485583,
+            "p95": 7.855292,
+            "p99": 8.129917,
+            "max": 17.322833,
+            "mean": 7.546612
           },
           "queue_wait_ms": {
             "n": 200,
-            "min": 0.002583,
+            "min": 0.002625,
             "p50": 0.003208,
-            "p95": 0.004458,
-            "p99": 0.006375,
-            "max": 0.007583,
-            "mean": 0.003369
+            "p95": 0.004292,
+            "p99": 0.005167,
+            "max": 0.005542,
+            "mean": 0.003325
           },
           "failed": 0,
           "records_missing": 0
         },
         "rollback_sync_caller_ms": {
           "n": 200,
-          "min": 7.167542,
-          "p50": 7.704125,
-          "p95": 8.097584,
-          "p99": 8.287584,
-          "max": 25.165708,
-          "mean": 7.792868
+          "min": 7.067417,
+          "p50": 7.835458,
+          "p95": 9.03375,
+          "p99": 9.983084,
+          "max": 11.198292,
+          "mean": 8.041326
         },
         "rollback_sync_detach_ms": {
           "n": 200,
-          "min": 0.076834,
-          "p50": 0.090084,
-          "p95": 0.102208,
-          "p99": 0.107833,
-          "max": 0.138875,
-          "mean": 0.089843
+          "min": 0.078958,
+          "p50": 0.094083,
+          "p95": 0.117792,
+          "p99": 0.139708,
+          "max": 0.176084,
+          "mean": 0.095531
         },
         "rollback_reclaim_ms": {
           "n": 200,
-          "min": 7.069333,
-          "p50": 7.61675,
-          "p95": 8.018625,
-          "p99": 8.197958,
-          "max": 25.08025,
-          "mean": 7.702442
+          "min": 6.9775,
+          "p50": 7.739958,
+          "p95": 8.931333,
+          "p99": 9.888833,
+          "max": 11.100334,
+          "mean": 7.944787
         },
         "pool": {
           "method": "idle pool at the start of every timed call: settle (wait_ready + wait_reaped) before each timed acquire, then edit, wait_ready, and the timed rollback (refill finished, reaper idle); 5 warm-up acquires first. Contended cases are measured separately: acquire_after_commit and collisions",
@@ -1383,91 +1521,91 @@
           },
           "acquire_hit_ms": {
             "n": 200,
-            "min": 0.087709,
-            "p50": 0.105208,
-            "p95": 0.127458,
-            "p99": 0.14025,
-            "max": 1.367417,
-            "mean": 0.113718
+            "min": 0.087125,
+            "p50": 0.108667,
+            "p95": 0.129625,
+            "p99": 0.138042,
+            "max": 2.305791,
+            "mean": 0.120065
           },
           "acquire_hit_rename_ms": {
             "n": 200,
-            "min": 0.081959,
-            "p50": 0.095625,
-            "p95": 0.113333,
-            "p99": 0.127292,
-            "max": 1.357916,
-            "mean": 0.104203
+            "min": 0.081167,
+            "p50": 0.099125,
+            "p95": 0.118,
+            "p99": 0.126083,
+            "max": 2.297708,
+            "mean": 0.110905
           },
           "acquire_hit_standby_age_ms": {
             "n": 200,
-            "min": 8.211,
-            "p50": 9.680209,
-            "p95": 11.404458,
-            "p99": 15.839375,
-            "max": 19.453625,
-            "mean": 9.941603
+            "min": 7.8955,
+            "p50": 9.344292,
+            "p95": 10.623458,
+            "p99": 12.164459,
+            "max": 16.591708,
+            "mean": 9.670118
           },
           "acquire_miss_ms": {
             "n": 0
           },
           "acquire_all_ms": {
             "n": 200,
-            "min": 0.087709,
-            "p50": 0.105208,
-            "p95": 0.127458,
-            "p99": 0.14025,
-            "max": 1.367417,
-            "mean": 0.113718
+            "min": 0.087125,
+            "p50": 0.108667,
+            "p95": 0.129625,
+            "p99": 0.138042,
+            "max": 2.305791,
+            "mean": 0.120065
           },
           "hits": 200,
           "misses": 0,
           "replenish_ms": {
             "n": 200,
-            "min": 1.084125,
-            "p50": 1.468292,
-            "p95": 2.598042,
-            "p99": 3.155791,
-            "max": 3.291416,
-            "mean": 1.64347
+            "min": 1.112167,
+            "p50": 1.324417,
+            "p95": 1.553625,
+            "p99": 1.711,
+            "max": 6.214667,
+            "mean": 1.364632
           },
           "rollback_caller_ms": {
             "n": 200,
-            "min": 0.075959,
-            "p50": 0.08975,
-            "p95": 0.10525,
-            "p99": 0.122375,
-            "max": 0.239083,
-            "mean": 0.090615
+            "min": 0.077334,
+            "p50": 0.090375,
+            "p95": 0.110375,
+            "p99": 0.118875,
+            "max": 0.124,
+            "mean": 0.091744
           },
           "rollback_detach_ms": {
             "n": 200,
-            "min": 0.072667,
-            "p50": 0.086916,
-            "p95": 0.101666,
-            "p99": 0.115167,
-            "max": 0.234584,
-            "mean": 0.087338
+            "min": 0.074458,
+            "p50": 0.087583,
+            "p95": 0.107,
+            "p99": 0.116292,
+            "max": 0.12075,
+            "mean": 0.088623
           },
           "rollback_while_refill_in_flight": 0,
           "background_reaper": {
             "reap_ms": {
               "n": 200,
-              "min": 7.145042,
-              "p50": 7.893167,
-              "p95": 9.032958,
-              "p99": 14.263125,
-              "max": 16.395291,
-              "mean": 8.114359
+              "min": 7.073916,
+              "p50": 7.832334,
+              "p95": 9.034042,
+              "p99": 10.164916,
+              "max": 12.837,
+              "mean": 8.107112
             },
             "queue_wait_ms": {
               "n": 200,
-              "min": 0.002375,
-              "p50": 0.003459,
-              "p95": 0.006792,
-              "p99": 0.007375,
-              "max": 0.020375,
-              "mean": 0.003952
+              "min": 0.002583,
+              "p50": 0.003417,
+              "p95": 0.0055,
+              "p99": 0.007,
+              "max": 0.007292,
+              "mean": 0.003649
             },
             "failed": 0,
             "records_missing": 0
@@ -1475,59 +1613,59 @@
           "acquire_after_commit": {
             "acquire_ms": {
               "n": 200,
-              "min": 1.528583,
-              "p50": 2.153,
-              "p95": 2.867042,
-              "p99": 3.338125,
-              "max": 4.06875,
-              "mean": 2.207842
+              "min": 1.53525,
+              "p50": 1.789041,
+              "p95": 2.047334,
+              "p99": 2.160042,
+              "max": 2.26725,
+              "mean": 1.797344
             },
             "sources": {
               "pool_ready": 0,
-              "pool_after_waiting_for_refill": 107,
-              "cold": 93
+              "pool_after_waiting_for_refill": 91,
+              "cold": 109
             },
-            "stale_discarded": 93,
+            "stale_discarded": 109,
             "waited_for_refill_ms": {
-              "n": 107,
-              "min": 1.720042,
-              "p50": 2.166292,
-              "p95": 2.776917,
-              "p99": 3.520208,
-              "max": 3.962,
-              "mean": 2.234864
+              "n": 91,
+              "min": 1.597709,
+              "p50": 1.769125,
+              "p95": 2.02175,
+              "p99": 2.041125,
+              "max": 2.041125,
+              "mean": 1.789153
             }
           },
           "collisions": {
             "rollback_right_after_acquire_ms": {
               "n": 100,
-              "min": 0.109084,
-              "p50": 1.869458,
-              "p95": 2.724209,
-              "p99": 2.954,
-              "max": 2.955,
-              "mean": 1.945648
+              "min": 0.125083,
+              "p50": 1.374084,
+              "p95": 1.578208,
+              "p99": 1.618792,
+              "max": 1.633875,
+              "mean": 1.372734
             },
             "commit_right_after_acquire_ms": {
               "n": 100,
-              "min": 0.763458,
-              "p50": 2.2795,
-              "p95": 3.1155,
-              "p99": 3.705458,
-              "max": 4.133625,
-              "mean": 2.345148
+              "min": 1.518416,
+              "p50": 1.679583,
+              "p95": 1.914834,
+              "p99": 1.963292,
+              "max": 2.097583,
+              "mean": 1.703072
             }
           },
           "counters": {
-            "hits": 712,
-            "misses": 93,
-            "stale_discards": 206,
-            "replenished": 919,
-            "replenish_races": 94,
+            "hits": 696,
+            "misses": 109,
+            "stale_discards": 235,
+            "replenished": 932,
+            "replenish_races": 65,
             "replenish_failures": 0,
-            "fs_events": 206,
-            "fs_events_ignored": 1278,
-            "invalidations": 506,
+            "fs_events": 235,
+            "fs_events_ignored": 1208,
+            "invalidations": 535,
             "watching_fs_events": true,
             "last_error": null
           }
@@ -1555,37 +1693,37 @@
             {
               "phase": "kernel_clonefile",
               "ok": true,
-              "live_sha256": "96b74a7ae9a15e438c8c5b48cf1f88e4d19412a779691f15e9556dcad6e0beb5"
+              "live_sha256": "2e63033f2ef89669698e1ec4124f74c1773f78b218c7aca76da14ec2c0242a8a"
             },
             {
               "phase": "cold_branch_background_rollback",
               "ok": true,
-              "live_sha256": "96b74a7ae9a15e438c8c5b48cf1f88e4d19412a779691f15e9556dcad6e0beb5"
+              "live_sha256": "2e63033f2ef89669698e1ec4124f74c1773f78b218c7aca76da14ec2c0242a8a"
             },
             {
               "phase": "synchronous_rollback",
               "ok": true,
-              "live_sha256": "96b74a7ae9a15e438c8c5b48cf1f88e4d19412a779691f15e9556dcad6e0beb5"
+              "live_sha256": "2e63033f2ef89669698e1ec4124f74c1773f78b218c7aca76da14ec2c0242a8a"
             },
             {
               "phase": "pool_acquire_and_rollback",
               "ok": true,
-              "live_sha256": "96b74a7ae9a15e438c8c5b48cf1f88e4d19412a779691f15e9556dcad6e0beb5"
+              "live_sha256": "2e63033f2ef89669698e1ec4124f74c1773f78b218c7aca76da14ec2c0242a8a"
             },
             {
               "phase": "commit_then_acquire",
               "ok": true,
-              "live_sha256": "7cf631773f7f35f9edaeade517cf0e3e089515e2307eb8021491744ef5a96375"
+              "live_sha256": "b2f43c13ad9a09090b5f72dbcc52812ae6a68c5beda524ba50e2a70be7130e27"
             },
             {
               "phase": "collision_cases",
               "ok": true,
-              "live_sha256": "fbd7d3e29d1912d4b675f2125b9a274f3b123fdb22c6e0b13ce2f48d2dfe1285"
+              "live_sha256": "5f44396daeb6fa49be114044c6bee96cd030c6c333dbc4cfc94ea09d2055d6fa"
             },
             {
               "phase": "after_pool_drop",
               "ok": true,
-              "live_sha256": "fbd7d3e29d1912d4b675f2125b9a274f3b123fdb22c6e0b13ce2f48d2dfe1285"
+              "live_sha256": "5f44396daeb6fa49be114044c6bee96cd030c6c333dbc4cfc94ea09d2055d6fa"
             }
           ],
           "checks": 7,
@@ -1595,10 +1733,10 @@
         "live_tree_unchanged_after_rollback": true
       }
     ],
-    "clonefile_us_per_entry": 7.216888,
-    "clonefile_fixed_us": 96.670011,
-    "kernel_sys_us_per_entry_fit": 8.327266,
-    "kernel_sys_fixed_us_fit": 45.656784
+    "clonefile_us_per_entry": 6.969724,
+    "clonefile_fixed_us": 86.619865,
+    "kernel_sys_us_per_entry_fit": 5.861275,
+    "kernel_sys_fixed_us_fit": 182.01327
   },
   "ane": {
     "model": "models/AegisWorkflowFP16.mlmodelc",
@@ -1620,33 +1758,33 @@
     "runs": {
       "cpu_and_neural_engine": {
         "n": 2400,
-        "min": 0.121833,
-        "p50": 0.175125,
-        "p95": 0.196834,
-        "p99": 0.23975,
-        "max": 0.493292,
-        "mean": 0.175312
+        "min": 0.13425,
+        "p50": 0.182041,
+        "p95": 0.209792,
+        "p99": 0.235167,
+        "max": 0.415792,
+        "mean": 0.18132
       },
       "cpu_only": {
         "n": 2400,
-        "min": 0.211917,
-        "p50": 0.219792,
-        "p95": 0.276042,
-        "p99": 0.3845,
-        "max": 0.932583,
-        "mean": 0.230773
+        "min": 0.214209,
+        "p50": 0.222792,
+        "p95": 0.260458,
+        "p99": 0.29775,
+        "max": 0.447958,
+        "mean": 0.228654
       },
       "all": {
         "n": 2400,
-        "min": 0.134916,
-        "p50": 0.178333,
-        "p95": 0.201708,
-        "p99": 0.329584,
-        "max": 0.4745,
-        "mean": 0.182175
+        "min": 0.13525,
+        "p50": 0.187,
+        "p95": 0.211417,
+        "p99": 0.337209,
+        "max": 0.395541,
+        "mean": 0.188423
       }
     },
-    "speedup_cpu_only_over_ane_p50": 1.255058,
+    "speedup_cpu_only_over_ane_p50": 1.223856,
     "isolated": {
       "method": {
         "call": "one AneScorer::score_window per gap, units cpuAndNeuralEngine and cpuOnly interleaved in rounds; the gap is outside the timed region",
@@ -1657,48 +1795,48 @@
         "per_round": 20
       },
       "busy_gap": {
-        "speedup_cpu_only_over_ane_p50": 0.57526,
+        "speedup_cpu_only_over_ane_p50": 0.609513,
         "runs": {
           "cpu_and_neural_engine": {
             "n": 400,
-            "min": 0.183542,
-            "p50": 0.368166,
-            "p95": 0.46325,
-            "p99": 0.492917,
-            "max": 0.552042,
-            "mean": 0.375782
+            "min": 0.298959,
+            "p50": 0.361833,
+            "p95": 0.403125,
+            "p99": 0.437792,
+            "max": 0.488458,
+            "mean": 0.363122
           },
           "cpu_only": {
             "n": 400,
-            "min": 0.210083,
-            "p50": 0.211791,
-            "p95": 0.22475,
-            "p99": 0.263541,
-            "max": 0.74475,
-            "mean": 0.215774
+            "min": 0.21075,
+            "p50": 0.220542,
+            "p95": 0.2505,
+            "p99": 0.274333,
+            "max": 0.306375,
+            "mean": 0.225346
           }
         }
       },
       "idle_gap": {
-        "speedup_cpu_only_over_ane_p50": 1.716938,
+        "speedup_cpu_only_over_ane_p50": 1.656912,
         "runs": {
           "cpu_and_neural_engine": {
             "n": 400,
-            "min": 0.404,
-            "p50": 0.850666,
-            "p95": 1.220083,
-            "p99": 2.233791,
-            "max": 14.105666,
-            "mean": 0.903054
+            "min": 0.371125,
+            "p50": 0.730375,
+            "p95": 0.923542,
+            "p99": 1.061833,
+            "max": 1.271,
+            "mean": 0.722828
           },
           "cpu_only": {
             "n": 400,
-            "min": 0.34125,
-            "p50": 1.460541,
-            "p95": 2.436375,
-            "p99": 3.707875,
-            "max": 6.217667,
-            "mean": 1.539097
+            "min": 0.36925,
+            "p50": 1.210167,
+            "p95": 1.928708,
+            "p99": 2.145334,
+            "max": 4.819,
+            "mean": 1.253636
           }
         }
       }
@@ -2087,7 +2225,7 @@
       "operations": 36
     },
     "unit_agreement_max_abs_diff": {
-      "cpu_only_vs_ane": 0.3125,
+      "cpu_only_vs_ane": 0.25,
       "all_vs_ane": 0.0
     },
     "parity": {
@@ -2095,61 +2233,61 @@
       "tolerance_points": 1.0,
       "reference": "reference_fp32 in models/parity_vectors.json: FP32 forward pass of the trained weights (PyTorch, per the model build)",
       "vectors": 62,
-      "max_abs_diff": 0.32889,
-      "mean_abs_diff": 0.116299,
+      "max_abs_diff": 0.30123,
+      "mean_abs_diff": 0.119866,
       "single_events": {
         "n": 62,
-        "max_abs_diff": 0.32889,
-        "mean_abs_diff": 0.116299,
+        "max_abs_diff": 0.30123,
+        "mean_abs_diff": 0.119866,
         "within_tolerance": 62
       },
       "windows": {
         "n": 96,
-        "max_abs_diff": 0.30559,
-        "mean_abs_diff": 0.101354,
+        "max_abs_diff": 0.27464,
+        "mean_abs_diff": 0.102357,
         "within_tolerance": 96
       },
       "windows_cpu_only": {
         "n": 96,
-        "max_abs_diff": 0.08592,
-        "mean_abs_diff": 0.022935,
+        "max_abs_diff": 0.13857,
+        "mean_abs_diff": 0.027572,
         "within_tolerance": 96
       },
       "windows_by_scenario": {
         "benign_edit": {
-          "n": 16,
-          "max_abs_diff": 0.29456,
-          "mean_abs_diff": 0.124465
+          "n": 13,
+          "max_abs_diff": 0.20881,
+          "mean_abs_diff": 0.127349
         },
         "build_break_loop": {
-          "n": 7,
-          "max_abs_diff": 0.29504,
-          "mean_abs_diff": 0.139544
+          "n": 6,
+          "max_abs_diff": 0.22656,
+          "mean_abs_diff": 0.121442
         },
         "mass_delete": {
           "n": 8,
-          "max_abs_diff": 0.265683,
-          "mean_abs_diff": 0.108315
+          "max_abs_diff": 0.27053,
+          "mean_abs_diff": 0.120171
         },
         "mixed": {
-          "n": 12,
-          "max_abs_diff": 0.22292,
-          "mean_abs_diff": 0.082869
+          "n": 22,
+          "max_abs_diff": 0.23393,
+          "mean_abs_diff": 0.08703
         },
         "procurement": {
-          "n": 28,
-          "max_abs_diff": 0.259885,
-          "mean_abs_diff": 0.059403
+          "n": 30,
+          "max_abs_diff": 0.27464,
+          "mean_abs_diff": 0.073189
         },
         "refactor": {
-          "n": 18,
-          "max_abs_diff": 0.30559,
-          "mean_abs_diff": 0.137976
+          "n": 10,
+          "max_abs_diff": 0.244027,
+          "mean_abs_diff": 0.130131
         },
         "secret_leak": {
           "n": 7,
-          "max_abs_diff": 0.24856,
-          "mean_abs_diff": 0.107704
+          "max_abs_diff": 0.25271,
+          "mean_abs_diff": 0.152725
         }
       },
       "windows_vs_build_time_coreml_max_abs_diff": 5e-6
@@ -2542,40 +2680,40 @@
         "cpu_and_neural_engine": {
           "batch_ms": {
             "n": 200,
-            "min": 1.456417,
-            "p50": 1.615208,
-            "p95": 2.858584,
-            "p99": 3.67525,
-            "max": 4.054833,
-            "mean": 1.788031
+            "min": 1.459458,
+            "p50": 1.540292,
+            "p95": 1.938,
+            "p99": 2.922333,
+            "max": 3.544041,
+            "mean": 1.607949
           },
-          "amortized_us_per_window_p50": 50.47525
+          "amortized_us_per_window_p50": 48.134125
         },
         "cpu_only": {
           "batch_ms": {
             "n": 200,
-            "min": 5.247917,
-            "p50": 5.371916,
-            "p95": 10.216541,
-            "p99": 14.813625,
-            "max": 24.713958,
-            "mean": 6.139441
+            "min": 5.204,
+            "p50": 5.311417,
+            "p95": 5.520292,
+            "p99": 5.700625,
+            "max": 6.472542,
+            "mean": 5.340025
           },
-          "amortized_us_per_window_p50": 167.872375
+          "amortized_us_per_window_p50": 165.981781
         }
       },
-      "speedup_cpu_only_over_ane_p50": 3.325835,
-      "parity_max_abs_diff": 0.30559,
+      "speedup_cpu_only_over_ane_p50": 3.448318,
+      "parity_max_abs_diff": 0.27464,
       "parity_windows": {
         "n": 96,
-        "max_abs_diff": 0.30559,
-        "mean_abs_diff": 0.101354,
+        "max_abs_diff": 0.27464,
+        "mean_abs_diff": 0.102357,
         "within_tolerance": 96
       },
       "parity_single_events": {
         "n": 62,
-        "max_abs_diff": 0.32889,
-        "mean_abs_diff": 0.116299,
+        "max_abs_diff": 0.30123,
+        "mean_abs_diff": 0.119866,
         "within_tolerance": 62
       }
     },
@@ -2587,21 +2725,21 @@
     "schema_validated": true,
     "is_authorized_us": {
       "n": 20000,
-      "min": 3.625,
-      "p50": 4.541,
-      "p95": 6.292,
-      "p99": 30.541,
-      "max": 1022.25,
-      "mean": 5.662484
+      "min": 3.583,
+      "p50": 4.208,
+      "p95": 4.667,
+      "p99": 5.791,
+      "max": 28.708,
+      "mean": 4.228607
     },
     "build_request_and_authorize_us": {
       "n": 20000,
-      "min": 6.833,
-      "p50": 7.875,
-      "p95": 11.042,
-      "p99": 42.833,
-      "max": 10145.834,
-      "mean": 10.623584
+      "min": 6.875,
+      "p50": 7.625,
+      "p95": 8.166,
+      "p99": 10.667,
+      "max": 65.791,
+      "mean": 7.702264
     },
     "decision_matrix": [
       {
@@ -2688,173 +2826,173 @@
     "fixture_files": 131,
     "iterations": 200,
     "branching": "WarmBranchPool::acquire (capacity 1, FSEvents watch) with replenish delay = 2 x measured cold clone p50; pool settled between transactions",
-    "replenish_delay_ms": 2.15525,
+    "replenish_delay_ms": 2.187918,
     "scoring": "AneScorer::score_window over one ContextWindow per agent session (risky agent, docs agent)",
     "window_len": 64,
     "rollback_path_ms": {
       "n": 200,
-      "min": 2.358125,
-      "p50": 3.365833,
-      "p95": 5.68075,
-      "p99": 7.243792,
-      "max": 7.967417,
-      "mean": 3.587024
+      "min": 2.36375,
+      "p50": 2.790916,
+      "p95": 3.8095,
+      "p99": 4.106583,
+      "max": 4.889458,
+      "mean": 2.934322
     },
     "commit_path_ms": {
       "n": 200,
-      "min": 2.744083,
-      "p50": 3.809375,
-      "p95": 5.77825,
-      "p99": 6.312083,
-      "max": 36.57175,
-      "mean": 4.038811
+      "min": 2.681083,
+      "p50": 3.168208,
+      "p95": 4.004458,
+      "p99": 4.1045,
+      "max": 4.27425,
+      "mean": 3.280542
     },
     "stage_p50_us": {
-      "branch": 107.875,
-      "agent_edit": 153.958,
-      "diff": 2523.875,
-      "features": 7.667,
-      "ane_score": 373.917,
-      "cedar": 20.375,
-      "rollback": 97.125
+      "branch": 108.292,
+      "agent_edit": 138.917,
+      "diff": 2046.625,
+      "features": 5.5,
+      "ane_score": 369.125,
+      "cedar": 13.084,
+      "rollback": 84.291
     },
     "commit_stage_p50_us": {
-      "branch": 109.709,
-      "agent_edit": 167.209,
-      "diff": 2573.708,
-      "features": 3.625,
-      "ane_score": 372.375,
-      "cedar": 20.5,
-      "commit": 517.833
+      "branch": 108.458,
+      "agent_edit": 138.0,
+      "diff": 2039.709,
+      "features": 2.542,
+      "ane_score": 366.5,
+      "cedar": 12.584,
+      "commit": 449.75
     },
     "stage_us": {
       "branch": {
         "n": 200,
-        "min": 83.625,
-        "p50": 107.875,
-        "p95": 141.875,
-        "p99": 195.375,
-        "max": 516.542,
-        "mean": 112.87374
+        "min": 86.375,
+        "p50": 108.292,
+        "p95": 120.333,
+        "p99": 127.708,
+        "max": 128.709,
+        "mean": 107.04121
       },
       "agent_edit": {
         "n": 200,
-        "min": 111.792,
-        "p50": 153.958,
-        "p95": 280.708,
-        "p99": 484.792,
-        "max": 1359.459,
-        "mean": 178.357105
+        "min": 110.5,
+        "p50": 138.917,
+        "p95": 160.75,
+        "p99": 172.375,
+        "max": 213.75,
+        "mean": 138.35496
       },
       "diff": {
         "n": 200,
-        "min": 1676.459,
-        "p50": 2523.875,
-        "p95": 4114.75,
-        "p99": 6114.875,
-        "max": 6864.125,
-        "mean": 2621.12937
+        "min": 1696.291,
+        "p50": 2046.625,
+        "p95": 2949.5,
+        "p99": 3344.625,
+        "max": 3604.0,
+        "mean": 2185.387305
       },
       "features": {
         "n": 200,
-        "min": 4.625,
-        "p50": 7.667,
-        "p95": 22.333,
-        "p99": 49.875,
-        "max": 1703.0,
-        "mean": 18.391045
+        "min": 4.208,
+        "p50": 5.5,
+        "p95": 7.834,
+        "p99": 14.167,
+        "max": 1707.834,
+        "mean": 14.3292
       },
       "ane_score": {
         "n": 200,
-        "min": 330.916,
-        "p50": 373.917,
-        "p95": 486.541,
-        "p99": 669.125,
-        "max": 1340.042,
-        "mean": 395.85568
+        "min": 298.75,
+        "p50": 369.125,
+        "p95": 401.333,
+        "p99": 421.959,
+        "max": 638.542,
+        "mean": 368.416635
       },
       "cedar": {
         "n": 200,
-        "min": 12.708,
-        "p50": 20.375,
-        "p95": 60.708,
-        "p99": 85.25,
-        "max": 212.584,
-        "mean": 27.80313
+        "min": 11.5,
+        "p50": 13.084,
+        "p95": 22.709,
+        "p99": 36.0,
+        "max": 106.5,
+        "mean": 15.04565
       },
       "rollback": {
         "n": 200,
-        "min": 78.333,
-        "p50": 97.125,
-        "p95": 1022.75,
-        "p99": 1635.291,
-        "max": 1917.709,
-        "mean": 232.173965
+        "min": 77.458,
+        "p50": 84.291,
+        "p95": 119.292,
+        "p99": 925.666,
+        "max": 959.75,
+        "mean": 105.396215
       }
     },
     "commit_stage_us": {
       "branch": {
         "n": 200,
-        "min": 88.5,
-        "p50": 109.709,
-        "p95": 128.792,
-        "p99": 162.083,
-        "max": 300.833,
-        "mean": 110.90502
+        "min": 88.833,
+        "p50": 108.458,
+        "p95": 118.625,
+        "p99": 122.875,
+        "max": 126.083,
+        "mean": 107.14437
       },
       "agent_edit": {
         "n": 200,
-        "min": 105.458,
-        "p50": 167.209,
-        "p95": 292.042,
-        "p99": 595.958,
-        "max": 1418.5,
-        "mean": 187.156485
+        "min": 107.833,
+        "p50": 138.0,
+        "p95": 167.0,
+        "p99": 375.792,
+        "max": 501.791,
+        "mean": 144.11747
       },
       "diff": {
         "n": 200,
-        "min": 1699.0,
-        "p50": 2573.708,
-        "p95": 3368.792,
-        "p99": 4368.292,
-        "max": 34960.125,
-        "mean": 2692.027885
+        "min": 1706.5,
+        "p50": 2039.709,
+        "p95": 2892.042,
+        "p99": 3008.375,
+        "max": 3140.042,
+        "mean": 2186.831085
       },
       "features": {
         "n": 200,
-        "min": 2.208,
-        "p50": 3.625,
-        "p95": 11.25,
-        "p99": 18.25,
-        "max": 21.041,
-        "mean": 4.90773
+        "min": 2.167,
+        "p50": 2.542,
+        "p95": 3.792,
+        "p99": 6.208,
+        "max": 8.0,
+        "mean": 2.78751
       },
       "ane_score": {
         "n": 200,
-        "min": 217.167,
-        "p50": 372.375,
-        "p95": 450.959,
-        "p99": 523.5,
-        "max": 663.917,
-        "mean": 380.89912
+        "min": 311.791,
+        "p50": 366.5,
+        "p95": 420.333,
+        "p99": 430.167,
+        "max": 441.166,
+        "mean": 369.357915
       },
       "cedar": {
         "n": 200,
-        "min": 12.667,
-        "p50": 20.5,
-        "p95": 53.625,
-        "p99": 72.209,
-        "max": 118.75,
-        "mean": 25.463745
+        "min": 10.709,
+        "p50": 12.584,
+        "p95": 17.125,
+        "p99": 20.0,
+        "max": 35.083,
+        "mean": 13.008545
       },
       "commit": {
         "n": 200,
-        "min": 368.375,
-        "p50": 517.833,
-        "p95": 1436.083,
-        "p99": 1576.25,
-        "max": 2031.875,
-        "mean": 637.017105
+        "min": 342.625,
+        "p50": 449.75,
+        "p95": 517.708,
+        "p99": 618.25,
+        "max": 691.334,
+        "mean": 456.911095
       }
     },
     "stage_method": "Instant laps around each stage of every transaction; ane_score is one AneScorer::score_window per transaction (after diff and features, pool settled before the transaction)",
@@ -2873,8 +3011,8 @@
     "pool_counters": {
       "hits": 400,
       "misses": 0,
-      "stale_discards": 7,
-      "fs_events": 7
+      "stale_discards": 1,
+      "fs_events": 1
     },
     "live_integrity_verified": true,
     "commit_integrity_verified": true,
@@ -2900,97 +3038,97 @@
       "denied": 200,
       "risk_score": {
         "n": 200,
-        "min": 99.9375,
+        "min": 99.875,
         "p50": 100.0,
         "p95": 100.0,
         "p99": 100.0,
         "max": 100.0,
-        "mean": 99.999375
+        "mean": 99.999063
       },
       "risk_score_without_history": {
         "n": 200,
-        "min": 99.9375,
-        "p50": 99.9375,
-        "p95": 99.9375,
-        "p99": 99.9375,
-        "max": 99.9375,
-        "mean": 99.9375
+        "min": 99.875,
+        "p50": 99.875,
+        "p95": 99.875,
+        "p99": 99.875,
+        "max": 99.875,
+        "mean": 99.875
       }
     },
     "commit_case": {
       "allowed": 200,
       "risk_score": {
         "n": 200,
-        "min": 1.525391,
-        "p50": 1.59082,
-        "p95": 1.640625,
-        "p99": 1.662109,
-        "max": 1.710938,
-        "mean": 1.595034
+        "min": 1.333984,
+        "p50": 1.59668,
+        "p95": 1.59668,
+        "p99": 1.59668,
+        "max": 1.59668,
+        "mean": 1.582363
       },
       "risk_score_without_history": {
         "n": 200,
-        "min": 1.525391,
-        "p50": 1.525391,
-        "p95": 1.525391,
-        "p99": 1.525391,
-        "max": 1.525391,
-        "mean": 1.525391
+        "min": 1.333984,
+        "p50": 1.339844,
+        "p95": 1.339844,
+        "p99": 1.339844,
+        "max": 1.339844,
+        "mean": 1.339551
       }
     }
   },
   "paypal_receipt": {
     "prepare_order_us": {
       "n": 2000,
-      "min": 222.791,
-      "p50": 244.792,
-      "p95": 323.75,
-      "p99": 533.083,
-      "max": 1522.541,
-      "mean": 260.921247
+      "min": 221.834,
+      "p50": 257.875,
+      "p95": 299.584,
+      "p99": 338.334,
+      "max": 416.791,
+      "mean": 262.510533
     },
     "redact_us": {
       "n": 2000,
-      "min": 11.167,
-      "p50": 19.333,
-      "p95": 22.209,
-      "p99": 36.959,
-      "max": 245.833,
-      "mean": 19.451117
+      "min": 11.25,
+      "p50": 18.625,
+      "p95": 21.083,
+      "p99": 28.875,
+      "max": 44.75,
+      "mean": 18.787184
     },
     "score_us": {
       "n": 2000,
-      "min": 127.583,
-      "p50": 143.25,
-      "p95": 187.375,
-      "p99": 292.375,
-      "max": 671.083,
-      "mean": 151.860648
+      "min": 131.209,
+      "p50": 154.875,
+      "p95": 183.583,
+      "p99": 204.916,
+      "max": 264.834,
+      "mean": 157.658963
     },
     "scoring": "PayPalMiddleware::prepare scores each order with AneScorer::score (one event, no session history) on the online window model",
     "ed25519_sign_us": {
       "n": 2000,
-      "min": 17.875,
-      "p50": 18.167,
-      "p95": 23.75,
-      "p99": 33.208,
-      "max": 398.625,
-      "mean": 19.388085
+      "min": 17.833,
+      "p50": 18.041,
+      "p95": 21.75,
+      "p99": 32.583,
+      "max": 58.875,
+      "mean": 18.538595
     },
     "ed25519_verify_us": {
       "n": 2000,
-      "min": 39.291,
-      "p50": 39.625,
-      "p95": 49.042,
-      "p99": 73.625,
-      "max": 339.083,
-      "mean": 41.845328
+      "min": 38.917,
+      "p50": 39.167,
+      "p95": 46.417,
+      "p99": 59.709,
+      "max": 110.375,
+      "mean": 40.224568
     },
     "cases": [
       {
         "case": "$42.00 known payee",
         "amount_cents": 4200,
-        "risk_score": 11.921875,
+        "risk_score": 11.632813,
         "decision": "Allow",
         "policies": [
           "permit-low-risk"
@@ -3007,7 +3145,7 @@
       {
         "case": "$120.00 known payee",
         "amount_cents": 12000,
-        "risk_score": 28.515625,
+        "risk_score": 28.984375,
         "decision": "Allow",
         "policies": [
           "permit-low-risk"
@@ -3024,7 +3162,7 @@
       {
         "case": "$480.00 new payee, high-risk country",
         "amount_cents": 48000,
-        "risk_score": 99.375,
+        "risk_score": 99.5625,
         "decision": "Deny",
         "policies": [],
         "redactions": 0,
@@ -3039,7 +3177,7 @@
       {
         "case": "$25.00 with redaction disabled",
         "amount_cents": 2500,
-        "risk_score": 81.625,
+        "risk_score": 82.5,
         "decision": "Deny",
         "policies": [],
         "redactions": 0,
@@ -3060,16 +3198,16 @@
   "nebius_router": {
     "tier0_route_us": {
       "n": 5000,
-      "min": 138.959,
-      "p50": 173.75,
-      "p95": 260.708,
-      "p99": 433.792,
-      "max": 2716.417,
-      "mean": 190.376317
+      "min": 136.834,
+      "p50": 178.791,
+      "p95": 202.416,
+      "p99": 222.709,
+      "max": 296.541,
+      "mean": 180.834855
     },
     "scoring": "tier 0 scores the failure with AneScorer::score (one event, no session history) on the online window model, then Cedar",
     "triage": {
-      "risk_score": 12.5390625,
+      "risk_score": 11.75,
       "compile_errors": 2,
       "compile_warnings": 1,
       "start_tier": "NemotronSuper",
@@ -3077,7 +3215,7 @@
       "determining_policies": [
         "permit-low-risk"
       ],
-      "elapsed_us": 163.125
+      "elapsed_us": 177.334
     },
     "live_calls": {
       "attempted": false,
@@ -3093,30 +3231,30 @@
     "tools": 9,
     "tools_call_roundtrip_us": {
       "n": 6000,
-      "min": 15.167,
-      "p50": 144.667,
-      "p95": 204.417,
-      "p99": 336.667,
-      "max": 1519.5,
-      "mean": 102.793736
+      "min": 15.083,
+      "p50": 69.916,
+      "p95": 187.542,
+      "p99": 196.583,
+      "max": 217.25,
+      "mean": 97.016852
     },
     "policy_evaluate_roundtrip_us": {
       "n": 3000,
-      "min": 15.167,
-      "p50": 25.666,
-      "p95": 34.667,
-      "p99": 114.625,
-      "max": 953.0,
-      "mean": 28.948218
+      "min": 15.083,
+      "p50": 23.208,
+      "p95": 26.875,
+      "p99": 29.792,
+      "max": 69.916,
+      "mean": 23.777287
     },
     "score_features_roundtrip_us": {
       "n": 3000,
-      "min": 136.292,
-      "p50": 162.625,
-      "p95": 233.75,
-      "p99": 400.834,
-      "max": 1519.5,
-      "mean": 176.639253
+      "min": 136.458,
+      "p50": 170.542,
+      "p95": 191.208,
+      "p99": 199.0,
+      "max": 217.25,
+      "mean": 170.256416
     },
     "webhooks": {
       "attempted": false,
@@ -3132,8 +3270,8 @@
     {
       "metric": "branch acquire (WarmBranchPool warm hit) · tiny (9 files)",
       "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
-      "measured_p50_ms": 0.100166,
-      "p95_ms": 0.113042,
+      "measured_p50_ms": 0.094583,
+      "p95_ms": 0.1145,
       "n": 400,
       "pass": true,
       "measured_hit_rate": 1.0,
@@ -3148,8 +3286,8 @@
     {
       "metric": "branch acquire (WarmBranchPool warm hit) · small (129 files)",
       "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
-      "measured_p50_ms": 0.107375,
-      "p95_ms": 0.131791,
+      "measured_p50_ms": 0.105042,
+      "p95_ms": 0.118875,
       "n": 300,
       "pass": true,
       "measured_hit_rate": 1.0,
@@ -3164,8 +3302,8 @@
     {
       "metric": "branch acquire (WarmBranchPool warm hit) · medium (1025 files)",
       "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
-      "measured_p50_ms": 0.146541,
-      "p95_ms": 0.179417,
+      "measured_p50_ms": 0.120417,
+      "p95_ms": 0.147083,
       "n": 60,
       "pass": true,
       "measured_hit_rate": 1.0,
@@ -3178,10 +3316,10 @@
       "section": "apfs"
     },
     {
-      "metric": "branch acquire (WarmBranchPool warm hit) · aegisflow_src (108 files)",
+      "metric": "branch acquire (WarmBranchPool warm hit) · aegisflow_src (111 files)",
       "target": "< 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire)",
-      "measured_p50_ms": 0.105208,
-      "p95_ms": 0.127458,
+      "measured_p50_ms": 0.108667,
+      "p95_ms": 0.129625,
       "n": 200,
       "pass": true,
       "measured_hit_rate": 1.0,
@@ -3196,8 +3334,8 @@
     {
       "metric": "renameatx_np RENAME_SWAP commit (syscall only) · small",
       "target": "< 0.5 ms",
-      "measured_p50_ms": 0.129625,
-      "p95_ms": 0.150958,
+      "measured_p50_ms": 0.126084,
+      "p95_ms": 0.133458,
       "n": 300,
       "pass": true,
       "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
@@ -3207,8 +3345,8 @@
     {
       "metric": "rollback · caller-visible (background reap) · small",
       "target": "< 0.15 ms",
-      "measured_p50_ms": 0.088333,
-      "p95_ms": 0.108083,
+      "measured_p50_ms": 0.08925,
+      "p95_ms": 0.097792,
       "n": 300,
       "pass": true,
       "requires": "live-tree integrity after every APFS and end-to-end phase, store clean after pool drop",
@@ -3218,8 +3356,8 @@
     {
       "metric": "CoreML FP16 online window model · cpuAndNeuralEngine · back-to-back calls",
       "target": "< 0.6 ms",
-      "measured_p50_ms": 0.175125,
-      "p95_ms": 0.196834,
+      "measured_p50_ms": 0.182041,
+      "p95_ms": 0.209792,
       "n": 2400,
       "pass": true,
       "section": "ane"
@@ -3240,13 +3378,13 @@
       "metric": "online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly",
       "target": "speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50)",
       "measured": {
-        "cpuAndNeuralEngine p50 ms": 0.175125,
-        "cpuOnly p50 ms": 0.219792,
-        "speedup": 1.255058
+        "cpuAndNeuralEngine p50 ms": 0.182041,
+        "cpuOnly p50 ms": 0.222792,
+        "speedup": 1.223856
       },
-      "cpu_and_neural_engine_p50_ms": 0.175125,
-      "cpu_only_p50_ms": 0.219792,
-      "speedup": 1.255058,
+      "cpu_and_neural_engine_p50_ms": 0.182041,
+      "cpu_only_p50_ms": 0.222792,
+      "speedup": 1.223856,
       "n": 2400,
       "n_cpu_only": 2400,
       "pass": true,
@@ -3267,8 +3405,8 @@
     {
       "metric": "tier-0 route (ANE + Cedar)",
       "target": "< 0.4 ms",
-      "measured_p50_ms": 0.17375,
-      "p95_ms": 0.260708,
+      "measured_p50_ms": 0.178791,
+      "p95_ms": 0.202416,
       "n": 5000,
       "pass": true,
       "section": "router"
@@ -3278,8 +3416,8 @@
     {
       "metric": "cold clonefile branch · tiny (9 files)",
       "target": "< 0.5 ms (same reference as the pool rows)",
-      "measured_p50_ms": 0.172291,
-      "p95_ms": 0.195292,
+      "measured_p50_ms": 0.170584,
+      "p95_ms": 0.20725,
       "n": 400,
       "pass": true,
       "fixture": "tiny",
@@ -3288,8 +3426,8 @@
     {
       "metric": "cold clonefile branch · small (129 files)",
       "target": "< 0.5 ms (same reference as the pool rows)",
-      "measured_p50_ms": 1.01375,
-      "p95_ms": 1.198625,
+      "measured_p50_ms": 1.001125,
+      "p95_ms": 1.167208,
       "n": 300,
       "pass": false,
       "fixture": "small",
@@ -3298,18 +3436,18 @@
     {
       "metric": "cold clonefile branch · medium (1025 files)",
       "target": "< 0.5 ms (same reference as the pool rows)",
-      "measured_p50_ms": 7.7285,
-      "p95_ms": 11.302125,
+      "measured_p50_ms": 7.459375,
+      "p95_ms": 8.259667,
       "n": 60,
       "pass": false,
       "fixture": "medium",
       "section": "apfs"
     },
     {
-      "metric": "cold clonefile branch · aegisflow_src (108 files)",
+      "metric": "cold clonefile branch · aegisflow_src (111 files)",
       "target": "< 0.5 ms (same reference as the pool rows)",
-      "measured_p50_ms": 1.337625,
-      "p95_ms": 2.061375,
+      "measured_p50_ms": 1.263917,
+      "p95_ms": 1.447958,
       "n": 200,
       "pass": false,
       "fixture": "aegisflow_src",
@@ -3319,47 +3457,47 @@
       "metric": "kernel time per clonefile entry (getrusage ru_stime) · tiny (9 files)",
       "target": "— (O(entries) inside the kernel)",
       "pass": null,
-      "measured_per_entry_us": 13.416667,
+      "measured_per_entry_us": 13.333333,
       "fixture": "tiny",
       "entries": 12,
-      "sys_us_p50": 161.0,
+      "sys_us_p50": 160.0,
       "section": "apfs"
     },
     {
       "metric": "kernel time per clonefile entry (getrusage ru_stime) · small (129 files)",
       "target": "— (O(entries) inside the kernel)",
       "pass": null,
-      "measured_per_entry_us": 7.905797,
+      "measured_per_entry_us": 7.23913,
       "fixture": "small",
       "entries": 138,
-      "sys_us_p50": 1091.0,
+      "sys_us_p50": 999.0,
       "section": "apfs"
     },
     {
       "metric": "kernel time per clonefile entry (getrusage ru_stime) · medium (1025 files)",
       "target": "— (O(entries) inside the kernel)",
       "pass": null,
-      "measured_per_entry_us": 8.37051,
+      "measured_per_entry_us": 6.018904,
       "fixture": "medium",
       "entries": 1058,
-      "sys_us_p50": 8856.0,
+      "sys_us_p50": 6368.0,
       "section": "apfs"
     },
     {
-      "metric": "kernel time per clonefile entry (getrusage ru_stime) · aegisflow_src (108 files)",
+      "metric": "kernel time per clonefile entry (getrusage ru_stime) · aegisflow_src (111 files)",
       "target": "— (O(entries) inside the kernel)",
       "pass": null,
-      "measured_per_entry_us": 9.169811,
+      "measured_per_entry_us": 7.598765,
       "fixture": "aegisflow_src",
-      "entries": 159,
-      "sys_us_p50": 1458.0,
+      "entries": 162,
+      "sys_us_p50": 1231.0,
       "section": "apfs"
     },
     {
       "metric": "standby replenish (refill thread, off the caller's path) · tiny (9 files)",
       "target": "—",
-      "measured_p50_ms": 0.18775,
-      "p95_ms": 0.210292,
+      "measured_p50_ms": 0.181167,
+      "p95_ms": 0.213833,
       "n": 400,
       "pass": null,
       "fixture": "tiny",
@@ -3368,8 +3506,8 @@
     {
       "metric": "standby replenish (refill thread, off the caller's path) · small (129 files)",
       "target": "—",
-      "measured_p50_ms": 1.116791,
-      "p95_ms": 1.365667,
+      "measured_p50_ms": 1.023125,
+      "p95_ms": 1.167125,
       "n": 300,
       "pass": null,
       "fixture": "small",
@@ -3378,18 +3516,18 @@
     {
       "metric": "standby replenish (refill thread, off the caller's path) · medium (1025 files)",
       "target": "—",
-      "measured_p50_ms": 7.943417,
-      "p95_ms": 9.945333,
+      "measured_p50_ms": 6.817041,
+      "p95_ms": 7.674667,
       "n": 60,
       "pass": null,
       "fixture": "medium",
       "section": "apfs"
     },
     {
-      "metric": "standby replenish (refill thread, off the caller's path) · aegisflow_src (108 files)",
+      "metric": "standby replenish (refill thread, off the caller's path) · aegisflow_src (111 files)",
       "target": "—",
-      "measured_p50_ms": 1.468292,
-      "p95_ms": 2.598042,
+      "measured_p50_ms": 1.324417,
+      "p95_ms": 1.553625,
       "n": 200,
       "pass": null,
       "fixture": "aegisflow_src",
@@ -3398,8 +3536,8 @@
     {
       "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · tiny (9 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 0.448291,
-      "p95_ms": 0.502542,
+      "measured_p50_ms": 0.413833,
+      "p95_ms": 0.475666,
       "n": 400,
       "pass": true,
       "fixture": "tiny",
@@ -3408,8 +3546,8 @@
     {
       "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · small (129 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 0.465042,
-      "p95_ms": 0.536834,
+      "measured_p50_ms": 0.444291,
+      "p95_ms": 0.480917,
       "n": 300,
       "pass": true,
       "fixture": "small",
@@ -3418,18 +3556,18 @@
     {
       "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · medium (1025 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 0.498708,
-      "p95_ms": 0.628667,
+      "measured_p50_ms": 0.458166,
+      "p95_ms": 0.510042,
       "n": 60,
       "pass": true,
       "fixture": "medium",
       "section": "apfs"
     },
     {
-      "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · aegisflow_src (108 files)",
+      "metric": "commit · caller-visible (lock + checks + RENAME_SWAP + version) · aegisflow_src (111 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 0.459625,
-      "p95_ms": 0.521625,
+      "measured_p50_ms": 0.449791,
+      "p95_ms": 0.531916,
       "n": 200,
       "pass": true,
       "fixture": "aegisflow_src",
@@ -3438,68 +3576,68 @@
     {
       "metric": "acquire immediately after a commit (stale standby) · tiny (9 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 0.507541,
-      "p95_ms": 0.682333,
+      "measured_p50_ms": 0.442,
+      "p95_ms": 0.528167,
       "n": 400,
-      "pass": false,
+      "pass": true,
       "fixture": "tiny",
       "measured_sources": {
         "pool_ready": 0,
-        "pool_after_waiting_for_refill": 395,
-        "cold": 5
+        "pool_after_waiting_for_refill": 382,
+        "cold": 18
       },
       "section": "apfs"
     },
     {
       "metric": "acquire immediately after a commit (stale standby) · small (129 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 1.699875,
-      "p95_ms": 2.33525,
+      "measured_p50_ms": 1.41775,
+      "p95_ms": 1.691,
       "n": 300,
       "pass": false,
       "fixture": "small",
       "measured_sources": {
         "pool_ready": 0,
-        "pool_after_waiting_for_refill": 155,
-        "cold": 145
+        "pool_after_waiting_for_refill": 92,
+        "cold": 208
       },
       "section": "apfs"
     },
     {
       "metric": "acquire immediately after a commit (stale standby) · medium (1025 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 10.820125,
-      "p95_ms": 15.167667,
+      "measured_p50_ms": 10.058125,
+      "p95_ms": 10.886542,
       "n": 60,
       "pass": false,
       "fixture": "medium",
       "measured_sources": {
         "pool_ready": 0,
-        "pool_after_waiting_for_refill": 59,
-        "cold": 1
+        "pool_after_waiting_for_refill": 60,
+        "cold": 0
       },
       "section": "apfs"
     },
     {
-      "metric": "acquire immediately after a commit (stale standby) · aegisflow_src (108 files)",
+      "metric": "acquire immediately after a commit (stale standby) · aegisflow_src (111 files)",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 2.153,
-      "p95_ms": 2.867042,
+      "measured_p50_ms": 1.789041,
+      "p95_ms": 2.047334,
       "n": 200,
       "pass": false,
       "fixture": "aegisflow_src",
       "measured_sources": {
         "pool_ready": 0,
-        "pool_after_waiting_for_refill": 107,
-        "cold": 93
+        "pool_after_waiting_for_refill": 91,
+        "cold": 109
       },
       "section": "apfs"
     },
     {
       "metric": "background reap per detached tree (reaper thread) · tiny (9 files)",
       "target": "—",
-      "measured_p50_ms": 0.647417,
-      "p95_ms": 0.697375,
+      "measured_p50_ms": 0.615584,
+      "p95_ms": 0.6955,
       "n": 400,
       "pass": null,
       "fixture": "tiny",
@@ -3508,8 +3646,8 @@
     {
       "metric": "background reap per detached tree (reaper thread) · small (129 files)",
       "target": "—",
-      "measured_p50_ms": 5.053166,
-      "p95_ms": 6.016042,
+      "measured_p50_ms": 4.915833,
+      "p95_ms": 5.121209,
       "n": 300,
       "pass": null,
       "fixture": "small",
@@ -3518,18 +3656,18 @@
     {
       "metric": "background reap per detached tree (reaper thread) · medium (1025 files)",
       "target": "—",
-      "measured_p50_ms": 38.497791,
-      "p95_ms": 69.912416,
+      "measured_p50_ms": 36.306208,
+      "p95_ms": 37.739708,
       "n": 60,
       "pass": null,
       "fixture": "medium",
       "section": "apfs"
     },
     {
-      "metric": "background reap per detached tree (reaper thread) · aegisflow_src (108 files)",
+      "metric": "background reap per detached tree (reaper thread) · aegisflow_src (111 files)",
       "target": "—",
-      "measured_p50_ms": 7.893167,
-      "p95_ms": 9.032958,
+      "measured_p50_ms": 7.832334,
+      "p95_ms": 9.034042,
       "n": 200,
       "pass": null,
       "fixture": "aegisflow_src",
@@ -3538,8 +3676,8 @@
     {
       "metric": "rollback detach only (rename into trash) · small",
       "target": "< 0.15 ms (reference)",
-      "measured_p50_ms": 0.084666,
-      "p95_ms": 0.103667,
+      "measured_p50_ms": 0.08625,
+      "p95_ms": 0.0945,
       "n": 300,
       "pass": true,
       "section": "apfs"
@@ -3547,8 +3685,8 @@
     {
       "metric": "rollback · synchronous (detach + inline delete, phase-1 style) · small",
       "target": "< 0.15 ms (reference)",
-      "measured_p50_ms": 5.0825,
-      "p95_ms": 6.598833,
+      "measured_p50_ms": 4.919917,
+      "p95_ms": 5.182833,
       "n": 300,
       "pass": false,
       "section": "apfs"
@@ -3556,8 +3694,8 @@
     {
       "metric": "rollback right after acquire (refill clone in flight) · small",
       "target": "< 0.15 ms (reference)",
-      "measured_p50_ms": 1.288583,
-      "p95_ms": 2.063583,
+      "measured_p50_ms": 1.088791,
+      "p95_ms": 1.253625,
       "n": 150,
       "pass": false,
       "section": "apfs"
@@ -3565,8 +3703,8 @@
     {
       "metric": "commit right after acquire (refill clone in flight) · small",
       "target": "< 0.5 ms (reference)",
-      "measured_p50_ms": 1.642916,
-      "p95_ms": 2.466375,
+      "measured_p50_ms": 1.404958,
+      "p95_ms": 1.606333,
       "n": 150,
       "pass": false,
       "section": "apfs"
@@ -3574,8 +3712,8 @@
     {
       "metric": "CoreML FP16 online window model · all (compute units) · back-to-back calls",
       "target": "< 0.6 ms (reference)",
-      "measured_p50_ms": 0.178333,
-      "p95_ms": 0.201708,
+      "measured_p50_ms": 0.187,
+      "p95_ms": 0.211417,
       "n": 2400,
       "pass": true,
       "section": "ane"
@@ -3583,8 +3721,8 @@
     {
       "metric": "CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms busy CPU gap before each)",
       "target": "< 0.6 ms (reference)",
-      "measured_p50_ms": 0.368166,
-      "p95_ms": 0.46325,
+      "measured_p50_ms": 0.361833,
+      "p95_ms": 0.403125,
       "n": 400,
       "pass": true,
       "pattern": "busy_gap",
@@ -3593,8 +3731,8 @@
     {
       "metric": "CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms idle CPU gap before each)",
       "target": "< 0.6 ms (reference)",
-      "measured_p50_ms": 0.850666,
-      "p95_ms": 1.220083,
+      "measured_p50_ms": 0.730375,
+      "p95_ms": 0.923542,
       "n": 400,
       "pass": false,
       "pattern": "idle_gap",
@@ -3603,11 +3741,11 @@
     {
       "metric": "online model, isolated calls (3.0 ms busy CPU gap): cpuAndNeuralEngine faster than cpuOnly",
       "target": "speedup > 1 (reference)",
-      "measured_speedup": 0.57526,
-      "cpu_and_neural_engine_p50_ms": 0.368166,
-      "cpu_only_p50_ms": 0.211791,
-      "cpu_and_neural_engine_p95_ms": 0.46325,
-      "cpu_only_p95_ms": 0.22475,
+      "measured_speedup": 0.609513,
+      "cpu_and_neural_engine_p50_ms": 0.361833,
+      "cpu_only_p50_ms": 0.220542,
+      "cpu_and_neural_engine_p95_ms": 0.403125,
+      "cpu_only_p95_ms": 0.2505,
       "n": 400,
       "n_cpu_only": 400,
       "pattern": "busy_gap",
@@ -3617,11 +3755,11 @@
     {
       "metric": "online model, isolated calls (3.0 ms idle CPU gap): cpuAndNeuralEngine faster than cpuOnly",
       "target": "speedup > 1 (reference)",
-      "measured_speedup": 1.716938,
-      "cpu_and_neural_engine_p50_ms": 0.850666,
-      "cpu_only_p50_ms": 1.460541,
-      "cpu_and_neural_engine_p95_ms": 1.220083,
-      "cpu_only_p95_ms": 2.436375,
+      "measured_speedup": 1.656912,
+      "cpu_and_neural_engine_p50_ms": 0.730375,
+      "cpu_only_p50_ms": 1.210167,
+      "cpu_and_neural_engine_p95_ms": 0.923542,
+      "cpu_only_p95_ms": 1.928708,
       "n": 400,
       "n_cpu_only": 400,
       "pattern": "idle_gap",
@@ -3631,8 +3769,8 @@
     {
       "metric": "CoreML online window model · one call per transaction (end-to-end ane_score stage, rollback path)",
       "target": "< 0.6 ms (reference)",
-      "measured_p50_ms": 0.373917,
-      "p95_ms": 0.486541,
+      "measured_p50_ms": 0.369125,
+      "p95_ms": 0.401333,
       "n": 200,
       "pass": true,
       "section": "ane"
@@ -3641,28 +3779,28 @@
       "metric": "CoreML batch window model · per window, amortized (cpuAndNeuralEngine)",
       "target": "—",
       "pass": null,
-      "measured_p50_us": 50.47525,
+      "measured_p50_us": 48.134125,
       "section": "ane"
     },
     {
       "metric": "batch model: cpuAndNeuralEngine faster than cpuOnly",
       "target": "speedup > 1 (reference)",
       "pass": true,
-      "measured_speedup": 3.325835,
+      "measured_speedup": 3.448318,
       "section": "ane"
     },
     {
       "metric": "online model parity · sessions (score_window vs FP32 reference, max |diff| points)",
       "target": "<= 1 points (parity file tolerance)",
       "pass": true,
-      "measured_points": 0.30559,
+      "measured_points": 0.27464,
       "section": "ane"
     },
     {
       "metric": "end-to-end rollback path (pool + score_window + Cedar) · e2e",
       "target": "—",
-      "measured_p50_ms": 3.365833,
-      "p95_ms": 5.68075,
+      "measured_p50_ms": 2.790916,
+      "p95_ms": 3.8095,
       "n": 200,
       "pass": null,
       "section": "e2e"
@@ -3679,5 +3817,5 @@
       "section": "integrity"
     }
   ],
-  "targets_note": "Rows 1-4 measure WarmBranchPool::acquire on a warm hit: one renameatx_np(RENAME_EXCL) of a standby cloned earlier, p50 0.1002-0.1465 ms across 4 fixtures (960 hits, 0 misses; a row passes only without misses). The gated acquire and rollback rows are timed with the pool idle (settle before each acquire, rollback after the refill finished); the contended cases are reported next to them. The pool does not make clonefile cheaper: a cold clonefile is still O(entries) inside the kernel, p50 0.172 ms at 9 files and 7.729 ms at 1025 files, with getrusage ru_stime of 7.91-13.42 us per tree entry, and every acquire is paid for by one refill clone off the caller's path (standby replenish p50 1.117 ms small, 7.943 ms medium). An acquire right after a commit finds the standby stale: at medium 1/60 fell back to a cold clone and 59/60 waited for the refill in flight, p50 10.820 ms. A commit or rollback issued while the refill clone runs waits behind it (small: commit 1.643 ms, rollback 1.289 ms p50). The commit row times the RENAME_SWAP syscall (small p50 0.130 ms); the caller-visible commit (lock, checks, swap, version) has p50 0.465 ms. The online-model rows time back-to-back calls (cpuAndNeuralEngine p50 0.175 ms, cpuOnly 0.220 ms). One call after a 3.0 ms gap takes 0.368 ms with the CPU busy in the gap and 0.851 ms with it idle (cpuOnly 0.212 / 1.461 ms: cpuAndNeuralEngine is slower than cpuOnly with a busy CPU, speedup 0.58, and faster with an idle CPU, speedup 1.72). The end-to-end ane_score stage, one call per transaction, has p50 0.374 ms, 2.14x the back-to-back p50 and 1.02x the busy-gap isolated p50. Live-tree integrity: 30/30 checks passed, stores clean: true. One run on Apple M2, 11/11 gated rows passed. This run is PRELIMINARY (1-min load average 13.13 at end above the busy threshold 4); only a quiet full-scale run decides the phase result."
+  "targets_note": "Rows 1-4 measure WarmBranchPool::acquire on a warm hit: one renameatx_np(RENAME_EXCL) of a standby cloned earlier, p50 0.0946-0.1204 ms across 4 fixtures (960 hits, 0 misses; a row passes only without misses). The gated acquire and rollback rows are timed with the pool idle (settle before each acquire, rollback after the refill finished); the contended cases are reported next to them. The pool does not make clonefile cheaper: a cold clonefile is still O(entries) inside the kernel, p50 0.171 ms at 9 files and 7.459 ms at 1025 files, with getrusage ru_stime of 6.02-13.33 us per tree entry, and every acquire is paid for by one refill clone off the caller's path (standby replenish p50 1.023 ms small, 6.817 ms medium). An acquire right after a commit finds the standby stale: at medium 0/60 fell back to a cold clone and 60/60 waited for the refill in flight, p50 10.058 ms. A commit or rollback issued while the refill clone runs waits behind it (small: commit 1.405 ms, rollback 1.089 ms p50). The commit row times the RENAME_SWAP syscall (small p50 0.126 ms); the caller-visible commit (lock, checks, swap, version) has p50 0.444 ms. The online-model rows time back-to-back calls (cpuAndNeuralEngine p50 0.182 ms, cpuOnly 0.223 ms). One call after a 3.0 ms gap takes 0.362 ms with the CPU busy in the gap and 0.730 ms with it idle (cpuOnly 0.221 / 1.210 ms: cpuAndNeuralEngine is slower than cpuOnly with a busy CPU, speedup 0.61, and faster with an idle CPU, speedup 1.66). The end-to-end ane_score stage, one call per transaction, has p50 0.369 ms, 2.03x the back-to-back p50 and 1.02x the busy-gap isolated p50. Live-tree integrity: 30/30 checks passed, stores clean: true. One run on Apple M2, 11/11 gated rows passed. Run conditions: full scale, 1-min load average at start below the busy threshold, mean attributable CPU contention from other programs 0.78 cores (p95 1.66, max 1.83, 73 samples) below the busy threshold of 2.00 cores, sources unchanged during the run; the end-of-run load average and the total external CPU (system minus own: mean 2.73 cores, 142.15 core-seconds unattributed, mostly root and system services responding to the benchmark's own filesystem and CoreML activity) are informational."
 }

@@ -14,5 +14,6 @@ aegis-ane-scorer.workspace = true
 aegis-config.workspace = true
 aegis-governance.workspace = true
 aegis-storage.workspace = true
+libc.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

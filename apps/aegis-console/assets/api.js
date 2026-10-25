@@ -69,12 +69,14 @@ export const post = (path, body) => api('POST', path, body);
 
 /**
  * True for aegis-daemon's notice that this socket fell behind and broadcast messages were dropped
- * (a `log` message, see crates/aegis-daemon/src/api.rs). The page must then treat its view of
- * in-flight runs as incomplete and reload what it can.
+ * (API.md "Broadcast lag"): a `log` message whose `dropped` field counts the missed messages. Daemons
+ * that predate the field sent only the text, which is still recognised. The page must then treat its
+ * view of in-flight runs as incomplete and reload what it can.
  */
 export function isLagNotice(msg) {
-  return Boolean(msg) && msg.type === 'log' && typeof msg.message === 'string'
-    && /fell behind; \d+ messages? (?:were|was) dropped/.test(msg.message);
+  if (!msg || msg.type !== 'log') return false;
+  if (Number.isInteger(msg.dropped)) return msg.dropped > 0;
+  return typeof msg.message === 'string' && /fell behind; \d+ messages? (?:were|was) dropped/.test(msg.message);
 }
 
 const BACKOFF_BASE_MS = 500;
