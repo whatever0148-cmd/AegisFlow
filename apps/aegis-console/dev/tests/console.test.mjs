@@ -200,10 +200,11 @@ test('saving PayPal credentials re-reads the Sandbox state instead of showing th
   assert.equal(req.url, '/api/paypal/scenarios');
   req.respond(scenariosBody(true, 0));
   await drain();
-  assert.match(text(sandbox), /Sandbox enabled/);
+  // Without `mode` (older daemons), enabled:true meant the remote Sandbox.
+  assert.match(text(sandbox), /Sandbox Active \(PayPal Remote\)/);
 
   panel.setServices(paypalService(false)); // credentials cleared
-  assert.doesNotMatch(text(sandbox), /Sandbox enabled/);
+  assert.doesNotMatch(text(sandbox), /Sandbox Active/);
   (await fetch.call(1)).respond(scenariosBody(false, 0));
   await drain();
   assert.match(text(sandbox), /Sandbox disabled/);
@@ -324,6 +325,17 @@ function settingsDrawer(onConfig) {
   return { drawer, config, $, submit };
 }
 
+test('secret inputs are masked text fields that browsers and password managers leave alone', () => {
+  const { $ } = settingsDrawer(null);
+  const input = $('[data-key="TAVILY_API_KEY"]');
+  assert.equal(input.getAttribute('type'), 'text', 'type=password makes Chrome offer generated or saved passwords');
+  assert.equal(input.getAttribute('autocomplete'), 'off');
+  assert.equal(input.getAttribute('class'), 'key__secret');
+  assert.equal(input.dataset['1pIgnore'], 'true');
+  assert.equal(input.dataset.lpignore, 'true');
+  assert.notEqual(input.getAttribute('name'), 'TAVILY_API_KEY');
+});
+
 test('a whitespace-only value is refused instead of silently unsetting the saved key', () => {
   const fetch = stubFetch();
   const { $, submit } = settingsDrawer(null);
@@ -399,6 +411,126 @@ test('a key with console_writable:false renders read-only, keeps "Clear on save"
   assert.deepEqual(clear.body, { values: { NEBIUS_BASE_URL: '' } });
   clear.respond(config);
   await done;
+});
+
+// Mirrors GET /api/config from aegis-daemon (services::config_json) for the Nemotron provider keys.
+const PROVIDERS = [
+  { id: 'nebius', label: 'Nebius Token Factory', base_url: 'https://api.tokenfactory.nebius.com/v1', signup_url: 'https://tokenfactory.nebius.com/', key_hint: 'Nebius Token Factory API key', tier1_model: 'nvidia/Llama-3_3-Nemotron-Super-49B-v1', tier2_model: 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1' },
+  { id: 'nvidia-nim', label: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', signup_url: 'https://build.nvidia.com', key_hint: 'build.nvidia.com API key (nvapi-…)', tier1_model: null, tier2_model: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
+  { id: 'openrouter', label: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', signup_url: 'https://openrouter.ai/keys', key_hint: 'OpenRouter API key', tier1_model: null, tier2_model: null },
+];
+
+function providerConfig(selected) {
+  return {
+    path: '/scratch/.env',
+    keys: [
+      { name: 'NEBIUS_API_KEY', set: true, source: 'dotenv', secret: true, console_writable: true, hint: 'API key for the selected Nemotron provider', signup_url: selected.signup_url },
+      { name: 'NEBIUS_BASE_URL', set: true, source: 'dotenv', secret: false, console_writable: true, hint: 'Nemotron provider', signup_url: null,
+        choices: PROVIDERS.map((p) => ({ value: p.base_url, label: p.label })) },
+      { name: 'NEBIUS_TIER1_MODEL', set: false, source: null, secret: false, console_writable: true, hint: 'Tier-1 model id', signup_url: null },
+      { name: 'NEBIUS_TIER2_MODEL', set: false, source: null, secret: false, console_writable: true, hint: 'Tier-2 model id', signup_url: null },
+    ],
+    nemotron_providers: PROVIDERS,
+    services: { nebius: { enabled: false, reason: 'synthetic', provider: selected.label, base_url: selected.base_url, tier1_model: selected.tier1_model, tier2_model: selected.tier2_model } },
+  };
+}
+
+function providerDrawer(selected, onConfig) {
+  const doc = installFakeDom();
+  const dialog = el('dialog', { id: 'settings' }, ...roles('error:p', 'path:span', 'form:form', 'keys', 'save:button', 'save-status:p', 'services', 'close:button'));
+  doc.body.append(el('button', { id: 'open-settings' }), dialog);
+  const drawer = settingsMod.createSettings({ onConfig });
+  const config = providerConfig(selected);
+  drawer.setConfig(config);
+  const $ = (sel) => dialog.querySelector(sel);
+  const $$ = (sel) => dialog.querySelectorAll(sel);
+  const submit = () => $('[data-role="form"]').dispatchEvent(new FakeEvent('submit'));
+  return { drawer, config, dialog, $, $$, submit };
+}
+
+test('NEBIUS_BASE_URL renders as a provider selector: keep current, the allowlisted providers, default', () => {
+  const [nebius, nim, openrouter] = PROVIDERS;
+  const { $, $$, submit } = providerDrawer(nebius, null);
+  const fetch = stubFetch();
+  const select = $('select[data-key="NEBIUS_BASE_URL"]');
+  assert.ok(select, 'a <select> for NEBIUS_BASE_URL');
+  assert.equal($('input[data-key="NEBIUS_BASE_URL"]'), null, 'no free-text box');
+  assert.ok(!select.hasAttribute('disabled'));
+  const options = select.querySelectorAll('option');
+  assert.deepEqual(options.map((o) => o.getAttribute('value')), ['', ...PROVIDERS.map((p) => p.base_url), settingsMod.DEFAULT_CHOICE]);
+  assert.match(text(options[0]), /^Keep current \(Nebius Token Factory\)$/);
+  assert.match(text(options[1]), /Nebius Token Factory \(current\)/);
+  assert.doesNotMatch(text(options[2]), /current/);
+  assert.match(text(options[options.length - 1]), /^Default \(unset: Nebius Token Factory\)$/);
+  assert.ok($('[data-clear="NEBIUS_BASE_URL"]'), '"Clear on save" stays next to the selector');
+
+  // Each provider is listed with its key link and its default models (or which ones are required).
+  const notes = $$('[data-role="providers"] li');
+  assert.deepEqual(notes.map((li) => li.dataset.provider), PROVIDERS.map((p) => p.id));
+  assert.deepEqual(notes.map((li) => li.querySelector('a').getAttribute('href')), PROVIDERS.map((p) => p.signup_url));
+  assert.match(text(notes[1]), /tier 1: set NEBIUS_TIER1_MODEL/);
+  assert.match(text(notes[1]), new RegExp(`tier 2 ${nim.tier2_model.replace(/[.]/g, '\\.')}`));
+  assert.match(text(notes[2]), /tier 1: set NEBIUS_TIER1_MODEL · tier 2: set NEBIUS_TIER2_MODEL/);
+  assert.match(text($('[id="cfg-NEBIUS_TIER1_MODEL-hint"]')), /Nebius Token Factory default: nvidia\/Llama-3_3-Nemotron-Super-49B-v1/);
+
+  // Nothing chosen and nothing typed: nothing is posted.
+  submit();
+  assert.equal(fetch.calls.length, 0);
+  assert.match(text($('[data-role="save-status"]')), /Nothing to save/);
+  assert.equal(settingsMod.providerFor({ nemotron_providers: PROVIDERS }, `${openrouter.base_url}/`), openrouter);
+  assert.equal(settingsMod.providerFor({ nemotron_providers: PROVIDERS }, 'https://openrouter.ai.evil.example/api/v1'), null);
+});
+
+test('choosing a provider posts its URL together with the typed key; Default posts "" like Clear on save', async () => {
+  const [nebius, nim] = PROVIDERS;
+  let saved;
+  const { drawer, config, $, submit } = providerDrawer(nebius, () => { if (saved) saved(); });
+  const fetch = stubFetch();
+
+  $('select[data-key="NEBIUS_BASE_URL"]').value = nim.base_url;
+  $('[data-key="NEBIUS_API_KEY"]').value = 'synthetic-key-for-the-test';
+  let done = new Promise((resolve) => { saved = resolve; });
+  submit();
+  const req = await fetch.call(0);
+  assert.equal(req.method, 'POST');
+  assert.deepEqual(req.body, { values: { NEBIUS_API_KEY: 'synthetic-key-for-the-test', NEBIUS_BASE_URL: nim.base_url } });
+  req.respond(providerConfig(nim));
+  await done;
+  assert.match(text($('[data-role="save-status"]')), /Saved 2 keys: NEBIUS_API_KEY, NEBIUS_BASE_URL/);
+  const select = $('select[data-key="NEBIUS_BASE_URL"]');
+  assert.equal(select.value, '', 'back to "keep current" after a save');
+  assert.match(text(select.querySelectorAll('option')[0]), /Keep current \(NVIDIA NIM\)/);
+  // With NIM selected, the tier hints say which model id is required and which has a default.
+  assert.match(text($('[id="cfg-NEBIUS_TIER1_MODEL-hint"]')), /Required with NVIDIA NIM/);
+  assert.match(text($('[id="cfg-NEBIUS_TIER2_MODEL-hint"]')), /NVIDIA NIM default: nvidia\/llama-3\.1-nemotron-ultra-253b-v1/);
+
+  select.value = settingsMod.DEFAULT_CHOICE;
+  done = new Promise((resolve) => { saved = resolve; });
+  submit();
+  const unset = await fetch.call(1);
+  assert.deepEqual(unset.body, { values: { NEBIUS_BASE_URL: '' } });
+  unset.respond(config);
+  await done;
+
+  // "Clear on save" disables the selector and posts "" without reading it.
+  $('[data-clear="NEBIUS_BASE_URL"]').click();
+  assert.ok($('select[data-key="NEBIUS_BASE_URL"]').hasAttribute('disabled'));
+  done = new Promise((resolve) => { saved = resolve; });
+  submit();
+  const clear = await fetch.call(2);
+  assert.deepEqual(clear.body, { values: { NEBIUS_BASE_URL: '' } });
+  clear.respond(config);
+  await done;
+
+  // A refused save (e.g. a provider switch without the key) is reported, not swallowed.
+  $('select[data-key="NEBIUS_BASE_URL"]').value = PROVIDERS[2].base_url;
+  submit();
+  const refused = await fetch.call(3);
+  refused.respond({ error: 'switching the Nemotron provider to OpenRouter needs that provider\'s API key in NEBIUS_API_KEY in the same save' }, 400);
+  await drain();
+  await drain();
+  assert.match(text($('[data-role="save-status"]')), /Save failed: .*NEBIUS_API_KEY/);
+  drawer.setConfig(config);
 });
 
 test('run.finished queued_ms is shown next to total_ms and kept across the post-approval finish', () => {

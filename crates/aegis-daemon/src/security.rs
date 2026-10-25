@@ -5,10 +5,15 @@
 //! * An `Origin`, if present, must be `http://` + one of those → else 403.
 //! * `/ws` needs `?token=<token>`; every method other than GET/HEAD needs `X-Aegis-Token` → else 401,
 //!   and a JSON `Content-Type` → else 415.
+//! * Except under `/paypal-sandbox` (the local PayPal Orders v2 emulation, `paypal_sandbox`): the
+//!   PayPal adapter calls it like a real API, with OAuth2 (`Basic` client credentials, then `Bearer`
+//!   tokens) and a form-encoded token request, so it keeps the `Host` and `Origin` checks but not the
+//!   browser token or the JSON-only rule. Its responses carry `x-aegis-local-sandbox`.
 //!
 //! The token is a CSRF / DNS-rebinding defence for browsers. `GET /` hands it to any client that
-//! sends an allowed `Host`, so it does not authenticate other local processes; settings that would
-//! redirect a stored secret are therefore not writable over HTTP (`services::console_writable`).
+//! sends an allowed `Host`, so it does not authenticate other local processes; a setting that would
+//! redirect a stored secret (`NEBIUS_BASE_URL`) only takes allowlisted providers over HTTP, and a
+//! provider change must carry that provider's key (`services::console_update_problem`).
 //!
 //! Responses get `nosniff`, `no-referrer`, frame denial and the console's CSP.
 
@@ -23,6 +28,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
+use crate::paypal_sandbox;
 use crate::state::AppState;
 use crate::util::constant_time_eq;
 
@@ -60,6 +66,11 @@ fn origin_allowed(origin: &str, port: u16) -> bool {
     LOOPBACK_HOSTS.iter().any(|h| origin == format!("http://{h}:{port}"))
 }
 
+/// `/paypal-sandbox` and everything below it.
+pub fn is_sandbox_path(path: &str) -> bool {
+    path.strip_prefix(paypal_sandbox::PREFIX).is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+}
+
 fn query_token(query: Option<&str>) -> Option<&str> {
     query?.split('&').find_map(|pair| pair.strip_prefix("token="))
 }
@@ -77,7 +88,10 @@ pub async fn guard(State(state): State<Arc<AppState>>, req: Request<Body>, next:
         }
     }
     let token = state.token.as_bytes();
-    if req.uri().path() == "/ws" {
+    let sandbox = is_sandbox_path(req.uri().path());
+    if sandbox {
+        // OAuth2-protected like the API it emulates (see the module docs).
+    } else if req.uri().path() == "/ws" {
         if !query_token(req.uri().query()).is_some_and(|t| constant_time_eq(t.as_bytes(), token)) {
             return error(StatusCode::UNAUTHORIZED, "missing or wrong token");
         }
@@ -104,6 +118,9 @@ pub async fn guard(State(state): State<Arc<AppState>>, req: Request<Body>, next:
         response = error(status, status.canonical_reason().unwrap_or("request failed").to_lowercase());
     }
     let h = response.headers_mut();
+    if sandbox {
+        h.insert(paypal_sandbox::MARKER_HEADER, HeaderValue::from_static(paypal_sandbox::MARKER_VALUE));
+    }
     h.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     h.insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
@@ -136,6 +153,14 @@ mod tests {
         assert!(!origin_allowed("http://[::1]:4174", 4173));
         assert!(!origin_allowed("https://localhost:4173", 4173));
         assert!(!origin_allowed("null", 4173));
+    }
+
+    #[test]
+    fn sandbox_paths() {
+        assert!(is_sandbox_path("/paypal-sandbox"));
+        assert!(is_sandbox_path("/paypal-sandbox/v2/checkout/orders"));
+        assert!(!is_sandbox_path("/paypal-sandboxx/v1/oauth2/token"));
+        assert!(!is_sandbox_path("/api/paypal-sandbox"));
     }
 
     #[test]

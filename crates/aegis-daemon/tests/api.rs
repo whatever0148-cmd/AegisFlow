@@ -278,31 +278,84 @@ async fn concurrent_config_saves_all_land_intact() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn nebius_base_url_cannot_be_set_over_http() {
-    let fx = Fixture::new("base-url", "NEBIUS_API_KEY=nb-FAKE-OWNER-KEY-0001\n").await;
+async fn nebius_base_url_over_http_takes_only_allowlisted_providers() {
+    let owner = "nb-FAKE-OWNER-KEY-0001";
+    let attacker = "nb-FAKE-ATTACKER-KEY-9d8c";
+    let original = format!("NEBIUS_API_KEY={owner}\n");
+    let fx = Fixture::new("base-url", &original).await;
     let dotenv = fx.root.join(".env");
-    for values in [
-        json!({"NEBIUS_BASE_URL": "http://127.0.0.1:9/v1"}),
-        json!({"NEBIUS_BASE_URL": "https://api.tokenfactory.nebius.com/v1"}),
-        json!({"NEBIUS_API_KEY": "nb-attacker", "NEBIUS_BASE_URL": "http://127.0.0.1:9/v1"}),
-    ] {
-        let (status, body) = fx.json(fx.post("/api/config", &json!({ "values": values }))).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "{values}: {body}");
-        assert!(body["error"].as_str().unwrap().contains("aegis-daemon config set NEBIUS_BASE_URL"), "{body}");
-        assert_eq!(std::fs::read_to_string(&dotenv).unwrap(), "NEBIUS_API_KEY=nb-FAKE-OWNER-KEY-0001\n", "nothing written");
+    let refused_urls = [
+        "http://127.0.0.1:9/v1",
+        "https://integrate.api.nvidia.com.evil.example/v1",
+        "http://integrate.api.nvidia.com/v1",
+        "https://x@openrouter.ai/api/v1",
+        "https://openrouter.ai/api/v2",
+        "https://proxy.example/v1",
+    ];
+    let mut cases: Vec<(serde_json::Value, Option<&str>)> = refused_urls.iter().map(|u| (json!({"NEBIUS_BASE_URL": u}), Some(*u))).collect();
+    cases.push((json!({"NEBIUS_API_KEY": attacker, "NEBIUS_BASE_URL": "http://127.0.0.1:9/v1"}), Some("http://127.0.0.1:9/v1")));
+    // An allowlisted provider, but the stored key would follow it: the save must carry a new key.
+    cases.push((json!({"NEBIUS_BASE_URL": "https://openrouter.ai/api/v1"}), None));
+    for (values, refused) in cases {
+        let (status, text) = fx.send(fx.post("/api/config", &json!({ "values": values }))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{values}: {text}");
+        assert!(!text.contains(owner) && !text.contains(attacker), "the 400 echoes a secret: {text}");
+        let body: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let message = body["error"].as_str().unwrap();
+        match refused {
+            Some(url) => {
+                assert!(!message.contains(url), "the 400 repeats the refused value: {message}");
+                for allowed in ["https://api.tokenfactory.nebius.com/v1", "https://integrate.api.nvidia.com/v1", "https://openrouter.ai/api/v1"] {
+                    assert!(message.contains(allowed), "the 400 lists the providers: {message}");
+                }
+            }
+            None => assert!(message.contains("OpenRouter") && message.contains("NEBIUS_API_KEY"), "{message}"),
+        }
+        assert_eq!(std::fs::read_to_string(&dotenv).unwrap(), original, "nothing written for {values}");
     }
     let (_, config) = fx.json(fx.get("/api/config")).await;
     let base = config["keys"].as_array().unwrap().iter().find(|k| k["name"] == "NEBIUS_BASE_URL").unwrap();
-    assert_eq!(base["console_writable"], false);
-    let key = config["keys"].as_array().unwrap().iter().find(|k| k["name"] == "NEBIUS_API_KEY").unwrap();
-    assert_eq!(key["console_writable"], true);
+    assert_eq!(base["console_writable"], true);
+    assert_eq!(base["choices"].as_array().unwrap().len(), 3);
+    assert_eq!(config["nemotron_providers"].as_array().unwrap().len(), 3);
+    assert_eq!(config["services"]["nebius"]["provider"], "Nebius Token Factory");
 
-    // Unsetting (back to the default https endpoint) is allowed.
-    std::fs::write(&dotenv, "NEBIUS_API_KEY=nb-FAKE-OWNER-KEY-0001\nNEBIUS_BASE_URL=http://127.0.0.1:9/v1\n").unwrap();
-    let (status, config) = fx.json(fx.post("/api/config", &json!({"values": {"NEBIUS_BASE_URL": ""}}))).await;
+    // Switching to NVIDIA NIM together with that provider's key is accepted; neither key is echoed.
+    let nim_key = "nvapi-FAKE-unit-test-key-0002";
+    let mut rx = fx.subscribe();
+    let (status, text) = fx
+        .send(fx.post("/api/config", &json!({"values": {"NEBIUS_BASE_URL": "https://integrate.api.nvidia.com/v1", "NEBIUS_API_KEY": nim_key}})))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{text}");
+    assert!(!text.contains(nim_key) && !text.contains(owner), "POST /api/config echoes a secret");
+    let stored = std::fs::read_to_string(&dotenv).unwrap();
+    assert!(stored.contains("NEBIUS_BASE_URL=https://integrate.api.nvidia.com/v1\n") && stored.contains(nim_key) && !stored.contains(owner), "{stored:?}");
+    let config: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let nebius = &config["services"]["nebius"];
+    assert_eq!(nebius["provider"], "NVIDIA NIM");
+    assert_eq!(nebius["tier2_model"], "nvidia/llama-3.1-nemotron-ultra-253b-v1");
+    assert!(nebius["tier1_model"].is_null());
+    assert_eq!(nebius["enabled"], false, "NIM has no confirmed tier-1 default");
+    assert!(nebius["reason"].as_str().unwrap().starts_with("NEBIUS_TIER1_MODEL not set"), "{nebius}");
+    let key = config["keys"].as_array().unwrap().iter().find(|k| k["name"] == "NEBIUS_API_KEY").unwrap();
+    assert_eq!(key["signup_url"], "https://build.nvidia.com");
+    let changed = common::wait_for(&mut rx, &mut Vec::new(), Duration::from_secs(5), |v| v["type"] == "config.changed").await;
+    assert!(!changed.to_string().contains(nim_key), "config.changed echoes the key");
+    let (_, get) = fx.send(fx.get("/api/config")).await;
+    assert!(!get.contains(nim_key), "GET /api/config echoes the key");
+
+    // The same provider again (trailing slash) needs no key; back to the default does.
+    let (status, text) = fx.send(fx.post("/api/config", &json!({"values": {"NEBIUS_BASE_URL": "https://integrate.api.nvidia.com/v1/"}}))).await;
+    assert_eq!(status, StatusCode::OK, "{text}");
+    let (status, text) = fx.send(fx.post("/api/config", &json!({"values": {"NEBIUS_BASE_URL": ""}}))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{text}");
+    assert!(text.contains("Nebius Token Factory") && !text.contains(nim_key), "{text}");
+    // Unsetting both restores the default endpoint.
+    let (status, config) = fx.json(fx.post("/api/config", &json!({"values": {"NEBIUS_BASE_URL": "", "NEBIUS_API_KEY": ""}}))).await;
     assert_eq!(status, StatusCode::OK, "{config}");
-    assert!(!std::fs::read_to_string(&dotenv).unwrap().contains("NEBIUS_BASE_URL"));
-    assert!(config["services"]["nebius"]["base_url"].as_str().unwrap().starts_with("https://"));
+    let stored = std::fs::read_to_string(&dotenv).unwrap();
+    assert!(!stored.contains("NEBIUS_BASE_URL") && !stored.contains("NEBIUS_API_KEY"), "{stored:?}");
+    assert_eq!(config["services"]["nebius"]["base_url"], "https://api.tokenfactory.nebius.com/v1");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

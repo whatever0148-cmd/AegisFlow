@@ -9,9 +9,11 @@
 # command line, in the process list or in this terminal. Only set/unset is printed.
 # AEGIS_DOTENV points the loader at another file.
 #
-# NEBIUS_BASE_URL (where NEBIUS_API_KEY is sent) can only be set here or in the environment, not
-# from the console, and must be https:// (http:// only for 127.0.0.1, localhost or [::1]). A refused
-# value is reported and the loop moves on to the next setting.
+# NEBIUS_BASE_URL (where NEBIUS_API_KEY is sent) is picked first from the allowlisted Nemotron
+# providers that `aegis-daemon config providers` prints (Nebius Token Factory, NVIDIA NIM,
+# OpenRouter), or "l" for a loopback test endpoint (http(s)://127.0.0.1, localhost or [::1]); any
+# other URL is refused. NEBIUS_API_KEY is then the key for the selected provider. A refused value
+# is reported and the loop moves on to the next setting.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -28,9 +30,61 @@ if [ ! -t 0 ]; then
 fi
 
 echo "AegisFlow settings ($("$BIN" config status </dev/null | head -n 1 | sed 's/^settings file: //'))"
+echo
+
+# Nemotron provider (NEBIUS_BASE_URL): a menu built from the allowlist in aegis-config.
+ids=(); urls=(); labels=(); signups=(); tier1s=(); tier2s=(); current="-"
+while IFS=$'\t' read -r mark id url label signup tier1 tier2; do
+  ids+=("$id"); urls+=("$url"); labels+=("$label"); signups+=("$signup"); tier1s+=("$tier1"); tier2s+=("$tier2")
+  if [ "$mark" = "*" ]; then current="$label"; fi
+done < <("$BIN" config providers </dev/null)
+if [ "$current" = "-" ]; then current="a loopback test endpoint or an unrecognised value"; fi
+echo "Nemotron provider for recovery tiers 1-2 (NEBIUS_BASE_URL; currently $current):"
+for i in "${!ids[@]}"; do
+  printf '  %d) %s  %s\n' "$((i + 1))" "${labels[$i]}" "${urls[$i]}"
+done
+echo "  d) default (remove NEBIUS_BASE_URL: ${labels[0]})"
+echo "  l) loopback test endpoint (http(s)://127.0.0.1, localhost or [::1])"
+while IFS= read -rs -t 0.05 _ </dev/tty; do :; done
+printf 'Choice [Enter keeps the current provider]: '
+choice=""
+IFS= read -r choice </dev/tty || choice=""
+case "$choice" in
+  "") ;;
+  d|D)
+    "$BIN" config unset NEBIUS_BASE_URL </dev/null >/dev/null || echo "  NEBIUS_BASE_URL: not changed (see the message above)" >&2 ;;
+  l|L)
+    printf 'Loopback base URL (shown as typed; not a secret): '
+    url=""
+    IFS= read -r url </dev/tty || url=""
+    if [ -n "$url" ]; then
+      printf '%s' "$url" | "$BIN" config set NEBIUS_BASE_URL >/dev/null || echo "  NEBIUS_BASE_URL: not saved (see the message above)" >&2
+    fi ;;
+  *)
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#ids[@]}" ]; then
+      n=$((choice - 1))
+      if printf '%s' "${urls[$n]}" | "$BIN" config set NEBIUS_BASE_URL >/dev/null; then
+        echo "  ${labels[$n]} selected. NEBIUS_API_KEY below is the key for it: ${signups[$n]}"
+        missing=""
+        if [ "${tier1s[$n]}" = "-" ]; then missing="NEBIUS_TIER1_MODEL"; fi
+        if [ "${tier2s[$n]}" = "-" ]; then missing="${missing:+$missing and }NEBIUS_TIER2_MODEL"; fi
+        if [ -n "$missing" ]; then
+          echo "  ${labels[$n]} has no confirmed default model id for $missing: set it below"
+          echo "  (pick a Nemotron id from GET ${urls[$n]}/models, or use “Test Nemotron provider” in the console, which lists them)."
+        fi
+      else
+        echo "  NEBIUS_BASE_URL: not saved (see the message above)" >&2
+      fi
+    else
+      echo "  Unknown choice; NEBIUS_BASE_URL not changed." >&2
+    fi ;;
+esac
+echo
+
 echo "Enter keeps the current value, '-' removes it. Input is hidden."
 echo
 while read -r name kind; do
+  if [ "$name" = "NEBIUS_BASE_URL" ]; then continue; fi
   state="$("$BIN" config status </dev/null | grep "^${name}: " | sed "s/^${name}: //")"
   # Drop anything typed before this prompt, so a value can never land under the wrong name.
   while IFS= read -rs -t 0.05 _ </dev/tty; do :; done

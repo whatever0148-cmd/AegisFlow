@@ -2,14 +2,14 @@
 tags:
   - benchmark
 status: verified
-latency_ms: 0.182041
-last_verified: 2026-10-25T17:28:23Z
-git_commit: 9f1f777-dirty
+latency_ms: 0.181625
+last_verified: 2026-10-25T18:15:32Z
+git_commit: 3bfc312-dirty
 ---
 
 # Bench-ANE-FP16
 
-**Status:** 🟢 verified · **p50:** 0.1820 ms · **commit:** `9f1f777-dirty`
+**Status:** 🟢 verified · **p50:** 0.1816 ms · **commit:** `3bfc312-dirty`
 
 > Online context-window model latency per compute unit (units interleaved in rounds), cpuOnly / cpuAndNeuralEngine speedup, MLComputePlan per-operation placement, parity against the FP32 reference in models/parity_vectors.json, and the batch model.
 
@@ -21,23 +21,23 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T17:28:26Z · bench 2026-10-25T17:28:23Z · tests 2026-10-25T08:10:13Z · commit `9f1f777-dirty`_
+_Synced 2026-10-25T18:15:35Z · bench 2026-10-25T18:15:32Z · tests 2026-10-25T08:10:13Z · commit `3bfc312-dirty`_
 
 | Metric | Measured |
 |---|---|
-| online window model · cpuAndNeuralEngine · back-to-back | p50 0.1820 ms · p95 0.2098 ms · n=2400 |
-| online window model · cpuOnly · back-to-back | p50 0.2228 ms · p95 0.2605 ms · n=2400 |
-| online window model · all · back-to-back | p50 0.1870 ms · p95 0.2114 ms · n=2400 |
+| online window model · cpuAndNeuralEngine · back-to-back | p50 0.1816 ms · p95 0.2096 ms · n=2400 |
+| online window model · cpuOnly · back-to-back | p50 0.2227 ms · p95 0.2791 ms · n=2400 |
+| online window model · all · back-to-back | p50 0.1873 ms · p95 0.2122 ms · n=2400 |
 | method | AneScorer::score_window on one full window per call (FFI + FP16 fill + CoreML prediction); back-to-back: per_round consecutive calls per unit, no gap between calls; units interleaved: yes · 40 rounds x 60 per unit |
-| speedup cpuOnly p50 / cpuAndNeuralEngine p50 · back-to-back | 1.224 |
+| speedup cpuOnly p50 / cpuAndNeuralEngine p50 · back-to-back | 1.226 |
 | method · isolated calls | one AneScorer::score_window per gap, units cpuAndNeuralEngine and cpuOnly interleaved in rounds; the gap is outside the timed region; gap 3.000 ms; busy: the calling thread spins for the gap (CPU busy, as during diff and feature extraction); idle: the calling thread sleeps for the gap (CPU idle, as while a transaction waits on I/O or the pool); 20 rounds x 20 per unit |
-| online window model · cpuAndNeuralEngine · isolated calls (busy CPU gap) | p50 0.3618 ms · p95 0.4031 ms · n=400 |
-| online window model · cpuOnly · isolated calls (busy CPU gap) | p50 0.2205 ms · p95 0.2505 ms · n=400 |
-| speedup cpuOnly / cpuAndNeuralEngine · isolated calls (busy CPU gap) | 0.6095 |
-| online window model · cpuAndNeuralEngine · isolated calls (idle CPU gap) | p50 0.7304 ms · p95 0.9235 ms · n=400 |
-| online window model · cpuOnly · isolated calls (idle CPU gap) | p50 1.210 ms · p95 1.929 ms · n=400 |
-| speedup cpuOnly / cpuAndNeuralEngine · isolated calls (idle CPU gap) | 1.657 |
-| one call per transaction (end-to-end ane_score stage) | p50 369.1 µs · p95 401.3 µs · n=200 |
+| online window model · cpuAndNeuralEngine · isolated calls (busy CPU gap) | p50 0.3607 ms · p95 0.4053 ms · n=400 |
+| online window model · cpuOnly · isolated calls (busy CPU gap) | p50 0.2240 ms · p95 0.2525 ms · n=400 |
+| speedup cpuOnly / cpuAndNeuralEngine · isolated calls (busy CPU gap) | 0.6211 |
+| online window model · cpuAndNeuralEngine · isolated calls (idle CPU gap) | p50 0.7417 ms · p95 0.9596 ms · n=400 |
+| online window model · cpuOnly · isolated calls (idle CPU gap) | p50 1.194 ms · p95 2.035 ms · n=400 |
+| speedup cpuOnly / cpuAndNeuralEngine · isolated calls (idle CPU gap) | 1.610 |
+| one call per transaction (end-to-end ane_score stage) | p50 354.2 µs · p95 423.8 µs · n=200 |
 | MLComputePlan preferred device | ANE 36 · CPU 0 · GPU 0 of 36 dispatched ops (135 incl. constants) |
 | Neural Engine cores (MLNeuralEngineComputeDevice) | 16 |
 | parity · single events (max \|diff\| points) | 0.3012 |
@@ -51,31 +51,31 @@ _Synced 2026-10-25T17:28:26Z · bench 2026-10-25T17:28:23Z · tests 2026-10-25T0
 | parity · scenario refactor | max 0.2440 · mean 0.1301 points (n=10) |
 | parity · scenario secret_leak | max 0.2527 · mean 0.1527 points (n=7) |
 | batch model (32 windows/prediction) MLComputePlan | ANE 36 · CPU 0 · GPU 0 of 36 ops |
-| batch prediction · cpuAndNeuralEngine | p50 1.540 ms · p95 1.938 ms · n=200 · 48.134 µs/window |
-| batch prediction · cpuOnly | p50 5.311 ms · p95 5.520 ms · n=200 · 166.0 µs/window |
-| batch speedup cpuOnly / cpuAndNeuralEngine | 3.448 |
+| batch prediction · cpuAndNeuralEngine | p50 1.536 ms · p95 1.869 ms · n=200 · 47.995 µs/window |
+| batch prediction · cpuOnly | p50 5.314 ms · p95 5.702 ms · n=200 · 166.1 µs/window |
+| batch speedup cpuOnly / cpuAndNeuralEngine | 3.460 |
 
 **Gated targets (from `targets_summary`)**
 
 | Target row | Target | Measured | Result |
 |---|---|---|---|
-| CoreML FP16 online window model · cpuAndNeuralEngine · back-to-back calls | < 0.6 ms | 0.1820 ms; p95 0.2098 ms; n=2400 | ✅ PASS |
+| CoreML FP16 online window model · cpuAndNeuralEngine · back-to-back calls | < 0.6 ms | 0.1816 ms; p95 0.2096 ms; n=2400 | ✅ PASS |
 | online model executes on the Neural Engine (MLComputePlan) | all ops on ANE | ANE 36 · CPU 0 · GPU 0 | ✅ PASS |
-| online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50) | cpuAndNeuralEngine p50 ms 0.1820 · cpuOnly p50 ms 0.2228 · speedup 1.224; n=2400 | ✅ PASS |
+| online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50) | cpuAndNeuralEngine p50 ms 0.1816 · cpuOnly p50 ms 0.2227 · speedup 1.226; n=2400 | ✅ PASS |
 | batch model executes on the Neural Engine (MLComputePlan) | all ops on ANE | ANE 36 · CPU 0 · GPU 0 | ✅ PASS |
 
 **Informational (not gated)**
 
 | Target row | Target | Measured | Result |
 |---|---|---|---|
-| CoreML FP16 online window model · all (compute units) · back-to-back calls | < 0.6 ms (reference) | 0.1870 ms; p95 0.2114 ms; n=2400 | not gated (would pass) |
-| CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms busy CPU gap before each) | < 0.6 ms (reference) | 0.3618 ms; p95 0.4031 ms; n=400 | not gated (would pass) |
-| CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms idle CPU gap before each) | < 0.6 ms (reference) | 0.7304 ms; p95 0.9235 ms; n=400 | not gated (would fail) |
-| online model, isolated calls (3.0 ms busy CPU gap): cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (reference) | 0.6095; n=400 | not gated (would fail) |
-| online model, isolated calls (3.0 ms idle CPU gap): cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (reference) | 1.657; n=400 | not gated (would pass) |
-| CoreML online window model · one call per transaction (end-to-end ane_score stage, rollback path) | < 0.6 ms (reference) | 0.3691 ms; p95 0.4013 ms; n=200 | not gated (would pass) |
-| CoreML batch window model · per window, amortized (cpuAndNeuralEngine) | — | 48.134 µs | not gated |
-| batch model: cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (reference) | 3.448 | not gated (would pass) |
+| CoreML FP16 online window model · all (compute units) · back-to-back calls | < 0.6 ms (reference) | 0.1873 ms; p95 0.2122 ms; n=2400 | not gated (would pass) |
+| CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms busy CPU gap before each) | < 0.6 ms (reference) | 0.3607 ms; p95 0.4053 ms; n=400 | not gated (would pass) |
+| CoreML FP16 online window model · cpuAndNeuralEngine · isolated calls (3.0 ms idle CPU gap before each) | < 0.6 ms (reference) | 0.7417 ms; p95 0.9596 ms; n=400 | not gated (would fail) |
+| online model, isolated calls (3.0 ms busy CPU gap): cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (reference) | 0.6211; n=400 | not gated (would fail) |
+| online model, isolated calls (3.0 ms idle CPU gap): cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (reference) | 1.610; n=400 | not gated (would pass) |
+| CoreML online window model · one call per transaction (end-to-end ane_score stage, rollback path) | < 0.6 ms (reference) | 0.3543 ms; p95 0.4238 ms; n=200 | not gated (would pass) |
+| CoreML batch window model · per window, amortized (cpuAndNeuralEngine) | — | 47.995 µs | not gated |
+| batch model: cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (reference) | 3.460 | not gated (would pass) |
 | online model parity · sessions (score_window vs FP32 reference, max \|diff\| points) | <= 1 points (parity file tolerance) | 0.2746 | not gated (would pass) |
 
 **MLComputePlan per-op placement (.cpuAndNeuralEngine, dispatched ops in program order)**

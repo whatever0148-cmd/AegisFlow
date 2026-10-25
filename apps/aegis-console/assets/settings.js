@@ -1,13 +1,38 @@
 // Settings drawer: key presence (set/unset + source), write-only inputs, Save, per-service Test.
 // Inputs are never prefilled; Save posts only the fields the user typed (or explicitly marked to clear).
-// Keys the daemon reports with console_writable:false (NEBIUS_BASE_URL) are read-only here: the
-// daemon refuses to set them over HTTP (400), but "Clear on save" (unset) stays available.
+// A key with `choices` (NEBIUS_BASE_URL: the allowlisted Nemotron providers) renders as a selector
+// whose first option keeps the current value; "Default" posts "" (unset), like "Clear on save".
+// Keys the daemon reports with console_writable:false are read-only here: the daemon refuses to
+// set them over HTTP (400), but "Clear on save" (unset) stays available.
 
 import { h, replace, badge, fmtMs, fmtText, DASH } from './dom.js';
 import { post, describeError } from './api.js';
 
 const TESTABLE = ['nebius', 'tavily', 'paypal'];
-const SERVICE_LABELS = { nebius: 'Nebius Token Factory', tavily: 'Tavily', paypal: 'PayPal Sandbox', mattermost: 'Mattermost', slack: 'Slack' };
+const SERVICE_LABELS = { nebius: 'Nemotron provider', tavily: 'Tavily', paypal: 'PayPal Sandbox', mattermost: 'Mattermost', slack: 'Slack' };
+/** Selector value meaning "unset this key" (posted as ""); '' means "keep the current value". */
+export const DEFAULT_CHOICE = '__default__';
+const TIER_KEYS = { NEBIUS_TIER1_MODEL: 'tier1_model', NEBIUS_TIER2_MODEL: 'tier2_model' };
+
+const trimSlash = (v) => (typeof v === 'string' ? v.trim().replace(/\/$/, '') : '');
+
+/** The allowlisted provider whose base_url is `url` (one trailing slash ignored), or null. */
+export function providerFor(cfg, url) {
+  const list = (cfg && Array.isArray(cfg.nemotron_providers)) ? cfg.nemotron_providers : [];
+  const want = trimSlash(url);
+  return want ? (list.find((p) => p && trimSlash(p.base_url) === want) || null) : null;
+}
+
+/** Extra hint text for the tier-model keys: the selected provider's default, or that one is required. */
+export function tierHint(cfg, name) {
+  const field = TIER_KEYS[name];
+  const nebius = cfg && cfg.services && cfg.services.nebius;
+  const provider = field && nebius ? providerFor(cfg, nebius.base_url) : null;
+  if (!provider) return '';
+  return provider[field]
+    ? ` ${provider.label} default: ${provider[field]}.`
+    : ` Required with ${provider.label}: it has no confirmed default model id (pick one from its GET /models; “Test Nemotron provider” lists them).`;
+}
 
 export function createSettings({ onConfig }) {
   const dialog = document.getElementById('settings');
@@ -40,7 +65,36 @@ export function createSettings({ onConfig }) {
   });
 
   function inputs() {
-    return [...els.keys.querySelectorAll('input[data-key]')];
+    // Text inputs and provider selectors, in document order.
+    return [...els.keys.querySelectorAll('[data-key]')].filter((el) => el.localName === 'input' || el.localName === 'select');
+  }
+
+  /** NEBIUS_BASE_URL-style selector: keep current / each allowed choice / default (unset). */
+  function choiceSelect(k, { id, hintId, marked }) {
+    const nebius = config && config.services && config.services.nebius;
+    const currentUrl = nebius ? nebius.base_url : null;
+    const current = (k.choices.find((c) => trimSlash(c.value) === trimSlash(currentUrl)) || null);
+    const currentLabel = current ? current.label : (nebius && nebius.provider) || (k.set ? 'set' : 'default');
+    const first = k.choices[0];
+    return h('select', { id, name: k.name, dataset: { key: k.name, choice: 'true' }, 'aria-describedby': hintId, disabled: marked },
+      h('option', { value: '' }, `Keep current (${currentLabel})`),
+      k.choices.map((c) => h('option', { value: c.value }, `${c.label}${current === c ? ' (current)' : ''} — ${c.value}`)),
+      h('option', { value: DEFAULT_CHOICE }, `Default (unset${first ? `: ${first.label}` : ''})`));
+  }
+
+  /** Per-provider key links and default-model notes under the provider selector. */
+  function providerNotes() {
+    const list = (config && Array.isArray(config.nemotron_providers)) ? config.nemotron_providers : [];
+    if (!list.length) return null;
+    const models = (p) => {
+      const t1 = p.tier1_model ? `tier 1 ${p.tier1_model}` : 'tier 1: set NEBIUS_TIER1_MODEL';
+      const t2 = p.tier2_model ? `tier 2 ${p.tier2_model}` : 'tier 2: set NEBIUS_TIER2_MODEL';
+      return `${t1} · ${t2}`;
+    };
+    return h('ul', { class: 'providers small', dataset: { role: 'providers' } }, list.map((p) => h('li', { dataset: { provider: p.id } },
+      h('strong', { text: p.label }), ' ', h('span', { class: 'mono muted', text: models(p) }), ' ',
+      p.signup_url ? h('a', { href: p.signup_url, target: '_blank', rel: 'noopener noreferrer', class: 'link' },
+        p.key_hint || 'Get a key', h('span', { 'aria-hidden': 'true', text: ' ↗' }), h('span', { class: 'sr-only', text: ' (opens in a new tab)' })) : null)));
   }
 
   function renderKeys() {
@@ -60,11 +114,17 @@ export function createSettings({ onConfig }) {
       const canClear = k.set === true && k.source === 'dotenv';
       const marked = clearing.has(k.name);
       const readOnly = k.console_writable === false;
+      const choices = !readOnly && Array.isArray(k.choices) && k.choices.length > 0;
       const placeholder = readOnly ? (k.set ? 'set — read-only in the console' : 'not set — read-only in the console')
         : (k.set ? 'set — type to replace' : 'not set');
-      const input = h('input', {
-        id, type: k.secret === false ? 'text' : 'password', name: k.name, dataset: readOnly ? { key: k.name, readonly: 'true' } : { key: k.name },
-        autocomplete: k.secret === false ? 'off' : 'new-password', spellcheck: 'false', autocapitalize: 'off',
+      // Secrets are masked text inputs, not type=password: Chrome offers (and can insert) a generated
+      // password or a saved one into password fields even with autocomplete=new-password, and saving
+      // that would write it to .env. The data-* flags keep 1Password/LastPass/Dashlane out as well.
+      const secret = k.secret !== false;
+      const input = choices ? choiceSelect(k, { id, hintId, marked }) : h('input', {
+        id, type: 'text', name: `aegis-${k.name.toLowerCase()}`, class: secret ? 'key__secret' : undefined,
+        dataset: { key: k.name, ...(readOnly ? { readonly: 'true' } : {}), ...(secret ? { '1pIgnore': 'true', lpignore: 'true', formType: 'other' } : {}) },
+        autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off',
         'aria-describedby': hintId, placeholder, readonly: readOnly, disabled: marked || readOnly,
       });
       if (typed.has(k.name) && !readOnly) input.value = typed.get(k.name);
@@ -77,6 +137,8 @@ export function createSettings({ onConfig }) {
           readOnly ? badge('read-only', 'neutral', 'The daemon does not accept this key over HTTP') : null),
         h('p', { class: 'key__hint small', id: hintId },
           fmtText(k.hint),
+          tierHint(config, k.name),
+          choices ? ' Only these providers can be chosen here; switching provider needs that provider’s key in NEBIUS_API_KEY in the same save.' : '',
           k.source === 'env' ? ' (Set in the daemon’s environment, which takes precedence over the .env file.)' : '',
           readOnly ? ` Read-only in the console: set it with \`aegis-daemon config set ${k.name}\` (harness/configure_keys.sh) or the environment.${canClear ? ' “Clear on save” restores the default.' : ''}` : ''),
         h('div', { class: 'key__row' },
@@ -86,7 +148,8 @@ export function createSettings({ onConfig }) {
             onclick: () => { if (clearing.has(k.name)) clearing.delete(k.name); else clearing.add(k.name); renderKeys(); },
           }, marked ? 'Will clear on save' : 'Clear on save') : null,
           k.signup_url ? h('a', { href: k.signup_url, target: '_blank', rel: 'noopener noreferrer', class: 'link small' },
-            'Get a key', h('span', { 'aria-hidden': 'true', text: ' ↗' }), h('span', { class: 'sr-only', text: ' (opens in a new tab)' })) : null));
+            'Get a key', h('span', { 'aria-hidden': 'true', text: ' ↗' }), h('span', { class: 'sr-only', text: ' (opens in a new tab)' })) : null),
+        choices ? providerNotes() : null);
     }));
     if (active) {
       const again = els.keys.querySelector(active);
@@ -148,6 +211,8 @@ export function createSettings({ onConfig }) {
     const blank = [];
     for (const input of inputs()) {
       if (input.value === '' || input.dataset.readonly === 'true' || clearing.has(input.dataset.key)) continue;
+      // A selector's "Default" choice unsets the key, exactly like "Clear on save".
+      if (input.dataset.choice === 'true' && input.value === DEFAULT_CHOICE) { values[input.dataset.key] = ''; continue; }
       // The daemon refuses a whitespace-only value (400; only "" unsets); say so before posting.
       // Unsetting goes only through "Clear on save".
       if (input.value.trim() === '') blank.push(input);

@@ -889,8 +889,9 @@ fn recover(
         }),
     );
 
-    if cfg.nebius_api_key.is_none() {
-        // "NEBIUS_API_KEY not set", or why the configured endpoint was refused the key.
+    if cfg.remote_unavailable().is_some() {
+        // "NEBIUS_API_KEY not set", why the configured endpoint was refused the key, or which
+        // tier model has neither an override nor a provider default.
         let (_, reason) = nebius_status(&settings);
         let reason = reason.as_str();
         run.stage("recover", "skip", None, json!({"tier": 1, "model": cfg.tier1_model, "enabled": false, "reason": reason, "patch_applied": false}));

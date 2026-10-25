@@ -81,10 +81,43 @@ function riskRenderer(p) {
 }
 
 const SUBMISSION = { sent: ['Sent', 'ok'], blocked: ['Blocked', 'fail'], not_sent: ['Not sent', 'skip'], error: ['Error', 'fail'] };
+
+/** Text after the Submission badge: the order id, and for a sent order its status and target
+ * (e.g. `LOCAL-… · COMPLETED · local`). Null when no order was created. */
+export function submissionLabel(row) {
+  if (!row || !row.paypal_order_id) return null;
+  const parts = [String(row.paypal_order_id)];
+  if (row.submission === 'sent' && row.submission_detail) parts.push(String(row.submission_detail));
+  if (row.submission === 'sent' && row.submission_target) parts.push(String(row.submission_target));
+  return parts.join(' · ');
+}
+
 function submissionRenderer(p) {
   const [label, kind] = SUBMISSION[p.value] || [fmtText(p.value), 'neutral'];
-  const d = p.data || {};
-  return h('span', { class: 'cell-submission' }, badge(label, kind), d.paypal_order_id ? h('span', { class: 'mono small', text: ` ${d.paypal_order_id}` }) : null);
+  const extra = submissionLabel(p.data);
+  return h('span', { class: 'cell-submission' }, badge(label, kind), extra ? h('span', { class: 'mono small', text: ` ${extra}` }) : null);
+}
+
+/** Submission mode from GET /api/paypal/scenarios `sandbox` or GET /api/config `services.paypal`:
+ * "local" (the daemon's local Orders v2 gateway), "remote" (PayPal Sandbox) or "disabled". Daemons
+ * without `mode` sent only `enabled`, which then meant the remote Sandbox. */
+export function sandboxMode(s) {
+  if (!s) return null;
+  if (s.mode === 'local' || s.mode === 'remote' || s.mode === 'disabled') return s.mode;
+  if (typeof s.enabled === 'boolean') return s.enabled ? 'remote' : 'disabled';
+  return null;
+}
+
+const SANDBOX_BADGE = {
+  local: ['🟢 Sandbox Active (Local v2 Gateway)', 'ok'],
+  remote: ['🟢 Sandbox Active (PayPal Remote)', 'ok'],
+  disabled: ['Sandbox disabled', 'skip'],
+};
+const MODE_WORDS = { local: 'local gateway', remote: 'PayPal remote', disabled: 'disabled' };
+
+/** The Panel 2 badge text for a mode. */
+export function sandboxBadgeText(mode) {
+  return (SANDBOX_BADGE[mode] || SANDBOX_BADGE.disabled)[0];
 }
 
 /** Order amount as a number for sorting and filtering (OrderRow.amount is a display string). */
@@ -266,12 +299,20 @@ export function createPaypalPanel() {
   }
 
   // ---- scenarios, stream, sandbox ----------------------------------------
-  // GET /api/paypal/scenarios and config.changed both report whether PayPal credentials are set.
-  // When they disagree, one is stale: show that, and re-read the scenarios endpoint.
+  // GET /api/paypal/scenarios and config.changed both report the submission mode (local gateway,
+  // PayPal remote, disabled). When they disagree, one is stale: show that, and re-read the scenarios
+  // endpoint.
   function sandboxStale() {
-    const sb = scenarios && scenarios.sandbox;
-    const svc = services && services.paypal;
-    return Boolean(sb && svc && typeof svc.enabled === 'boolean' && typeof sb.enabled === 'boolean' && svc.enabled !== sb.enabled);
+    const a = sandboxMode(scenarios && scenarios.sandbox);
+    const b = sandboxMode(services && services.paypal);
+    return Boolean(a && b && a !== b);
+  }
+
+  // Remote Sandbox orders count against the per-run cap; local gateway orders are uncapped (the
+  // stream interval bounds them).
+  function counts(sb, mode) {
+    if (mode === 'local') return ` local orders ${fmtNum(isNum(sb.local_submitted) ? sb.local_submitted : 0)} · no cap`;
+    return ` submitted ${fmtNum(sb.submitted)} / cap ${fmtNum(sb.cap)}`;
   }
 
   function renderSandbox() {
@@ -281,11 +322,13 @@ export function createPaypalPanel() {
     if (sb && sandboxStale()) {
       parts.push(refreshPending()
         ? badge('Sandbox status refreshing', 'pending')
-        : badge(`Sandbox status unconfirmed (settings: credentials ${svc.enabled ? 'set' : 'not set'})`, 'warn'));
-      parts.push(h('span', { class: 'mono', text: ` submitted ${fmtNum(sb.submitted)} / cap ${fmtNum(sb.cap)}` }));
+        : badge(`Sandbox status unconfirmed (settings: ${MODE_WORDS[sandboxMode(svc)]})`, 'warn'));
+      parts.push(h('span', { class: 'mono', text: counts(sb, sandboxMode(sb)) }));
     } else if (sb) {
-      parts.push(sb.enabled === true ? badge('Sandbox enabled', 'ok') : badge('Sandbox disabled', 'skip'));
-      parts.push(h('span', { class: 'mono', text: ` submitted ${fmtNum(sb.submitted)} / cap ${fmtNum(sb.cap)}` }));
+      const mode = sandboxMode(sb) || 'disabled';
+      const [label, kind] = SANDBOX_BADGE[mode];
+      parts.push(badge(label, kind));
+      parts.push(h('span', { class: 'mono', text: counts(sb, mode) }));
     } else {
       parts.push(h('span', { class: 'muted', text: 'Sandbox status unavailable' }));
     }
@@ -403,7 +446,7 @@ export function createPaypalPanel() {
 
   function setServices(svc) {
     services = svc || null;
-    // Saving or clearing PayPal credentials changes the Sandbox state and arrives here first.
+    // Saving or clearing PayPal credentials changes the submission mode and arrives here first.
     if (sandboxStale()) refreshScenarios(0);
     renderSandbox();
   }

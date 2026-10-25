@@ -20,7 +20,7 @@ use tower_http::services::ServeDir;
 use crate::keepwarm::Model;
 use crate::paypal::OrderScenario;
 use crate::security::{error, guard};
-use crate::services::{config_json, console_writable, test_service};
+use crate::services::{console_update_problem, console_writable, test_service};
 use crate::state::{lock, AppState, Events};
 use crate::util::clean_text;
 use crate::workspace::{self, ResolveError, Scenario};
@@ -51,6 +51,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Only these two directories are served: never dev/, API.md or anything else in the app.
         .nest_service("/assets", ServeDir::new(console.join("assets")))
         .nest_service("/vendor/ag-grid-community", ServeDir::new(console.join("vendor/ag-grid-community")))
+        // Local PayPal Orders v2 emulation: OAuth2-protected, so the guard skips the browser token here.
+        .nest_service(crate::paypal_sandbox::PREFIX, state.paypal_gateway.router())
         .fallback(not_found)
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .layer(middleware::from_fn_with_state(state.clone(), guard))
@@ -113,7 +115,7 @@ async fn telemetry(State(state): State<Arc<AppState>>) -> Response {
 }
 
 async fn get_config(State(state): State<Arc<AppState>>) -> Json<Value> {
-    Json(config_json(&state.settings()))
+    Json(state.config_json(&state.settings()))
 }
 
 #[derive(serde::Deserialize)]
@@ -142,8 +144,8 @@ async fn post_config(State(state): State<Arc<AppState>>, body: Bytes) -> Respons
             Value::Null => None,
             _ => return error(StatusCode::BAD_REQUEST, format!("{name}: value must be a string")),
         };
-        // The session token stops browsers, not other local processes, so a setting that decides
-        // where a stored secret is sent cannot be set over HTTP (unsetting restores the default).
+        // Every known key is writable today; NEBIUS_BASE_URL is limited by console_update_problem
+        // below. A key reported console_writable:false can only be unset over HTTP.
         if value.is_some() && !console_writable(&name) {
             return error(
                 StatusCode::BAD_REQUEST,
@@ -161,6 +163,12 @@ async fn post_config(State(state): State<Arc<AppState>>, body: Bytes) -> Respons
         // One save at a time: the file write, the reload and the in-memory swap happen in the same
         // order for every request (write_dotenv also locks against other processes).
         let _saving = lock(&st.config_lock);
+        // The session token stops browsers, not other local processes: NEBIUS_BASE_URL only takes
+        // allowlisted providers here, and a provider change has to carry that provider's key.
+        let current = st.load_settings().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if let Some(problem) = console_update_problem(&current, &updates) {
+            return Err((StatusCode::BAD_REQUEST, problem));
+        }
         let path = st.opts.dotenv_path.clone();
         let refs: Vec<(&str, Option<&str>)> = updates.iter().map(|(n, v)| (n.as_str(), v.as_deref())).collect();
         aegis_config::write_dotenv(&path, &refs).map_err(|e| {
@@ -171,7 +179,7 @@ async fn post_config(State(state): State<Arc<AppState>>, body: Bytes) -> Respons
         if let Err(e) = st.paypal.reconfigure(&settings) {
             st.events.log("error", format!("PayPal middleware not rebuilt: {e}"));
         }
-        let config = config_json(&settings);
+        let config = st.config_json(&settings);
         *st.settings.write().unwrap_or_else(std::sync::PoisonError::into_inner) = settings;
         Ok(config)
     })
@@ -199,6 +207,13 @@ async fn post_config_test(State(state): State<Arc<AppState>>, body: Bytes) -> Re
     };
     if !["nebius", "tavily", "paypal"].contains(&body.service.as_str()) {
         return error(StatusCode::BAD_REQUEST, format!("unknown service {}", clean_text(&body.service, 32)));
+    }
+    if body.service == "paypal" && state.paypal.mode() == crate::paypal::SandboxMode::Local {
+        let st = state.clone();
+        return match blocking(move || st.paypal.test_local()).await {
+            Ok(v) => Json(v).into_response(),
+            Err(r) => r,
+        };
     }
     let settings = state.settings();
     match blocking(move || test_service(&settings, &body.service)).await {

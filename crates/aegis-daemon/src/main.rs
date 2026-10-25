@@ -6,6 +6,9 @@
 //!                                 http://localhost:4173 over IPv6 while the daemon runs
 //! aegis-daemon config status      print every known setting as set (source) / unset
 //! aegis-daemon config keys        print every known setting: NAME secret|public
+//! aegis-daemon config providers   print the allowlisted Nemotron providers (NEBIUS_BASE_URL values),
+//!                                 tab-separated: selected(*|-) id base_url label signup_url
+//!                                 tier1_model tier2_model (`-` where the provider has no default)
 //! aegis-daemon config set NAME    read the value from stdin and write it to .env (0600)
 //! aegis-daemon config unset NAME  remove NAME from .env
 //! ```
@@ -30,7 +33,7 @@ const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
 const SHUTDOWN_DEADLINE: Duration = Duration::from_secs(10);
 
 fn usage() -> ExitCode {
-    eprintln!("usage: aegis-daemon [serve] | config status | config keys | config set NAME (value on stdin) | config unset NAME");
+    eprintln!("usage: aegis-daemon [serve] | config status | config keys | config providers | config set NAME (value on stdin) | config unset NAME");
     ExitCode::from(2)
 }
 
@@ -69,6 +72,27 @@ fn config(args: &[&str]) -> ExitCode {
         ["keys"] => {
             for spec in KEYS {
                 println!("{} {}", spec.name, if spec.secret { "secret" } else { "public" });
+            }
+            ExitCode::SUCCESS
+        }
+        ["providers"] => {
+            // Which provider is selected is not secret; the URL list is the allowlist itself.
+            let selected = Settings::load(&path)
+                .ok()
+                .and_then(|s| s.get("NEBIUS_BASE_URL").map(str::to_string))
+                .unwrap_or_else(|| aegis_config::DEFAULT_NEMOTRON_BASE_URL.to_string());
+            let selected = aegis_config::nemotron_provider(&selected).map(|p| p.id);
+            for p in aegis_config::NEMOTRON_PROVIDERS {
+                println!(
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                    if selected == Some(p.id) { "*" } else { "-" },
+                    p.id,
+                    p.base_url,
+                    p.label,
+                    p.signup_url,
+                    p.tier1_model.unwrap_or("-"),
+                    p.tier2_model.unwrap_or("-")
+                );
             }
             ExitCode::SUCCESS
         }

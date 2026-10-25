@@ -9,6 +9,10 @@
 //! [`PayPalMiddleware::submit`] sends nothing unless Cedar allowed the order **and** Sandbox
 //! credentials (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`) are present: it then fetches an OAuth2
 //! client-credentials token and POSTs `/v2/checkout/orders` with `PayPal-Request-Id` = payload digest.
+//! [`PayPalMiddleware::submit_and_capture`] also POSTs `/v2/checkout/orders/{id}/capture`; it is
+//! meant for aegis-daemon's local Orders v2 gateway (`/paypal-sandbox`), where payer approval is
+//! implied. The literal [`LOCAL_SANDBOX_CREDENTIAL`] credentials are only ever sent to a loopback
+//! `http://` base URL, so they can never reach PayPal. Every HTTP call is timed ([`HttpCall`]).
 //!
 //! Each order yields a [`TelemetryRow`]; [`aggrid_export`] and [`bryntum_export`] wrap rows in the
 //! shapes AG Grid (`columnDefs` + `rowData`) and Bryntum stores (`{success, data}`) load directly.
@@ -26,6 +30,9 @@ use base64::Engine as _;
 use serde_json::{json, Value};
 
 pub const SANDBOX_BASE_URL: &str = "https://api-m.sandbox.paypal.com";
+/// Client id and secret of aegis-daemon's local Orders v2 gateway. Setting both
+/// `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` to this value selects that gateway.
+pub const LOCAL_SANDBOX_CREDENTIAL: &str = "local-sandbox";
 pub const DEFAULT_BUDGET_CENTS: u64 = 20_000;
 /// PayPal's limit for free-text fields such as `description`, item `name` and `custom_id`.
 const PAYPAL_TEXT_LIMIT: usize = 127;
@@ -77,6 +84,31 @@ impl PayPalConfig {
     pub fn has_credentials(&self) -> bool {
         self.client_id.is_some() && self.client_secret.is_some()
     }
+
+    /// Either credential is the literal [`LOCAL_SANDBOX_CREDENTIAL`].
+    pub fn uses_local_sandbox_credentials(&self) -> bool {
+        [&self.client_id, &self.client_secret].iter().any(|v| v.as_deref() == Some(LOCAL_SANDBOX_CREDENTIAL))
+    }
+}
+
+/// True for `http://127.0.0.1[:port]`, `http://localhost[:port]` and `http://[::1][:port]`, with
+/// any path: the only base URLs the local-sandbox credentials are sent to.
+pub fn is_loopback_http(base_url: &str) -> bool {
+    let Some(rest) = base_url.strip_prefix("http://") else { return false };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    if authority.contains('@') {
+        return false;
+    }
+    let host = if authority.starts_with('[') {
+        match authority.find(']') {
+            Some(end) if authority[end + 1..].is_empty() || authority[end + 1..].starts_with(':') => &authority[..=end],
+            _ => return false,
+        }
+    } else {
+        authority.split(':').next().unwrap_or_default()
+    };
+    let port_ok = authority[host.len()..].strip_prefix(':').is_none_or(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()));
+    port_ok && ["127.0.0.1", "localhost", "[::1]"].contains(&host.to_ascii_lowercase().as_str())
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -152,10 +184,35 @@ impl PreparedOrder {
     }
 }
 
+/// One HTTP call made while submitting an order, timed with `Instant` around the request and the
+/// read of its response body.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct HttpCall {
+    /// `oauth`, `create` or `capture`.
+    pub step: String,
+    pub method: String,
+    /// URL path (no scheme, host or query).
+    pub path: String,
+    pub status: u16,
+    pub duration_us: f64,
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum Submission {
-    Sent { order_id: String, status: String, latency_ms: f64 },
+    Sent {
+        order_id: String,
+        /// Status after the last call: `CREATED` (create only) or the capture's order status.
+        status: String,
+        /// Duration of the create call.
+        latency_ms: f64,
+        /// `purchase_units[0].payments.captures[0].id` when the order was captured.
+        capture_id: Option<String>,
+        /// The gateway marked its order JSON `"aegis_local_sandbox": true` (aegis-daemon's local
+        /// emulation, not PayPal).
+        local_sandbox: bool,
+        calls: Vec<HttpCall>,
+    },
     Blocked { reason: String },
     NotSent { reason: String },
 }
@@ -341,7 +398,19 @@ impl PayPalMiddleware {
         })?)
     }
 
+    /// OAuth2 token, then `POST /v2/checkout/orders` (see the module docs).
     pub fn submit(&self, prepared: &PreparedOrder) -> Result<Submission, PayPalError> {
+        self.send(prepared, false)
+    }
+
+    /// [`submit`](Self::submit), then `POST /v2/checkout/orders/{id}/capture`. For aegis-daemon's
+    /// local Orders v2 gateway, where payer approval is implied; a real PayPal order needs buyer
+    /// approval before it can be captured.
+    pub fn submit_and_capture(&self, prepared: &PreparedOrder) -> Result<Submission, PayPalError> {
+        self.send(prepared, true)
+    }
+
+    fn send(&self, prepared: &PreparedOrder, capture: bool) -> Result<Submission, PayPalError> {
         if !prepared.decision.allowed {
             let policies = if prepared.decision.determining_policies.is_empty() {
                 "default deny (no permit matched)".to_string()
@@ -353,8 +422,17 @@ impl PayPalMiddleware {
         let (Some(id), Some(secret)) = (&self.cfg.client_id, &self.cfg.client_secret) else {
             return Ok(Submission::NotSent { reason: "PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set".to_string() });
         };
+        if self.cfg.uses_local_sandbox_credentials() && !is_loopback_http(&self.cfg.base_url) {
+            return Ok(Submission::NotSent {
+                reason: format!(
+                    "{LOCAL_SANDBOX_CREDENTIAL} credentials select aegis-daemon's local Orders v2 gateway; they are only sent to a loopback http:// base URL, and PAYPAL_BASE_URL is not one"
+                ),
+            });
+        }
         let base = self.cfg.base_url.trim_end_matches('/');
+        let mut calls = Vec::new();
         let token_url = format!("{base}/v1/oauth2/token");
+        let started = Instant::now();
         let token = read_json(
             self.http
                 .post(&token_url)
@@ -362,7 +440,8 @@ impl PayPalMiddleware {
                 .set("Content-Type", "application/x-www-form-urlencoded")
                 .send_string("grant_type=client_credentials"),
             &token_url,
-        )?;
+        );
+        let token = record(&mut calls, "oauth", &token_url, started, token)?;
         let access = token["access_token"]
             .as_str()
             .ok_or_else(|| PayPalError::Response { url: token_url.clone(), message: "no access_token".into() })?;
@@ -377,19 +456,65 @@ impl PayPalMiddleware {
                 .set("Prefer", "return=minimal")
                 .send_json(prepared.body.clone()),
             &orders_url,
-        )?;
+        );
+        let latency_ms = started.elapsed().as_secs_f64() * 1e3;
+        let order = record(&mut calls, "create", &orders_url, started, order)?;
         self.history.lock().expect("history lock").record(prepared.amount_cents);
-        Ok(Submission::Sent {
-            order_id: order["id"].as_str().unwrap_or_default().to_string(),
-            status: order["status"].as_str().unwrap_or_default().to_string(),
-            latency_ms: started.elapsed().as_secs_f64() * 1e3,
-        })
+        let order_id = order["id"].as_str().unwrap_or_default().to_string();
+        let local_sandbox = order["aegis_local_sandbox"] == Value::Bool(true);
+        let mut status = order["status"].as_str().unwrap_or_default().to_string();
+        let mut capture_id = None;
+        if capture {
+            if order_id.is_empty() || !order_id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
+                return Err(PayPalError::Response { url: orders_url, message: "order id missing or not URL-safe; not capturing".into() });
+            }
+            let capture_url = format!("{orders_url}/{order_id}/capture");
+            let started = Instant::now();
+            let captured = read_json(
+                self.http
+                    .post(&capture_url)
+                    .set("Authorization", &format!("Bearer {access}"))
+                    .set("Content-Type", "application/json")
+                    .set("PayPal-Request-Id", &prepared.receipt.payload_sha256)
+                    .set("Prefer", "return=representation")
+                    .send_string("{}"),
+                &capture_url,
+            );
+            let captured = record(&mut calls, "capture", &capture_url, started, captured)?;
+            status = captured["status"].as_str().unwrap_or_default().to_string();
+            capture_id = captured["purchase_units"][0]["payments"]["captures"][0]["id"].as_str().map(str::to_owned);
+        }
+        Ok(Submission::Sent { order_id, status, latency_ms, capture_id, local_sandbox, calls })
     }
 }
 
-fn read_json(response: Result<ureq::Response, ureq::Error>, url: &str) -> Result<Value, PayPalError> {
+/// URL path of `url` (no scheme, host or query).
+fn url_path(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let path = rest.find('/').map_or("/", |i| &rest[i..]);
+    path.split(['?', '#']).next().unwrap_or("/").to_string()
+}
+
+/// Appends the timed call (successful or HTTP error) and passes the result through.
+fn record(calls: &mut Vec<HttpCall>, step: &str, url: &str, started: Instant, result: Result<(u16, Value), PayPalError>) -> Result<Value, PayPalError> {
+    let duration_us = micros(started);
+    let status = match &result {
+        Ok((status, _)) => Some(*status),
+        Err(PayPalError::Http { status, .. }) => Some(*status),
+        Err(_) => None,
+    };
+    if let Some(status) = status {
+        calls.push(HttpCall { step: step.to_string(), method: "POST".to_string(), path: url_path(url), status, duration_us });
+    }
+    result.map(|(_, body)| body)
+}
+
+fn read_json(response: Result<ureq::Response, ureq::Error>, url: &str) -> Result<(u16, Value), PayPalError> {
     match response {
-        Ok(r) => r.into_json::<Value>().map_err(|e| PayPalError::Response { url: url.to_string(), message: e.to_string() }),
+        Ok(r) => {
+            let status = r.status();
+            r.into_json::<Value>().map(|v| (status, v)).map_err(|e| PayPalError::Response { url: url.to_string(), message: e.to_string() })
+        }
         Err(ureq::Error::Status(status, r)) => Err(PayPalError::Http {
             status,
             url: url.to_string(),
@@ -421,6 +546,12 @@ pub struct TelemetryRow {
     pub submission: String,
     pub submission_detail: String,
     pub paypal_order_id: Option<String>,
+    /// `"local"` (aegis-daemon's local Orders v2 emulation) or `"remote"` for a sent order.
+    pub submission_target: Option<String>,
+    pub paypal_capture_id: Option<String>,
+    /// Sum of the submission's HTTP call durations (`submit_calls`), when calls were made.
+    pub submit_us: Option<f64>,
+    pub submit_calls: Vec<HttpCall>,
     pub redact_us: f64,
     pub sign_us: f64,
     pub verify_us: f64,
@@ -436,6 +567,14 @@ pub fn telemetry_row(prepared: &PreparedOrder, submission: &Submission, agent: &
         Submission::NotSent { reason } => ("not_sent", reason.clone(), None),
     };
     let round = |v: f64| (v * 100.0).round() / 100.0;
+    let (target, capture_id, calls) = match submission {
+        Submission::Sent { local_sandbox, capture_id, calls, .. } => {
+            (Some(if *local_sandbox { "local" } else { "remote" }.to_string()), capture_id.clone(), calls.clone())
+        }
+        _ => (None, None, Vec::new()),
+    };
+    let submit_us = (!calls.is_empty()).then(|| round(calls.iter().map(|c| c.duration_us).sum()));
+    let calls: Vec<HttpCall> = calls.into_iter().map(|c| HttpCall { duration_us: round(c.duration_us), ..c }).collect();
     TelemetryRow {
         id: format!("{}-{}", prepared.reference, &prepared.receipt.payload_sha256[..12]),
         timestamp: utc_timestamp(),
@@ -456,6 +595,10 @@ pub fn telemetry_row(prepared: &PreparedOrder, submission: &Submission, agent: &
         submission: kind.to_string(),
         submission_detail: detail,
         paypal_order_id: order_id,
+        submission_target: target,
+        paypal_capture_id: capture_id,
+        submit_us,
+        submit_calls: calls,
         redact_us: round(prepared.timings.redact_us),
         sign_us: round(prepared.timings.sign_us),
         verify_us: round(prepared.timings.verify_us),
@@ -488,6 +631,7 @@ pub fn aggrid_export(rows: &[TelemetryRow]) -> Value {
             col("redactions", "Redactions", true),
             col("submission", "Submission", false),
             col("total_us", "Pipeline µs", true),
+            col("submit_us", "Submit µs", true),
         ],
         "rowData": rows,
     })
@@ -646,6 +790,70 @@ mod tests {
             Submission::Sent { order_id, status, .. } => assert_eq!((order_id.as_str(), status.as_str()), ("MOCK-ORDER-1", "CREATED")),
             other => panic!("expected Sent, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn loopback_base_urls() {
+        for ok in ["http://127.0.0.1:4173/paypal-sandbox", "http://localhost:9", "http://[::1]:4173", "http://LOCALHOST/x", "http://127.0.0.1"] {
+            assert!(is_loopback_http(ok), "{ok}");
+        }
+        for bad in [SANDBOX_BASE_URL, "https://127.0.0.1:4173", "http://127.0.0.1.evil.example", "http://user@127.0.0.1:1", "http://[::1]x:1", "http://127.0.0.1:", "http://10.0.0.1:4173", "127.0.0.1:4173"] {
+            assert!(!is_loopback_http(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn local_sandbox_credentials_never_leave_loopback() {
+        let local = Some(LOCAL_SANDBOX_CREDENTIAL.to_string());
+        for base_url in [SANDBOX_BASE_URL.to_string(), "http://192.0.2.1:4173/paypal-sandbox".to_string()] {
+            let cfg = PayPalConfig { client_id: local.clone(), client_secret: local.clone(), base_url, ..offline() };
+            assert!(cfg.uses_local_sandbox_credentials());
+            let mw = middleware(cfg);
+            let p = mw.prepare(&intent("ord-local", 1000, "")).unwrap();
+            assert!(p.decision.allowed, "{:?}", p.decision);
+            match mw.submit_and_capture(&p).unwrap() {
+                Submission::NotSent { reason } => assert!(reason.contains("loopback"), "{reason}"),
+                other => panic!("expected NotSent, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn submit_and_capture_times_each_call() {
+        let (base_url, server) = serve(vec![
+            json!({"access_token": "local-token", "token_type": "Bearer", "expires_in": 600}).to_string(),
+            json!({"id": "LOCAL-ORDER-1", "status": "CREATED", "aegis_local_sandbox": true}).to_string(),
+            json!({"id": "LOCAL-ORDER-1", "status": "COMPLETED", "aegis_local_sandbox": true,
+                   "purchase_units": [{"payments": {"captures": [{"id": "LOCALCAP-1", "status": "COMPLETED"}]}}]}).to_string(),
+        ]);
+        let local = Some(LOCAL_SANDBOX_CREDENTIAL.to_string());
+        let cfg = PayPalConfig { client_id: local.clone(), client_secret: local, base_url: format!("{base_url}/paypal-sandbox"), ..offline() };
+        let mw = middleware(cfg);
+        let p = mw.prepare(&intent("ord-capture", 1000, "")).unwrap();
+        assert!(p.decision.allowed, "{:?}", p.decision);
+        let sent = mw.submit_and_capture(&p).unwrap();
+        let requests = server.join().unwrap();
+        assert!(requests[0].starts_with("POST /paypal-sandbox/v1/oauth2/token"));
+        assert!(requests[1].starts_with("POST /paypal-sandbox/v2/checkout/orders "));
+        assert!(requests[2].starts_with("POST /paypal-sandbox/v2/checkout/orders/LOCAL-ORDER-1/capture "));
+        let row = telemetry_row(&p, &sent, "procurement-agent");
+        match sent {
+            Submission::Sent { order_id, status, capture_id, local_sandbox, calls, .. } => {
+                assert_eq!((order_id.as_str(), status.as_str(), capture_id.as_deref()), ("LOCAL-ORDER-1", "COMPLETED", Some("LOCALCAP-1")));
+                assert!(local_sandbox);
+                let steps: Vec<&str> = calls.iter().map(|c| c.step.as_str()).collect();
+                assert_eq!(steps, ["oauth", "create", "capture"]);
+                assert!(calls.iter().all(|c| c.status == 200 && c.duration_us > 0.0));
+                assert_eq!(calls[2].path, "/paypal-sandbox/v2/checkout/orders/LOCAL-ORDER-1/capture");
+            }
+            other => panic!("expected Sent, got {other:?}"),
+        }
+        assert_eq!(row.submission, "sent");
+        assert_eq!(row.submission_detail, "COMPLETED");
+        assert_eq!(row.submission_target.as_deref(), Some("local"));
+        assert_eq!(row.paypal_capture_id.as_deref(), Some("LOCALCAP-1"));
+        assert_eq!(row.submit_calls.len(), 3);
+        assert!(row.submit_us.unwrap() > 0.0);
     }
 
     #[test]

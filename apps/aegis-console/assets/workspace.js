@@ -336,7 +336,7 @@ export function createWorkspacePanel() {
       if ('enabled' in d || 'reason' in d) {
         const enabled = use('enabled');
         const reason = use('reason');
-        const label = isNum(tier) && tier >= 1 ? 'Nebius' : 'Service';
+        const label = isNum(tier) && tier >= 1 ? 'Nemotron' : 'Service';
         rows.push([label, enabled === true ? badge('enabled', 'ok', reason || undefined)
           : h('span', null, badge('disabled', 'skip'), reason ? h('span', { class: 'reason', text: ` ${reason}` }) : null)]);
         if (enabled === true && reason) rows.push(['Reason', fmtText(reason)]);

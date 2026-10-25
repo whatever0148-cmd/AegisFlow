@@ -1,7 +1,10 @@
 //! Test fixture: a daemon state over temporary directories, driven through the real router with
-//! `tower::ServiceExt::oneshot`. Nothing here binds a port or calls an external service: settings
-//! come from the fixture's own `.env` only (`env_overrides_dotenv: false`), so credentials exported
-//! in the developer's shell never reach the daemon under test and no test needs to skip.
+//! `tower::ServiceExt::oneshot`. Nothing here calls an external service: settings come from the
+//! fixture's own `.env` only (`env_overrides_dotenv: false`), so credentials exported in the
+//! developer's shell never reach the daemon under test and no test needs to skip.
+//! [`Fixture::new`] binds no port (and so has no local PayPal gateway: `local_paypal_sandbox:
+//! false`); [`Fixture::serving`] also serves the router on an ephemeral `127.0.0.1` port, so the
+//! PayPal middleware can reach the daemon's own `/paypal-sandbox` over HTTP.
 
 #![allow(dead_code)]
 
@@ -28,6 +31,8 @@ pub struct Fixture {
     pub root: PathBuf,
     pub state: Arc<AppState>,
     pub app: Router,
+    /// `Host` header for requests (`localhost:4173`, or `127.0.0.1:<port>` when serving).
+    pub host: String,
 }
 
 impl Fixture {
@@ -43,6 +48,7 @@ impl Fixture {
             pool_capacity: 1,
             verify_timeout: Duration::from_secs(120),
             sandbox_cap: 25,
+            local_paypal_sandbox: false,
             min_stream_interval_ms: 1000,
             // Off: tests assert on prediction counts; the keep-warm has its own test.
             keepwarm_interval_ms: 0,
@@ -66,10 +72,39 @@ impl Fixture {
     }
 
     pub async fn with_options(root: PathBuf, opts: DaemonOptions) -> Self {
+        let host = format!("localhost:{}", opts.port);
         let state = tokio::task::spawn_blocking(move || AppState::open(opts)).await.unwrap().expect("daemon state opens");
         spawn_background(&state);
         let app = router(state.clone());
-        Self { root, state, app }
+        Self { root, state, app, host }
+    }
+
+    /// Like [`Fixture::new`], but the router is also served on an ephemeral `127.0.0.1` port with
+    /// `local_paypal_sandbox: true`, as the binary does (stopped when the fixture drops).
+    pub async fn serving(name: &str, dotenv: &str) -> Self {
+        let root = Self::scratch(name);
+        std::fs::write(root.join(".env"), dotenv).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let mut opts = Self::options(&root);
+        opts.port = port;
+        opts.local_paypal_sandbox = true;
+        let mut fx = Self::with_options(root, opts).await;
+        fx.host = format!("127.0.0.1:{port}");
+        let (app, state) = (fx.app.clone(), fx.state.clone());
+        tokio::spawn(async move {
+            let mut stop = state.shutdown.subscribe();
+            let _ = axum::serve(listener, app)
+                .with_graceful_shutdown(async move {
+                    let _ = stop.wait_for(|s| *s).await;
+                })
+                .await;
+        });
+        fx
+    }
+
+    pub fn base_url(&self) -> String {
+        format!("http://{}", self.host)
     }
 
     pub fn live(&self) -> PathBuf {
@@ -77,12 +112,12 @@ impl Fixture {
     }
 
     pub fn get(&self, uri: &str) -> Request<Body> {
-        Request::get(uri).header("host", HOST).body(Body::empty()).unwrap()
+        Request::get(uri).header("host", &self.host).body(Body::empty()).unwrap()
     }
 
     pub fn post(&self, uri: &str, body: &Value) -> Request<Body> {
         Request::post(uri)
-            .header("host", HOST)
+            .header("host", &self.host)
             .header("content-type", "application/json")
             .header("x-aegis-token", &self.state.token)
             .body(Body::from(body.to_string()))

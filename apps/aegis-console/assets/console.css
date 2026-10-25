@@ -383,6 +383,11 @@ table.data tbody th { font-weight: 600; }
 .key__hint { color: var(--text-muted); }
 .key__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .key__row input { flex: 1 1 220px; }
+.key__row select { flex: 1 1 220px; min-width: 0; min-height: 34px; padding: 5px 9px; font: 14px var(--sans); color: var(--text); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 6px; }
+.key__row select:focus-visible { border-color: var(--focus); }
+.key__row select:disabled { opacity: 0.55; }
+.providers { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; color: var(--text-muted); }
+.providers .mono { overflow-wrap: anywhere; }
 .services { display: grid; gap: 8px; }
 .service { padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
 .service__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -425,3 +430,5 @@ table.data tbody th { font-weight: 600; }
   .riskbar__fill { background: Highlight; }
 }
 .bench-prelim { margin-bottom: 6px; border: 1px solid currentColor; border-radius: 6px; }
+/* Secret inputs are type=text (so browsers do not offer generated or saved passwords) and masked here. */
+.key__secret { -webkit-text-security: disc; text-security: disc; }

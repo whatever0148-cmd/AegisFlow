@@ -175,10 +175,10 @@ const BENCH = (() => {
 // ---------------------------------------------------------------------------------------------
 // Configuration: names mirror crates/aegis-config KEYS; the mock stores only presence, never values.
 const KEYS = [
-  { name: 'NEBIUS_API_KEY', secret: true, hint: 'Nebius Token Factory API key (mock)', signup_url: 'https://tokenfactory.nebius.com/' },
-  { name: 'NEBIUS_BASE_URL', secret: false, hint: 'OpenAI-compatible Nebius endpoint (mock)', signup_url: null },
-  { name: 'NEBIUS_TIER1_MODEL', secret: false, hint: 'Tier-1 model id override (mock)', signup_url: null },
-  { name: 'NEBIUS_TIER2_MODEL', secret: false, hint: 'Tier-2 model id override (mock)', signup_url: null },
+  { name: 'NEBIUS_API_KEY', secret: true, hint: 'API key for the selected Nemotron provider (mock)', signup_url: 'https://tokenfactory.nebius.com/' },
+  { name: 'NEBIUS_BASE_URL', secret: false, hint: 'Nemotron provider: one of the allowlisted OpenAI-compatible base URLs (mock)', signup_url: null },
+  { name: 'NEBIUS_TIER1_MODEL', secret: false, hint: 'Tier-1 (Nemotron Super) model id; required where the provider has no default (mock)', signup_url: null },
+  { name: 'NEBIUS_TIER2_MODEL', secret: false, hint: 'Tier-2 (Nemotron Ultra) model id; required where the provider has no default (mock)', signup_url: null },
   { name: 'TAVILY_API_KEY', secret: true, hint: 'Tavily search API key (mock)', signup_url: 'https://app.tavily.com/' },
   { name: 'PAYPAL_CLIENT_ID', secret: true, hint: 'PayPal Sandbox REST app client id (mock)', signup_url: 'https://developer.paypal.com/dashboard/applications/sandbox' },
   { name: 'PAYPAL_CLIENT_SECRET', secret: true, hint: 'PayPal Sandbox REST app secret (mock)', signup_url: 'https://developer.paypal.com/dashboard/applications/sandbox' },
@@ -188,8 +188,35 @@ const KEYS = [
 ];
 const configured = new Map([['NEBIUS_TIER1_MODEL', 'env']]); // name -> source
 
-/** Same rule as aegis-daemon's services::console_writable: NEBIUS_BASE_URL is not settable over HTTP. */
-const consoleWritable = (name) => name !== 'NEBIUS_BASE_URL';
+// Mirrors aegis_config::NEMOTRON_PROVIDERS, the allowlist NEBIUS_BASE_URL is checked against. These
+// are contract values (where a key may be sent), not telemetry; the mock never contacts them.
+const NEMOTRON_PROVIDERS = [
+  { id: 'nebius', label: 'Nebius Token Factory', base_url: 'https://api.tokenfactory.nebius.com/v1', signup_url: 'https://tokenfactory.nebius.com/', key_hint: 'Nebius Token Factory API key', tier1_model: 'nvidia/Llama-3_3-Nemotron-Super-49B-v1', tier2_model: 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1' },
+  { id: 'nvidia-nim', label: 'NVIDIA NIM', base_url: 'https://integrate.api.nvidia.com/v1', signup_url: 'https://build.nvidia.com', key_hint: 'build.nvidia.com API key (nvapi-…)', tier1_model: null, tier2_model: 'nvidia/llama-3.1-nemotron-ultra-253b-v1' },
+  { id: 'openrouter', label: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', signup_url: 'https://openrouter.ai/keys', key_hint: 'OpenRouter API key', tier1_model: null, tier2_model: null },
+];
+const providerFor = (url) => NEMOTRON_PROVIDERS.find((p) => p.base_url === String(url).trim().replace(/\/$/, '')) || null;
+// NEBIUS_BASE_URL is public, so the mock keeps which provider is selected (never a secret value).
+let nemotronProvider = NEMOTRON_PROVIDERS[0];
+
+/** Same rule as aegis-daemon's services::console_writable: every key; NEBIUS_BASE_URL only to the allowlist. */
+const consoleWritable = (name) => KEYS.some((k) => k.name === name);
+
+/** Same checks as aegis-daemon's services::console_update_problem; returns the 400 message or null. */
+function consoleUpdateProblem(values) {
+  if (!Object.hasOwn(values, 'NEBIUS_BASE_URL')) return null;
+  const value = values.NEBIUS_BASE_URL;
+  const next = value === '' ? NEMOTRON_PROVIDERS[0] : providerFor(value);
+  if (!next) {
+    return `NEBIUS_BASE_URL from the console must be one of the Nemotron providers: ${NEMOTRON_PROVIDERS.map((p) => `${p.label} (${p.base_url})`).join(', ')} (mock)`;
+  }
+  if (next.id === nemotronProvider.id || !configured.has('NEBIUS_API_KEY')) return null;
+  if (configured.get('NEBIUS_API_KEY') === 'env') return `NEBIUS_API_KEY comes from the environment, so the console cannot switch the Nemotron provider to ${next.label} (mock)`;
+  if (!Object.hasOwn(values, 'NEBIUS_API_KEY')) {
+    return `switching the Nemotron provider to ${next.label} needs that provider's API key in NEBIUS_API_KEY in the same save (or clear NEBIUS_API_KEY) (mock)`;
+  }
+  return null;
+}
 
 function serviceState(names, label) {
   const missing = names.filter((n) => !configured.has(n));
@@ -198,11 +225,41 @@ function serviceState(names, label) {
     : { enabled: true, reason: `${label}: marked set in the mock; the mock never calls out` };
 }
 
+function nebiusService() {
+  const p = nemotronProvider;
+  const tier1 = configured.has('NEBIUS_TIER1_MODEL') ? 'mock-tier1-model' : p.tier1_model;
+  const tier2 = configured.has('NEBIUS_TIER2_MODEL') ? 'mock-tier2-model' : p.tier2_model;
+  const missing = [['NEBIUS_TIER1_MODEL', tier1], ['NEBIUS_TIER2_MODEL', tier2]].filter(([, m]) => !m).map(([n]) => n);
+  let state = serviceState(['NEBIUS_API_KEY'], 'nebius');
+  if (state.enabled && missing.length) state = { enabled: false, reason: `${missing.join(' / ')} not set (${p.label} has no confirmed default model id for it)` };
+  return { ...state, provider: p.label, base_url: p.base_url, tier1_model: tier1, tier2_model: tier2 };
+}
+
+/** Same fields as aegis-daemon's services.paypal / scenarios `sandbox` (API.md): both PayPal keys
+ * unset → "local" (the daemon's local Orders v2 gateway; the mock runs none and sends nothing), both
+ * marked set → "remote", one of them → "disabled". */
+function paypalService() {
+  const set = ['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'].filter((n) => configured.has(n));
+  const mode = set.length === 0 ? 'local' : set.length === 2 ? 'remote' : 'disabled';
+  const state = mode === 'local'
+    ? { enabled: true, reason: 'PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set: local Orders v2 gateway (mock: none runs; nothing is sent)' }
+    : serviceState(['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'], 'paypal');
+  return {
+    ...state,
+    mode,
+    base_url: mode === 'local' ? `http://127.0.0.1:${PORT}/paypal-sandbox` : 'https://paypal.synthetic.invalid',
+    submitted: sandbox.submitted,
+    cap: sandbox.cap,
+    local_submitted: 0,
+    gateway: null,
+  };
+}
+
 function services() {
   return {
-    nebius: { ...serviceState(['NEBIUS_API_KEY'], 'nebius'), base_url: 'https://nebius.synthetic.invalid/v1', tier1_model: 'mock-tier1-model', tier2_model: 'mock-tier2-model' },
+    nebius: nebiusService(),
     tavily: serviceState(['TAVILY_API_KEY'], 'tavily'),
-    paypal: { ...serviceState(['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'], 'paypal'), base_url: 'https://paypal.synthetic.invalid' },
+    paypal: paypalService(),
     mattermost: serviceState(['AEGIS_MATTERMOST_WEBHOOK_URL'], 'mattermost'),
     slack: serviceState(['AEGIS_SLACK_WEBHOOK_URL'], 'slack'),
   };
@@ -213,8 +270,11 @@ function configState() {
     path: '/synthetic/mock-workspace/.env (mock: nothing is written)',
     keys: KEYS.map((k) => ({
       name: k.name, set: configured.has(k.name), source: configured.get(k.name) || null, secret: k.secret,
-      console_writable: consoleWritable(k.name), hint: k.hint, signup_url: k.signup_url,
+      console_writable: consoleWritable(k.name), hint: k.hint,
+      signup_url: k.name === 'NEBIUS_API_KEY' ? nemotronProvider.signup_url : k.signup_url,
+      ...(k.name === 'NEBIUS_BASE_URL' ? { choices: NEMOTRON_PROVIDERS.map((p) => ({ value: p.base_url, label: p.label })) } : {}),
     })),
+    nemotron_providers: NEMOTRON_PROVIDERS,
     services: services(),
   };
 }
@@ -451,6 +511,7 @@ const COLUMN_DEFS = [
   ['timestamp', 'Time (UTC)', false], ['reference', 'Order', false], ['merchant', 'Merchant', false], ['amount', 'Amount', true],
   ['currency', 'Ccy', false], ['risk_score', 'ANE risk', true], ['decision', 'Cedar', false], ['policies', 'Determining policies', false],
   ['receipt_verified', 'Receipt verified', false], ['redactions', 'Redactions', true], ['submission', 'Submission', false], ['total_us', 'Pipeline µs', true],
+  ['submit_us', 'Submit µs', true],
 ].map(([field, headerName, numeric]) => ({ field, headerName, sortable: true, filter: true, ...(numeric ? { type: 'numericColumn' } : {}) }));
 const RESOURCES = ['redact', 'score', 'policy', 'sign', 'verify', 'submit'].map((id) => ({ id, name: id }));
 const PP_SCENARIOS = [
@@ -491,7 +552,8 @@ function makeOrder(scenario) {
   record('paypal_verify_us', timing.verify_us);
   counters.orders += 1;
   if (!allowed) counters.orders_blocked += 1;
-  const sandboxOn = services().paypal.enabled;
+  const pp = paypalService();
+  const sandboxOn = pp.enabled;
   const row = {
     id: `${reference}-${sha.slice(0, 12)}`,
     timestamp: iso().replace(/\.\d{3}Z$/, 'Z'),
@@ -511,9 +573,13 @@ function makeOrder(scenario) {
     unformatted_sensitive_fields: scenario === 'secret_in_note',
     submission: allowed ? 'not_sent' : 'blocked',
     submission_detail: allowed
-      ? (sandboxOn ? 'contract mock: nothing is sent to PayPal' : 'PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET not set')
+      ? (sandboxOn ? 'contract mock: nothing is sent to PayPal' : pp.reason)
       : `denied by ${policies}`,
     paypal_order_id: null,
+    submission_target: null,
+    paypal_capture_id: null,
+    submit_us: null,
+    submit_calls: [],
     ...timing,
     total_us: total,
   };
@@ -671,7 +737,7 @@ async function route(req, res) {
       }
       case '/api/runs': return sendJson(res, 200, { runs: [...runHistory].reverse(), limit: RUNS_KEPT });
       case '/api/paypal/orders': return sendJson(res, 200, { rows: orders, columnDefs: COLUMN_DEFS, timeline: { resources: RESOURCES, events: timelineEvents }, limit: ORDERS_KEPT });
-      case '/api/paypal/scenarios': return sendJson(res, 200, { scenarios: PP_SCENARIOS, stream: { ...stream }, sandbox: { enabled: services().paypal.enabled, ...sandbox } });
+      case '/api/paypal/scenarios': return sendJson(res, 200, { scenarios: PP_SCENARIOS, stream: { ...stream }, sandbox: paypalService() });
       default: throw new HttpError(404, 'not found');
     }
   }
@@ -689,8 +755,11 @@ async function route(req, res) {
       if (value !== '' && value.trim() === '') throw new HttpError(400, `${name}: value is only whitespace; send "" to unset`);
       if (value !== '' && !consoleWritable(name)) throw new HttpError(400, `${name} cannot be set from the console (mock)`);
     }
+    const problem = consoleUpdateProblem(values);
+    if (problem) throw new HttpError(400, problem);
     for (const [name, value] of Object.entries(values)) {
       if (value === '') configured.delete(name); else configured.set(name, 'dotenv');
+      if (name === 'NEBIUS_BASE_URL') nemotronProvider = value === '' ? NEMOTRON_PROVIDERS[0] : providerFor(value);
     }
     const cfg = configState();
     broadcast('config.changed', { config: cfg });

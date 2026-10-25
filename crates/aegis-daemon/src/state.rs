@@ -16,6 +16,7 @@ use crate::approvals::ApprovalStore;
 use crate::keepwarm::KeepWarm;
 use crate::live::LiveStats;
 use crate::paypal::PayPalEngine;
+use crate::paypal_sandbox::{GatewayConfig, LocalGateway};
 use crate::runs::RunHistory;
 use crate::util::{now_iso, random_token};
 use crate::workspace::WorkspaceEngine;
@@ -42,8 +43,13 @@ pub struct DaemonOptions {
     pub pool_capacity: usize,
     /// Timeout of the fixed verification command run inside a branch.
     pub verify_timeout: Duration,
-    /// PayPal Sandbox submissions allowed per daemon run.
+    /// Remote PayPal Sandbox submissions allowed per daemon run (the local gateway has no cap).
     pub sandbox_cap: u32,
+    /// True when this process serves `/paypal-sandbox` on `127.0.0.1:<port>` (the binary). Without
+    /// PayPal credentials (or with both set to `local-sandbox`) orders then go to that local
+    /// Orders v2 gateway. The test fixture drives the router without a listener and sets it false,
+    /// so the middleware is never pointed at a port nothing in this process listens on.
+    pub local_paypal_sandbox: bool,
     /// Lower bound of the auto-stream interval.
     pub min_stream_interval_ms: u64,
     /// CoreML keep-warm interval (`AEGIS_ANE_KEEPWARM_MS`); 0 disables it.
@@ -71,6 +77,7 @@ impl DaemonOptions {
             pool_capacity: 2,
             verify_timeout: Duration::from_secs(60),
             sandbox_cap: 25,
+            local_paypal_sandbox: true,
             min_stream_interval_ms: 1000,
             keepwarm_interval_ms: var("AEGIS_ANE_KEEPWARM_MS").and_then(|v| v.trim().parse().ok()).unwrap_or(DEFAULT_KEEPWARM_INTERVAL_MS),
             env_overrides_dotenv: true,
@@ -173,6 +180,9 @@ pub struct AppState {
     pub workspace: WorkspaceEngine,
     pub approvals: Mutex<ApprovalStore>,
     pub paypal: PayPalEngine,
+    /// `/paypal-sandbox`: the local PayPal Orders v2 emulation (always routed; used by the
+    /// middleware only when `opts.local_paypal_sandbox`).
+    pub paypal_gateway: Arc<LocalGateway>,
     pub keepwarm: KeepWarm,
     /// Held across write `.env` -> reload -> swap `settings` in `POST /api/config`, so concurrent
     /// saves are applied (and become visible) in one order.
@@ -193,7 +203,11 @@ impl AppState {
             .map_err(|e| format!("reading MLComputePlan: {e}"))?;
         let workspace = WorkspaceEngine::open(&opts.demo_root, opts.pool_capacity).map_err(|e| format!("demo workspace: {e}"))?;
         let keepwarm = KeepWarm::new(opts.keepwarm_interval_ms, scorer.clone(), paypal_scorer.clone());
-        let paypal = PayPalEngine::new(&opts, &settings, gov.clone(), paypal_scorer)?;
+        let receipt_key = aegis_governance::ReceiptSigner::load_or_create(&opts.signing_seed)
+            .map_err(|e| format!("receipt signing key {}: {e}", opts.signing_seed.display()))?
+            .public_key_hex();
+        let paypal_gateway = Arc::new(LocalGateway::new(GatewayConfig::new(local_gateway_url(opts.port), receipt_key)));
+        let paypal = PayPalEngine::new(&opts, &settings, gov.clone(), paypal_scorer, paypal_gateway.clone())?;
         let started_at = now_iso();
         let model_name = scorer.model_path().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let health = json!({
@@ -229,6 +243,7 @@ impl AppState {
             workspace,
             approvals: Mutex::new(ApprovalStore::default()),
             paypal,
+            paypal_gateway,
             keepwarm,
             config_lock: Mutex::new(()),
             shutdown: watch::channel(false).0,
@@ -239,6 +254,15 @@ impl AppState {
 
     pub fn settings(&self) -> Settings {
         self.settings.read().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    /// `GET /api/config` (and `config.changed`): [`crate::services::config_json`] with
+    /// `services.paypal` from the PayPal engine, which knows whether orders go to the local
+    /// gateway, to the remote Sandbox or nowhere, and how many were submitted.
+    pub fn config_json(&self, settings: &Settings) -> Value {
+        let mut config = crate::services::config_json(settings);
+        config["services"]["paypal"] = self.paypal.service_json();
+        config
     }
 
     /// Reads the settings again from `.env` (and the environment unless isolated).
@@ -265,6 +289,11 @@ impl AppState {
         health["ane_keepwarm"] = self.keepwarm.json();
         health
     }
+}
+
+/// Base URL of the local Orders v2 gateway on the daemon's IPv4 loopback listener.
+pub fn local_gateway_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}{}", crate::paypal_sandbox::PREFIX)
 }
 
 fn load_settings(opts: &DaemonOptions) -> std::io::Result<Settings> {

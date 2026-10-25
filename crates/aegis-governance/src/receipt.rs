@@ -151,6 +151,12 @@ pub fn verify_json(receipt: &Receipt, payload: &Value) -> Result<(), ReceiptErro
     verify_bytes(receipt, canonical_json(payload).as_bytes())
 }
 
+/// Hex SHA-256 of the canonical JSON of `payload`: the `payload_sha256` of a receipt over it, so a
+/// verifier holding only the detached signature and the public key can rebuild the [`Receipt`].
+pub fn digest_json(payload: &Value) -> String {
+    to_hex(&Sha256::digest(canonical_json(payload).as_bytes()))
+}
+
 fn to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -182,6 +188,14 @@ mod tests {
         let signer = ReceiptSigner::generate();
         let receipt = signer.sign_json(&json!({"value": "42.00"}));
         assert_eq!(verify_json(&receipt, &json!({"value": "4200.00"})), Err(ReceiptError::Digest));
+    }
+
+    #[test]
+    fn digest_json_matches_the_receipt_digest() {
+        let payload = json!({"b": [1, 2], "a": "x"});
+        let receipt = ReceiptSigner::generate().sign_json(&payload);
+        assert_eq!(digest_json(&payload), receipt.payload_sha256);
+        assert_ne!(digest_json(&json!({"a": "y"})), receipt.payload_sha256);
     }
 
     #[test]

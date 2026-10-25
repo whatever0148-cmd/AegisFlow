@@ -8,7 +8,9 @@
 //!   `rustc` command, and committed (`RENAME_SWAP`) or rolled back. Build failures go through the
 //!   `RecoveryRouter` tiers; remote tiers run only with Nebius/Tavily keys configured.
 //! * Panel 2 — simulated agent purchase intents processed by `adapter_paypal` (redaction, score,
-//!   Cedar budget rules, ed25519 receipts); Sandbox submission only with PayPal credentials.
+//!   Cedar budget rules, ed25519 receipts). Without PayPal credentials, allowed orders go over HTTP
+//!   to the daemon's own local Orders v2 emulation ([`paypal_sandbox`], `/paypal-sandbox`: OAuth2,
+//!   create, capture); with real credentials, to the PayPal Sandbox (at most 25 per run).
 //! * Runs — the newest workspace runs with their broadcast messages ([`runs::RunHistory`],
 //!   `GET /api/runs`), so a reloaded console can show them again.
 //! * Panel 3 — in-memory team approvals (Mattermost/Slack cards only with webhooks configured),
@@ -23,6 +25,7 @@ pub mod demo;
 pub mod keepwarm;
 pub mod live;
 pub mod paypal;
+pub mod paypal_sandbox;
 pub mod runs;
 pub mod security;
 pub mod services;

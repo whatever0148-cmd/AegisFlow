@@ -3,17 +3,24 @@
 //! * **Tier 0 — local.** Features from the failure (errors, warnings, retries) are scored by the
 //!   CoreML model and checked against Cedar; this picks the starting tier and whether a verified
 //!   fix may be committed without a human.
-//! * **Tier 1 — `nvidia/Llama-3_3-Nemotron-Super-49B-v1`** on Nebius Token Factory (formerly
-//!   Nebius AI Studio; OpenAI-compatible `/chat/completions` under [`DEFAULT_BASE_URL`]),
-//!   reasoning off, for low-risk failures.
-//! * **Tier 2 — Tavily documentation search + `nvidia/Llama-3_1-Nemotron-Ultra-253B-v1`**,
-//!   reasoning on, for high-risk failures or when tier 1's patch does not verify.
+//! * **Tier 1 — Nemotron Super** (`nvidia/Llama-3_3-Nemotron-Super-49B-v1` on Nebius Token
+//!   Factory, the default provider at [`DEFAULT_BASE_URL`]), reasoning off, for low-risk failures.
+//! * **Tier 2 — Tavily documentation search + Nemotron Ultra**
+//!   (`nvidia/Llama-3_1-Nemotron-Ultra-253B-v1` on Nebius), reasoning on, for high-risk failures
+//!   or when tier 1's patch does not verify.
+//!
+//! The remote tiers call the OpenAI-compatible `/chat/completions` of one of the allowlisted
+//! providers in [`aegis_config::NEMOTRON_PROVIDERS`] (Nebius Token Factory, NVIDIA NIM,
+//! OpenRouter), selected with `NEBIUS_BASE_URL`. Tier model ids default per provider
+//! ([`aegis_config::default_tier_models`]) where one is confirmed, otherwise
+//! `NEBIUS_TIER1_MODEL` / `NEBIUS_TIER2_MODEL` are required.
 //!
 //! Every proposed patch (and optional Cedar policy update) is applied inside a fresh APFS CoW
 //! branch, the failing command is re-run there, and the result is committed only if the build
 //! passes and Cedar allows it; otherwise the branch rolls back. Remote tiers run only when
-//! `NEBIUS_API_KEY` is set and the base URL passes [`aegis_config::validate_base_url`] (https, or
-//! http only to a loopback host; see [`endpoint_problem`]), and tier-2 search only when
+//! `NEBIUS_API_KEY` is set, both tier models are known and the base URL passes
+//! [`aegis_config::validate_base_url`] (an allowlisted provider, or http(s) to a loopback host for
+//! tests; see [`endpoint_problem`]), and tier-2 search only when
 //! `TAVILY_API_KEY` is set. The key is never sent to, or printed with, a refused endpoint.
 
 use std::collections::BTreeSet;
@@ -30,10 +37,13 @@ use regex::Regex;
 use serde_json::{json, Value};
 
 /// OpenAI-compatible base URL of Nebius Token Factory (the service formerly called Nebius AI Studio,
-/// whose `api.studio.nebius.ai` host this replaces). Override with `NEBIUS_BASE_URL`.
-pub const DEFAULT_BASE_URL: &str = "https://api.tokenfactory.nebius.com/v1";
-pub const TIER1_MODEL: &str = "nvidia/Llama-3_3-Nemotron-Super-49B-v1";
-pub const TIER2_MODEL: &str = "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1";
+/// whose `api.studio.nebius.ai` host this replaces), the default provider. Select another
+/// allowlisted provider with `NEBIUS_BASE_URL`.
+pub const DEFAULT_BASE_URL: &str = aegis_config::DEFAULT_NEMOTRON_BASE_URL;
+/// Nebius Token Factory's tier-1 model id (also the default for loopback test endpoints).
+pub const TIER1_MODEL: &str = aegis_config::NEBIUS_TIER1_MODEL_ID;
+/// Nebius Token Factory's tier-2 model id (also the default for loopback test endpoints).
+pub const TIER2_MODEL: &str = aegis_config::NEBIUS_TIER2_MODEL_ID;
 pub const TAVILY_URL: &str = "https://api.tavily.com/search";
 
 const MAX_STDERR_CHARS: usize = 8_000;
@@ -71,8 +81,9 @@ pub enum RouterError {
 pub struct RouterConfig {
     pub nebius_api_key: Option<String>,
     pub base_url: String,
-    pub tier1_model: String,
-    pub tier2_model: String,
+    /// `None` when neither `NEBIUS_TIER1_MODEL` nor a provider default exists (remote tiers off).
+    pub tier1_model: Option<String>,
+    pub tier2_model: Option<String>,
     pub tavily_api_key: Option<String>,
     pub tavily_url: String,
     pub agent_id: String,
@@ -82,18 +93,21 @@ pub struct RouterConfig {
 
 impl RouterConfig {
     /// `NEBIUS_API_KEY`, `NEBIUS_BASE_URL` (default [`DEFAULT_BASE_URL`]), `NEBIUS_TIER1_MODEL`,
-    /// `NEBIUS_TIER2_MODEL`, `TAVILY_API_KEY`, `TAVILY_URL`, `AEGIS_AGENT_ID`.
+    /// `NEBIUS_TIER2_MODEL` (default: the provider's, [`aegis_config::default_tier_models`]),
+    /// `TAVILY_API_KEY`, `TAVILY_URL`, `AEGIS_AGENT_ID`.
     ///
     /// A `NEBIUS_BASE_URL` that fails [`endpoint_problem`] is kept as configured but disables the
     /// remote tiers: [`RouterConfig::remote_unavailable`] gives the reason, and no request carrying
     /// the key is made to it (the check is repeated before every call, whoever built the config).
     pub fn from_env() -> Self {
         let var = |key: &str| std::env::var(key).ok().filter(|v| !v.trim().is_empty());
+        let base_url = var("NEBIUS_BASE_URL").unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+        let (tier1, tier2) = aegis_config::default_tier_models(&base_url);
         Self {
             nebius_api_key: var("NEBIUS_API_KEY"),
-            base_url: var("NEBIUS_BASE_URL").unwrap_or_else(|| DEFAULT_BASE_URL.to_string()),
-            tier1_model: var("NEBIUS_TIER1_MODEL").unwrap_or_else(|| TIER1_MODEL.to_string()),
-            tier2_model: var("NEBIUS_TIER2_MODEL").unwrap_or_else(|| TIER2_MODEL.to_string()),
+            tier1_model: var("NEBIUS_TIER1_MODEL").or_else(|| tier1.map(str::to_string)),
+            tier2_model: var("NEBIUS_TIER2_MODEL").or_else(|| tier2.map(str::to_string)),
+            base_url,
             tavily_api_key: var("TAVILY_API_KEY"),
             tavily_url: var("TAVILY_URL").unwrap_or_else(|| TAVILY_URL.to_string()),
             agent_id: var("AEGIS_AGENT_ID").unwrap_or_else(|| "build-recovery".to_string()),
@@ -102,19 +116,35 @@ impl RouterConfig {
         }
     }
 
-    /// Why tiers 1-2 will not run, if they will not: no `NEBIUS_API_KEY`, or a base URL the key
-    /// may not be sent to. Never contains the key or the URL.
+    /// Why tiers 1-2 will not run, if they will not: no `NEBIUS_API_KEY`, a base URL the key may
+    /// not be sent to, or a tier model with neither an override nor a provider default. Never
+    /// contains the key or a refused URL.
     pub fn remote_unavailable(&self) -> Option<String> {
         if self.nebius_api_key.is_none() {
             return Some("NEBIUS_API_KEY not set".to_string());
         }
-        endpoint_problem(&self.base_url)
+        endpoint_problem(&self.base_url).or_else(|| missing_models(&self.base_url, self.tier1_model.as_deref(), self.tier2_model.as_deref()))
     }
 }
 
+/// Why the tier models are incomplete, if they are: names each missing `NEBIUS_TIER{1,2}_MODEL`
+/// and the provider that has no confirmed default for it.
+pub fn missing_models(base_url: &str, tier1: Option<&str>, tier2: Option<&str>) -> Option<String> {
+    let missing: Vec<&str> = [("NEBIUS_TIER1_MODEL", tier1), ("NEBIUS_TIER2_MODEL", tier2)]
+        .into_iter()
+        .filter(|(_, model)| model.is_none_or(|m| m.trim().is_empty()))
+        .map(|(name, _)| name)
+        .collect();
+    if missing.is_empty() {
+        return None;
+    }
+    let provider = aegis_config::nemotron_provider(base_url).map(|p| p.label).unwrap_or("this endpoint");
+    Some(format!("{} not set ({provider} has no confirmed default model id for it)", missing.join(" / ")))
+}
+
 /// Why an API key may not be sent to `base_url`, if it may not
-/// ([`aegis_config::validate_base_url`]: `https://`, or `http://` only for `127.0.0.1`,
-/// `localhost` or `[::1]`). The message states the rule and never repeats the URL.
+/// ([`aegis_config::validate_base_url`]: one of the allowlisted Nemotron providers, or http(s) to
+/// `127.0.0.1`, `localhost` or `[::1]`). The message lists the providers and never repeats the URL.
 pub fn endpoint_problem(base_url: &str) -> Option<String> {
     aegis_config::validate_base_url(base_url)
         .err()
@@ -416,9 +446,9 @@ impl RecoveryRouter {
     /// Sends a one-line prompt to a tier's model and returns (reply, latency in ms). Used by the
     /// benchmark's opt-in live check; requires `NEBIUS_API_KEY`.
     pub fn probe_model(&self, tier: Tier) -> Result<(String, f64), RouterError> {
-        let model = if tier == Tier::TavilyNemotronUltra { &self.cfg.tier2_model } else { &self.cfg.tier1_model };
+        let model = self.model(tier)?;
         let started = Instant::now();
-        let reply = self.chat(model, "detailed thinking off", "Reply with the single word OK.", 8)?;
+        let reply = self.chat(&model, "detailed thinking off", "Reply with the single word OK.", 8)?;
         Ok((reply.trim().chars().take(40).collect(), started.elapsed().as_secs_f64() * 1e3))
     }
 
@@ -473,7 +503,7 @@ impl RecoveryRouter {
         for &tier in tiers {
             // One timer for the whole attempt, read once on every path (failure or not).
             let started = Instant::now();
-            let model = if tier == Tier::NemotronSuper { self.cfg.tier1_model.clone() } else { self.cfg.tier2_model.clone() };
+            let model = self.model(tier)?;
             let docs = if tier == Tier::TavilyNemotronUltra {
                 if self.cfg.tavily_api_key.is_some() {
                     match self.search_docs(&search_query(failure)) {
@@ -597,12 +627,22 @@ impl RecoveryRouter {
         Ok(attempt)
     }
 
+    /// The configured model id for a remote tier.
+    fn model(&self, tier: Tier) -> Result<String, RouterError> {
+        let (model, name) = if tier == Tier::TavilyNemotronUltra {
+            (&self.cfg.tier2_model, "NEBIUS_TIER2_MODEL")
+        } else {
+            (&self.cfg.tier1_model, "NEBIUS_TIER1_MODEL")
+        };
+        model.clone().filter(|m| !m.trim().is_empty()).ok_or(RouterError::NotConfigured(name))
+    }
+
     fn chat(&self, model: &str, system: &str, user: &str, max_tokens: u32) -> Result<String, RouterError> {
         let key = self.cfg.nebius_api_key.as_deref().ok_or(RouterError::NotConfigured("NEBIUS_API_KEY"))?;
         if let Some(problem) = endpoint_problem(&self.cfg.base_url) {
             return Err(RouterError::Endpoint(problem));
         }
-        let url = format!("{}/chat/completions", self.cfg.base_url.trim_end_matches('/'));
+        let url = format!("{}/chat/completions", self.cfg.base_url.trim().trim_end_matches('/'));
         let body = json!({
             "model": model,
             "temperature": 0.1,
@@ -666,14 +706,14 @@ fn read_json(response: Result<ureq::Response, ureq::Error>, url: &str) -> Result
 
 /// Model ids served at `{base_url}/models` (OpenAI-compatible `GET /models`, `data[].id`).
 ///
-/// A cheap authenticated call, used to check that a Nebius Token Factory key and base URL work
-/// without spending tokens. A `base_url` that fails [`endpoint_problem`] is refused with
+/// A cheap authenticated call, used to check that the provider's key and base URL work without
+/// spending tokens (Nebius Token Factory, NVIDIA NIM and OpenRouter all answer `{data:[{id,…}]}`). A `base_url` that fails [`endpoint_problem`] is refused with
 /// [`RouterError::Endpoint`] before any connection is made.
 pub fn list_models(base_url: &str, api_key: &str, timeout: Duration) -> Result<Vec<String>, RouterError> {
     if let Some(problem) = endpoint_problem(base_url) {
         return Err(RouterError::Endpoint(problem));
     }
-    let url = format!("{}/models", base_url.trim_end_matches('/'));
+    let url = format!("{}/models", base_url.trim().trim_end_matches('/'));
     let agent = ureq::AgentBuilder::new().timeout(timeout).build();
     let response = agent.get(&url).set("Authorization", &format!("Bearer {api_key}")).call();
     let value = read_json(response, &url)?;
@@ -864,6 +904,20 @@ mod tests {
     }
 
     #[test]
+    fn list_models_reads_openrouter_and_nim_shaped_listings() {
+        // OpenRouter adds fields per model and top-level paging; NIM adds owned_by. Only data[].id counts.
+        let openrouter = json!({"data": [{"id": "vendor/model-a:free", "name": "A", "pricing": {"prompt": "0"}, "context_length": 4096}], "total_count": 1, "links": {"next": null}});
+        let nim = json!({"object": "list", "data": [{"id": "vendor/model-b", "object": "model", "created": 1, "owned_by": "vendor"}]});
+        for (body, id) in [(openrouter, "vendor/model-a:free"), (nim, "vendor/model-b")] {
+            let (base_url, server) = serve_once(body.to_string());
+            let models = list_models(&format!("{base_url}/"), "test-key", Duration::from_secs(10)).unwrap();
+            let request = server.join().unwrap().request;
+            assert!(request.starts_with("GET /v1/models "), "{request}");
+            assert_eq!(models, vec![id.to_string()]);
+        }
+    }
+
+    #[test]
     fn disallowed_base_urls_are_refused_before_any_connection() {
         // A listener that must never be contacted: http:// to a non-loopback name resolves nowhere
         // useful, and the check happens before resolution. The loopback listener below proves the
@@ -876,24 +930,92 @@ mod tests {
             format!("http://example.invalid:{port}/v1"),
             format!("ftp://127.0.0.1:{port}/v1"),
             format!("http://user@127.0.0.1:{port}/v1"),
+            format!("https://x@127.0.0.1:{port}/v1"),
+            format!("http://127.0.0.1:{port}\\@example.invalid/v1"),
             "api.tokenfactory.nebius.com/v1".to_string(),
+            // Look-alikes of the allowlisted providers.
+            "https://integrate.api.nvidia.com.evil.example/v1".to_string(),
+            "http://integrate.api.nvidia.com/v1".to_string(),
+            "https://x@openrouter.ai/api/v1".to_string(),
+            "https://openrouter.ai/api/v2".to_string(),
+            "https://proxy.example:8443/v1".to_string(),
         ] {
             let err = list_models(&url, key, Duration::from_secs(2)).unwrap_err();
             assert!(matches!(err, RouterError::Endpoint(_)), "{url}: {err}");
             let text = err.to_string();
-            assert!(text.contains("NEBIUS_BASE_URL rejected") && !text.contains(key) && !text.contains(&url), "{text}");
+            // (A value that is part of an allowed URL necessarily appears in the provider list.)
+            let echoes = !aegis_config::NEMOTRON_PROVIDERS.iter().any(|p| p.base_url.contains(url.as_str())) && text.contains(&url);
+            assert!(text.contains("NEBIUS_BASE_URL rejected") && !text.contains(key) && !echoes, "{text}");
+            assert!(text.contains("https://integrate.api.nvidia.com/v1") && text.contains("https://openrouter.ai/api/v1"), "lists the providers: {text}");
             let cfg = RouterConfig { nebius_api_key: Some(key.into()), base_url: url.clone(), ..RouterConfig::from_env() };
             let reason = cfg.remote_unavailable().expect("remote tiers disabled");
             assert!(reason.contains("NEBIUS_BASE_URL rejected") && !reason.contains(key), "{reason}");
         }
         assert!(listener.accept().is_err(), "no connection was made to the loopback listener");
-        for ok in [DEFAULT_BASE_URL.to_string(), format!("http://127.0.0.1:{port}/v1"), format!("http://localhost:{port}/v1"), format!("http://[::1]:{port}/v1")] {
+        for ok in [
+            DEFAULT_BASE_URL.to_string(),
+            "https://integrate.api.nvidia.com/v1".to_string(),
+            "https://openrouter.ai/api/v1/".to_string(),
+            format!("http://127.0.0.1:{port}/v1"),
+            format!("http://localhost:{port}/v1"),
+            format!("http://[::1]:{port}/v1"),
+        ] {
             assert_eq!(endpoint_problem(&ok), None, "{ok}");
-            let cfg = RouterConfig { nebius_api_key: Some(key.into()), base_url: ok.clone(), ..RouterConfig::from_env() };
+            let cfg = RouterConfig {
+                nebius_api_key: Some(key.into()),
+                base_url: ok.clone(),
+                tier1_model: Some("test/tier1".into()),
+                tier2_model: Some("test/tier2".into()),
+                ..RouterConfig::from_env()
+            };
             assert_eq!(cfg.remote_unavailable(), None, "{ok}");
         }
         let cfg = RouterConfig { nebius_api_key: None, base_url: DEFAULT_BASE_URL.to_string(), ..RouterConfig::from_env() };
         assert_eq!(cfg.remote_unavailable().as_deref(), Some("NEBIUS_API_KEY not set"));
+    }
+
+    #[test]
+    fn refused_endpoint_gets_no_request_from_recover() {
+        // With a key and a look-alike endpoint, recover() stops at the rule: no attempt, no call.
+        let fx = Fixture::new("refused");
+        let ws = Workspace::open(fx.live()).unwrap();
+        let failure = BuildFailure::capture(&check_command(), &fx.live(), 0, Duration::from_secs(10)).unwrap().unwrap();
+        let cfg = RouterConfig {
+            nebius_api_key: Some("nb-unit-test-key-77aa".into()),
+            base_url: "https://openrouter.ai.evil.example/api/v1".into(),
+            tier1_model: Some("test/tier1".into()),
+            tier2_model: Some("test/tier2".into()),
+            tavily_api_key: None,
+            ..RouterConfig::from_env()
+        };
+        let outcome = router(cfg).recover(&ws, &failure).unwrap();
+        assert!(outcome.attempts.is_empty(), "{:?}", outcome.attempts);
+        assert_eq!(outcome.unavailable.len(), 1);
+        let reason = &outcome.unavailable[0];
+        assert!(reason.contains("NEBIUS_BASE_URL rejected") && !reason.contains("evil.example") && !reason.contains("nb-unit-test-key"), "{reason}");
+    }
+
+    #[test]
+    fn tier_models_default_per_provider_or_are_required() {
+        let with = |base_url: &str, tier1: Option<&str>, tier2: Option<&str>| RouterConfig {
+            nebius_api_key: Some("nb-unit-test-key-0b1c".into()),
+            base_url: base_url.into(),
+            tier1_model: tier1.map(str::to_string),
+            tier2_model: tier2.map(str::to_string),
+            ..RouterConfig::from_env()
+        };
+        let (nim1, nim2) = aegis_config::default_tier_models("https://integrate.api.nvidia.com/v1");
+        assert_eq!(nim1, None);
+        assert_eq!(nim2, Some("nvidia/llama-3.1-nemotron-ultra-253b-v1"));
+        let reason = with("https://integrate.api.nvidia.com/v1", nim1, nim2).remote_unavailable().expect("tier 1 missing");
+        assert!(reason.starts_with("NEBIUS_TIER1_MODEL not set") && reason.contains("NVIDIA NIM") && !reason.contains("TIER2"), "{reason}");
+        let reason = with("https://openrouter.ai/api/v1", None, None).remote_unavailable().expect("both missing");
+        assert!(reason.starts_with("NEBIUS_TIER1_MODEL / NEBIUS_TIER2_MODEL not set") && reason.contains("OpenRouter"), "{reason}");
+        assert_eq!(with("https://openrouter.ai/api/v1", Some("vendor/a"), Some("vendor/b")).remote_unavailable(), None);
+        assert_eq!(with(DEFAULT_BASE_URL, Some(TIER1_MODEL), Some(TIER2_MODEL)).remote_unavailable(), None);
+        // A router without a tier model refuses the probe before any request.
+        let r = router(with("https://openrouter.ai/api/v1", None, None));
+        assert!(matches!(r.probe_model(Tier::NemotronSuper), Err(RouterError::NotConfigured("NEBIUS_TIER1_MODEL"))));
     }
 
     #[test]
@@ -975,7 +1097,14 @@ mod tests {
         let content = "```diff\n--- a/status.txt\n+++ b/status.txt\n@@ -1 +1 @@\n-broken\n+fixed\n```";
         let body = json!({"choices": [{"message": {"role": "assistant", "content": content}}]}).to_string();
         let (base_url, server) = serve_once(body);
-        let cfg = RouterConfig { nebius_api_key: Some("test-key".into()), base_url, tavily_api_key: None, ..RouterConfig::from_env() };
+        let cfg = RouterConfig {
+            nebius_api_key: Some("test-key".into()),
+            base_url,
+            tier1_model: Some(TIER1_MODEL.into()),
+            tier2_model: Some(TIER2_MODEL.into()),
+            tavily_api_key: None,
+            ..RouterConfig::from_env()
+        };
         let router = router(cfg);
         let outcome = router.recover(&ws, &failure).unwrap();
         let returned = Instant::now();

@@ -37,19 +37,32 @@ pub const KEYS: &[KeySpec] = &[
     KeySpec {
         name: "NEBIUS_API_KEY",
         secret: true,
-        hint: "Nebius Token Factory API key (recovery tiers 1-2: Nemotron Super / Ultra)",
-        signup_url: Some("https://tokenfactory.nebius.com/"),
+        hint: "API key for the selected Nemotron provider (NEBIUS_BASE_URL: Nebius Token Factory, NVIDIA NIM `nvapi-…` \
+               keys from build.nvidia.com, or OpenRouter); recovery tiers 1-2. It is only ever sent to that provider \
+               (or a loopback test endpoint)",
+        signup_url: Some(NEBIUS_SIGNUP_URL),
     },
     KeySpec {
         name: "NEBIUS_BASE_URL",
         secret: false,
-        hint: "OpenAI-compatible Nebius endpoint (default https://api.tokenfactory.nebius.com/v1); must be https:// \
-               (http:// only for 127.0.0.1, localhost or [::1]). NEBIUS_API_KEY is sent to it, so the console cannot \
-               change it: use `aegis-daemon config set NEBIUS_BASE_URL` (harness/configure_keys.sh) or the environment",
+        hint: "Nemotron provider (OpenAI-compatible base URL): https://api.tokenfactory.nebius.com/v1 (Nebius Token Factory, \
+               the default), https://integrate.api.nvidia.com/v1 (NVIDIA NIM) or https://openrouter.ai/api/v1 (OpenRouter). \
+               Any other value is refused; http(s) loopback (127.0.0.1, localhost, [::1]) is accepted from the CLI or the \
+               environment for local tests only. NEBIUS_API_KEY is sent to it",
         signup_url: None,
     },
-    KeySpec { name: "NEBIUS_TIER1_MODEL", secret: false, hint: "Tier-1 model id override", signup_url: None },
-    KeySpec { name: "NEBIUS_TIER2_MODEL", secret: false, hint: "Tier-2 model id override", signup_url: None },
+    KeySpec {
+        name: "NEBIUS_TIER1_MODEL",
+        secret: false,
+        hint: "Tier-1 (Nemotron Super) model id; overrides the provider default, required where the provider has none",
+        signup_url: None,
+    },
+    KeySpec {
+        name: "NEBIUS_TIER2_MODEL",
+        secret: false,
+        hint: "Tier-2 (Nemotron Ultra) model id; overrides the provider default, required where the provider has none",
+        signup_url: None,
+    },
     KeySpec {
         name: "TAVILY_API_KEY",
         secret: true,
@@ -90,6 +103,104 @@ pub const KEYS: &[KeySpec] = &[
 
 pub fn spec(name: &str) -> Option<&'static KeySpec> {
     KEYS.iter().find(|k| k.name == name)
+}
+
+const NEBIUS_SIGNUP_URL: &str = "https://tokenfactory.nebius.com/";
+/// Nebius Token Factory's Nemotron Super / Ultra ids (tiers 1 and 2 since phase 1).
+pub const NEBIUS_TIER1_MODEL_ID: &str = "nvidia/Llama-3_3-Nemotron-Super-49B-v1";
+pub const NEBIUS_TIER2_MODEL_ID: &str = "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1";
+
+/// A trusted OpenAI-compatible endpoint serving Nemotron models (`NEBIUS_BASE_URL`).
+///
+/// Default tier models are filled in only where the id was confirmed against the provider's own
+/// model list; `None` means `NEBIUS_TIER1_MODEL` / `NEBIUS_TIER2_MODEL` must be set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NemotronProvider {
+    /// Stable identifier for the console and scripts (`nebius`, `nvidia-nim`, `openrouter`).
+    pub id: &'static str,
+    pub label: &'static str,
+    /// The only accepted base URL for this provider (compared after removing one trailing `/`).
+    pub base_url: &'static str,
+    pub signup_url: &'static str,
+    pub key_hint: &'static str,
+    pub tier1_model: Option<&'static str>,
+    pub tier2_model: Option<&'static str>,
+}
+
+/// The allowlist of Nemotron providers an API key may be sent to; the first entry is the default.
+///
+/// * Nebius Token Factory: ids as used since phase 1 (`nvidia/Llama-3_3-…`, `nvidia/Llama-3_1-…`).
+/// * NVIDIA NIM: `GET https://integrate.api.nvidia.com/v1/models` (public) lists
+///   `nvidia/llama-3.1-nemotron-ultra-253b-v1` but not `nvidia/llama-3.3-nemotron-super-49b-v1`,
+///   so only tier 2 has a default.
+/// * OpenRouter: `GET https://openrouter.ai/api/v1/models` (public) lists neither Llama-Nemotron
+///   Super 49B nor Ultra 253B, so both tier models must be configured.
+pub const NEMOTRON_PROVIDERS: &[NemotronProvider] = &[
+    NemotronProvider {
+        id: "nebius",
+        label: "Nebius Token Factory",
+        base_url: "https://api.tokenfactory.nebius.com/v1",
+        signup_url: NEBIUS_SIGNUP_URL,
+        key_hint: "Nebius Token Factory API key",
+        tier1_model: Some(NEBIUS_TIER1_MODEL_ID),
+        tier2_model: Some(NEBIUS_TIER2_MODEL_ID),
+    },
+    NemotronProvider {
+        id: "nvidia-nim",
+        label: "NVIDIA NIM",
+        base_url: "https://integrate.api.nvidia.com/v1",
+        signup_url: "https://build.nvidia.com",
+        key_hint: "build.nvidia.com API key (nvapi-…)",
+        tier1_model: None,
+        tier2_model: Some("nvidia/llama-3.1-nemotron-ultra-253b-v1"),
+    },
+    NemotronProvider {
+        id: "openrouter",
+        label: "OpenRouter",
+        base_url: "https://openrouter.ai/api/v1",
+        signup_url: "https://openrouter.ai/keys",
+        key_hint: "OpenRouter API key",
+        tier1_model: None,
+        tier2_model: None,
+    },
+];
+
+/// `NEBIUS_BASE_URL` when it is unset: Nebius Token Factory.
+pub const DEFAULT_NEMOTRON_BASE_URL: &str = NEMOTRON_PROVIDERS[0].base_url;
+
+/// The allowlisted provider whose base URL is exactly `url` (surrounding whitespace and one
+/// trailing `/` ignored; scheme, host, case and path must match).
+pub fn nemotron_provider(url: &str) -> Option<&'static NemotronProvider> {
+    let url = url.trim();
+    let url = url.strip_suffix('/').unwrap_or(url);
+    NEMOTRON_PROVIDERS.iter().find(|p| p.base_url == url)
+}
+
+pub fn nemotron_provider_by_id(id: &str) -> Option<&'static NemotronProvider> {
+    NEMOTRON_PROVIDERS.iter().find(|p| p.id == id)
+}
+
+/// Where a base URL that passed [`validate_base_url`] points.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Endpoint {
+    Provider(&'static NemotronProvider),
+    /// `http(s)://127.0.0.1|localhost|[::1][:port]/…`, for local test servers.
+    Loopback,
+}
+
+/// Default `(tier 1, tier 2)` model ids for `base_url`: the provider's confirmed defaults, the
+/// Nebius ids for a loopback test endpoint, and none for a refused URL.
+pub fn default_tier_models(base_url: &str) -> (Option<&'static str>, Option<&'static str>) {
+    match validate_base_url(base_url) {
+        Ok(Endpoint::Provider(p)) => (p.tier1_model, p.tier2_model),
+        Ok(Endpoint::Loopback) => (NEMOTRON_PROVIDERS[0].tier1_model, NEMOTRON_PROVIDERS[0].tier2_model),
+        Err(_) => (None, None),
+    }
+}
+
+/// `Label (url), …` for messages.
+pub fn allowed_providers_text() -> String {
+    NEMOTRON_PROVIDERS.iter().map(|p| format!("{} ({})", p.label, p.base_url)).collect::<Vec<_>>().join(", ")
 }
 
 /// Where a resolved value came from.
@@ -283,42 +394,57 @@ fn quote(value: &str) -> String {
     }
 }
 
-/// Checks an OpenAI-compatible base URL that an API key will be sent to: `https://<host>...`, or
-/// `http://` only when the host is `127.0.0.1`, `localhost` or `[::1]` (local test endpoints).
-/// User info (`user@host`) is refused. The error message never repeats the value.
-pub fn validate_base_url(url: &str) -> Result<(), String> {
-    const RULE: &str = "must be an https:// URL (http:// only for 127.0.0.1, localhost or [::1])";
-    let url = url.trim();
-    let lower = url.to_ascii_lowercase();
-    let (rest, https) = if let Some(rest) = lower.strip_prefix("https://") {
-        (rest, true)
-    } else if let Some(rest) = lower.strip_prefix("http://") {
-        (rest, false)
-    } else {
-        return Err(RULE.to_string());
-    };
+/// Checks the OpenAI-compatible base URL an API key will be sent to. Accepted:
+///
+/// * exactly one of the [`NEMOTRON_PROVIDERS`] base URLs (see [`nemotron_provider`]), or
+/// * `http://` or `https://` to `127.0.0.1`, `localhost` or `[::1]` with an optional numeric port
+///   and any path (local test endpoints).
+///
+/// Everything else is refused, including look-alike hosts, `http://` to a provider host, user info
+/// (`user@host`) and other paths on a provider host. The error lists the allowed providers and never
+/// repeats the value.
+pub fn validate_base_url(url: &str) -> Result<Endpoint, String> {
+    if let Some(provider) = nemotron_provider(url) {
+        return Ok(Endpoint::Provider(provider));
+    }
+    if is_loopback_url(url) {
+        return Ok(Endpoint::Loopback);
+    }
+    Err(format!(
+        "must be one of the allowed Nemotron providers: {}; http(s) to 127.0.0.1, localhost or [::1] is accepted for local tests",
+        allowed_providers_text()
+    ))
+}
+
+/// `http(s)://` + a loopback host + an optional numeric port, then nothing or `/`, `?`, `#`.
+fn is_loopback_url(url: &str) -> bool {
+    let lower = url.trim().to_ascii_lowercase();
+    let Some(rest) = lower.strip_prefix("https://").or_else(|| lower.strip_prefix("http://")) else { return false };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
-    if authority.contains('@') {
-        return Err(format!("{RULE}; user info in the URL is not accepted"));
+    // User info, backslashes (read as `/` by WHATWG parsers) and whitespace never pass.
+    if authority.chars().any(|c| c == '@' || c == '\\' || c.is_whitespace() || c.is_control()) {
+        return false;
     }
-    let host = if authority.starts_with('[') {
-        authority.split_inclusive(']').next().unwrap_or("")
+    let (host, port) = if authority.starts_with('[') {
+        match authority.find(']') {
+            Some(end) => (&authority[..=end], &authority[end + 1..]),
+            None => return false,
+        }
     } else {
-        authority.split(':').next().unwrap_or("")
+        match authority.find(':') {
+            Some(colon) => (&authority[..colon], &authority[colon..]),
+            None => (authority, ""),
+        }
     };
-    if host.is_empty() || authority.chars().any(|c| c.is_whitespace() || c.is_control()) {
-        return Err(RULE.to_string());
-    }
-    if !https && !["127.0.0.1", "localhost", "[::1]"].contains(&host) {
-        return Err(RULE.to_string());
-    }
-    Ok(())
+    let port_ok = port.is_empty()
+        || port.strip_prefix(':').is_some_and(|p| !p.is_empty() && p.len() <= 5 && p.bytes().all(|b| b.is_ascii_digit()));
+    port_ok && ["127.0.0.1", "localhost", "[::1]"].contains(&host)
 }
 
 /// Per-key value checks applied by [`write_dotenv`].
 fn validate_value(name: &str, value: &str) -> Result<(), String> {
     match name {
-        "NEBIUS_BASE_URL" => validate_base_url(value),
+        "NEBIUS_BASE_URL" => validate_base_url(value).map(|_| ()),
         _ => Ok(()),
     }
 }
@@ -632,34 +758,111 @@ mod tests {
     }
 
     #[test]
-    fn base_url_must_be_https_or_loopback_http() {
+    fn base_url_allowlist_accepts_the_three_providers_and_loopback() {
+        let expect = [
+            ("https://api.tokenfactory.nebius.com/v1", "nebius"),
+            ("https://api.tokenfactory.nebius.com/v1/", "nebius"),
+            ("https://integrate.api.nvidia.com/v1", "nvidia-nim"),
+            ("https://integrate.api.nvidia.com/v1/", "nvidia-nim"),
+            ("https://openrouter.ai/api/v1", "openrouter"),
+            (" https://openrouter.ai/api/v1/ ", "openrouter"),
+        ];
+        for (url, id) in expect {
+            match validate_base_url(url) {
+                Ok(Endpoint::Provider(p)) => assert_eq!(p.id, id, "{url}"),
+                other => panic!("{url}: {other:?}"),
+            }
+        }
+        assert_eq!(NEMOTRON_PROVIDERS.len(), 3);
+        assert_eq!(DEFAULT_NEMOTRON_BASE_URL, "https://api.tokenfactory.nebius.com/v1");
+        assert_eq!(nemotron_provider_by_id("openrouter").map(|p| p.base_url), Some("https://openrouter.ai/api/v1"));
         for ok in [
-            "https://api.tokenfactory.nebius.com/v1",
-            "HTTPS://proxy.example:8443/v1",
             "http://127.0.0.1:9/v1",
             "http://localhost:8080/v1",
             "http://[::1]:8080/v1",
+            "https://127.0.0.1:8443/v1",
+            "https://localhost/v1",
+            "http://127.0.0.1",
         ] {
-            assert!(validate_base_url(ok).is_ok(), "{ok}");
+            assert_eq!(validate_base_url(ok), Ok(Endpoint::Loopback), "{ok}");
         }
+    }
+
+    #[test]
+    fn base_url_allowlist_rejects_everything_else_without_repeating_it() {
         for bad in [
+            // Look-alike hosts, wrong scheme, user info, other paths on a provider host.
+            "https://integrate.api.nvidia.com.evil.example/v1",
+            "http://integrate.api.nvidia.com/v1",
+            "https://x@openrouter.ai/api/v1",
+            "https://openrouter.ai@evil.example/api/v1",
+            "https://openrouter.ai/api/v2",
+            "https://openrouter.ai/v1",
+            "https://openrouter.ai/api/v1/chat",
+            "https://openrouter.ai/api/v1//",
+            "https://openrouter.ai:443/api/v1",
+            "https://integrate.api.nvidia.com/v1?x=1",
+            "https://integrate.api.nvidia.com/v1#frag",
+            "https://INTEGRATE.API.NVIDIA.COM/v1",
+            "https://api.nvidia.com/v1",
+            "https://evilintegrate.api.nvidia.com/v1",
+            "https://api.tokenfactory.nebius.com.evil.example/v1",
+            "https://api.tokenfactory.nebius.com/v2",
+            "http://api.tokenfactory.nebius.com/v1",
+            "https://api.studio.nebius.ai/v1",
+            "https://proxy.example:8443/v1",
+            // Loopback look-alikes and malformed loopback.
             "http://evil.example/v1",
             "http://127.0.0.1.evil.example/v1",
             "http://localhost.evil.example:80/v1",
+            "http://user@127.0.0.1:9/v1",
+            "http://evil.example\\@127.0.0.1/v1",
+            "http://127.0.0.1:9\\@evil.example/v1",
+            "http://127.0.0.1:x/v1",
+            "http://127.0.0.1:/v1",
+            "http://[::1/v1",
             "ftp://127.0.0.1/v1",
             "api.tokenfactory.nebius.com/v1",
-            "https://",
-            "http://user@127.0.0.1:9/v1",
-            "https://api.tokenfactory.nebius.com@evil.example/v1",
+            "",
         ] {
             let err = validate_base_url(bad).unwrap_err();
-            // ("https://" alone is part of the rule text itself.)
-            assert!(bad == "https://" || !err.contains(bad), "the message repeats the value: {err}");
+            for provider in NEMOTRON_PROVIDERS {
+                assert!(err.contains(provider.base_url) && err.contains(provider.label), "the message lists the providers: {err}");
+            }
+            // A refused value is never repeated (a value that is part of an allowed URL is
+            // necessarily inside the list of allowed URLs, so those are skipped).
+            if !bad.is_empty() && !NEMOTRON_PROVIDERS.iter().any(|p| p.base_url.contains(bad.trim())) {
+                assert!(!err.contains(bad), "the message repeats {bad:?}: {err}");
+            }
+            assert_eq!(default_tier_models(bad), (None, None), "{bad}");
         }
+    }
+
+    #[test]
+    fn tier_model_defaults_follow_the_provider() {
+        assert_eq!(
+            default_tier_models("https://api.tokenfactory.nebius.com/v1"),
+            (Some("nvidia/Llama-3_3-Nemotron-Super-49B-v1"), Some("nvidia/Llama-3_1-Nemotron-Ultra-253B-v1"))
+        );
+        assert_eq!(default_tier_models("https://integrate.api.nvidia.com/v1/"), (None, Some("nvidia/llama-3.1-nemotron-ultra-253b-v1")));
+        assert_eq!(default_tier_models("https://openrouter.ai/api/v1"), (None, None));
+        assert_eq!(default_tier_models("http://127.0.0.1:9/v1"), default_tier_models(DEFAULT_NEMOTRON_BASE_URL));
+    }
+
+    #[test]
+    fn write_dotenv_accepts_only_allowlisted_or_loopback_base_urls() {
         let path = scratch("base-url");
-        let err = write_dotenv(&path, &[("NEBIUS_BASE_URL", Some("http://evil.example/v1"))]).unwrap_err();
-        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
-        assert!(!path.exists(), "nothing written for a refused value");
+        for bad in ["http://evil.example/v1", "https://integrate.api.nvidia.com.evil.example/v1", "https://x@openrouter.ai/api/v1"] {
+            let err = write_dotenv(&path, &[("NEBIUS_BASE_URL", Some(bad))]).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+            assert!(!err.to_string().contains(bad), "{err}");
+            assert!(!path.exists(), "nothing written for a refused value");
+        }
+        for provider in NEMOTRON_PROVIDERS {
+            write_dotenv(&path, &[("NEBIUS_BASE_URL", Some(provider.base_url))]).unwrap();
+            let settings = Settings::load_isolated(&path).unwrap();
+            assert_eq!(settings.get("NEBIUS_BASE_URL"), Some(provider.base_url));
+        }
         write_dotenv(&path, &[("NEBIUS_BASE_URL", Some("http://127.0.0.1:9/v1"))]).unwrap();
         write_dotenv(&path, &[("NEBIUS_BASE_URL", None)]).unwrap();
         assert!(!fs::read_to_string(&path).unwrap().contains("NEBIUS_BASE_URL"));

@@ -16,9 +16,9 @@ agent edit → warm-pool branch → diff → 64 features → ContextWindow (last
 | `crates/aegis-storage` | `clonefile(CLONE_NOFOLLOW \| CLONE_NOOWNERCOPY)` branches, `WarmBranchPool` (pre-cloned standbys handed out with `renameatx_np(RENAME_EXCL)`), `renameatx_np(RENAME_SWAP)` commits, rollback with a background reaper, version snapshots, tree diff |
 | `crates/aegis-ane-scorer` | Swift `@_cdecl` bridge to CoreML (`.cpuAndNeuralEngine`): `ContextWindow` / `score_window` / `score_windows` over the last 64 events of a session (`score()` = a window with no history), `MLComputePlan` placement report, feature extraction |
 | `crates/aegis-config` | Settings from the environment, then `.env` (written 0600 through an atomic rename; secrets never printed) |
-| `crates/aegis-daemon` | Axum + WebSocket server on `127.0.0.1` for the console (Host/Origin/token guard, demo scenarios, PayPal pipeline) |
+| `crates/aegis-daemon` | Axum + WebSocket server on `127.0.0.1` for the console (Host/Origin/token guard, demo scenarios, PayPal pipeline, local PayPal Orders v2 gateway at `/paypal-sandbox`) |
 | `crates/aegis-governance` | `cedar-policy` 4.x with strict schema validation, `[REDACTED]` formatting, SHA-256 + Ed25519 `c2pa:ed25519:` receipts |
-| `crates/adapter-nebius-nemotron` | Tier 0 local triage → Nemotron Super (Nebius) → Tavily + Nemotron Ultra; patches verified in CoW branches |
+| `crates/adapter-nebius-nemotron` | Tier 0 local triage → Nemotron Super → Tavily + Nemotron Ultra (Nebius Token Factory, NVIDIA NIM or OpenRouter); patches verified in CoW branches |
 | `crates/adapter-paypal` | PayPal Sandbox Orders v2 middleware, Cedar budget rules, AG Grid / Bryntum rows |
 | `crates/adapter-switch-mcp` | `aegis-mcp` MCP stdio server + Mattermost/Slack approval cards |
 | `crates/aegis-bench` | Hardware benchmark → `artifacts/aegis_phase1_telemetry.json`; `--verify phase1\|gate` checks an existing artifact |
@@ -57,9 +57,26 @@ on every request, a per-process token for POSTs and the WebSocket. Panel 1 runs 
 real edits of a demo crate (`target/aegis-console/demo/live`) in warm-pool CoW branches, scored per
 agent by the context-window CoreML model, authorised by Cedar, verified with `rustc`, then
 committed, rolled back or held for team approval. Panel 2 sends simulated purchase intents through
-the PayPal middleware (Sandbox only with credentials, at most 25 per run). Panel 3 shows approvals,
+the PayPal middleware. Without PayPal credentials (or with both `PAYPAL_CLIENT_ID` and
+`PAYPAL_CLIENT_SECRET` set to `local-sandbox`), Cedar-allowed orders go over HTTP to the daemon's
+own local Orders v2 gateway (`/paypal-sandbox`: OAuth2 token, create, capture; badge
+"Sandbox Active (Local v2 Gateway)"). It is an emulation for when no PayPal account is available,
+labelled local in every response and order, and nothing is sent to PayPal. With real Sandbox
+credentials orders go to the PayPal Sandbox as before (at most 25 per run). Panel 3 shows approvals,
 the benchmark artifact and live statistics of the daemon's own operations. Settings are
-write-only in the UI; Nebius, Tavily, PayPal and webhooks stay disabled until their keys are set.
+write-only in the UI; the Nemotron provider, Tavily, the remote PayPal Sandbox and webhooks stay
+disabled until their keys are set.
+
+Recovery tiers 1-2 call Nemotron through one of three allowlisted OpenAI-compatible providers,
+picked with `NEBIUS_BASE_URL` (a selector in the Settings drawer, a menu in
+`harness/configure_keys.sh`): Nebius Token Factory (`https://api.tokenfactory.nebius.com/v1`, the
+default), NVIDIA NIM (`https://integrate.api.nvidia.com/v1`, `nvapi-…` keys from
+https://build.nvidia.com) or OpenRouter (`https://openrouter.ai/api/v1`, keys at
+https://openrouter.ai/keys). `NEBIUS_API_KEY` holds the key for the selected provider and is sent
+nowhere else (loopback test endpoints aside); any other base URL is refused. Nebius has default tier
+models; with NVIDIA NIM set `NEBIUS_TIER1_MODEL`, with OpenRouter set both
+`NEBIUS_TIER1_MODEL` and `NEBIUS_TIER2_MODEL`. The console's "Test Nemotron provider" lists the
+Nemotron ids the provider serves. Details: `.env.example` and API.md "Security".
 
 The `mass_delete` scenario is tuned, and its description in the console says so. The modelling
 choices were made after measuring: the demo crate holds `demo::FIXTURES` sample fixtures

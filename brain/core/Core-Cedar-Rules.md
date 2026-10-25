@@ -2,15 +2,15 @@
 tags:
   - core
 status: verified
-latency_ms: 0.004208
-last_verified: 2026-10-25T17:28:23Z
-git_commit: 9f1f777-dirty
+latency_ms: 0.00425
+last_verified: 2026-10-25T18:15:32Z
+git_commit: 3bfc312-dirty
 crate: aegis_governance
 ---
 
 # Core-Cedar-Rules
 
-**Status:** 🟢 verified · **p50:** 0.0042 ms · **commit:** `9f1f777-dirty`
+**Status:** 🟢 verified · **p50:** 0.0043 ms · **commit:** `3bfc312-dirty`
 
 > Deterministic governance: `cedar-policy` 4.x evaluates policies/aegis_rules.cedar (schema-validated), `regex` redaction flags unformatted sensitive fields, `sha2` + `ed25519-dalek` produce `c2pa:ed25519:` receipts.
 
@@ -23,12 +23,12 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T17:28:26Z · bench 2026-10-25T17:28:23Z · tests 2026-10-25T08:10:13Z · commit `9f1f777-dirty`_
+_Synced 2026-10-25T18:15:35Z · bench 2026-10-25T18:15:32Z · tests 2026-10-25T08:10:13Z · commit `3bfc312-dirty`_
 
 | Metric | Measured |
 |---|---|
 | cargo test --release | 20 passed, 0 failed (2 suites) |
-| is_authorized | p50 4.208 µs · p95 4.667 µs · n=20000 |
+| is_authorized | p50 4.250 µs · p95 4.709 µs · n=20000 |
 | decision matrix | 10/10 as expected |
 <!-- aegis:telemetry:end -->
 
