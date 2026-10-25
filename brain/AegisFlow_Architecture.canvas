@@ -1,0 +1,458 @@
+{
+  "nodes": [
+    {
+      "id": "group-agent",
+      "type": "group",
+      "label": "Sub-Agents",
+      "x": -30,
+      "y": -70,
+      "width": 500,
+      "height": 1550,
+      "color": "6"
+    },
+    {
+      "id": "Agent-Systems-Architect",
+      "type": "file",
+      "file": "agents/Agent-Systems-Architect.md",
+      "x": 0,
+      "y": 0,
+      "width": 440,
+      "height": 320,
+      "color": "6"
+    },
+    {
+      "id": "Agent-Core-Builder",
+      "type": "file",
+      "file": "agents/Agent-Core-Builder.md",
+      "x": 0,
+      "y": 370,
+      "width": 440,
+      "height": 320,
+      "color": "6"
+    },
+    {
+      "id": "Agent-QA-Reviewer",
+      "type": "file",
+      "file": "agents/Agent-QA-Reviewer.md",
+      "x": 0,
+      "y": 740,
+      "width": 440,
+      "height": 320,
+      "color": "6"
+    },
+    {
+      "id": "Agent-Telemetry-UI",
+      "type": "file",
+      "file": "agents/Agent-Telemetry-UI.md",
+      "x": 0,
+      "y": 1110,
+      "width": 440,
+      "height": 320,
+      "color": "6"
+    },
+    {
+      "id": "group-core",
+      "type": "group",
+      "label": "Core Engine Modules",
+      "x": 550,
+      "y": -70,
+      "width": 500,
+      "height": 1550,
+      "color": "5"
+    },
+    {
+      "id": "Core-APFS-Clonefile",
+      "type": "file",
+      "file": "core/Core-APFS-Clonefile.md",
+      "x": 580,
+      "y": 0,
+      "width": 440,
+      "height": 320,
+      "color": "5"
+    },
+    {
+      "id": "Core-Memory-Snapshot",
+      "type": "file",
+      "file": "core/Core-Memory-Snapshot.md",
+      "x": 580,
+      "y": 370,
+      "width": 440,
+      "height": 320,
+      "color": "5"
+    },
+    {
+      "id": "Core-ANE-Classifier",
+      "type": "file",
+      "file": "core/Core-ANE-Classifier.md",
+      "x": 580,
+      "y": 740,
+      "width": 440,
+      "height": 320,
+      "color": "5"
+    },
+    {
+      "id": "Core-Cedar-Rules",
+      "type": "file",
+      "file": "core/Core-Cedar-Rules.md",
+      "x": 580,
+      "y": 1110,
+      "width": 440,
+      "height": 320,
+      "color": "5"
+    },
+    {
+      "id": "group-adapter",
+      "type": "group",
+      "label": "Competition Adapters",
+      "x": 1130,
+      "y": -70,
+      "width": 500,
+      "height": 1550,
+      "color": "2"
+    },
+    {
+      "id": "Adapter-Nebius-Nemotron",
+      "type": "file",
+      "file": "adapters/Adapter-Nebius-Nemotron.md",
+      "x": 1160,
+      "y": 0,
+      "width": 440,
+      "height": 320,
+      "color": "2"
+    },
+    {
+      "id": "Adapter-PayPal-Commerce",
+      "type": "file",
+      "file": "adapters/Adapter-PayPal-Commerce.md",
+      "x": 1160,
+      "y": 370,
+      "width": 440,
+      "height": 320,
+      "color": "2"
+    },
+    {
+      "id": "Adapter-Switch-MCP",
+      "type": "file",
+      "file": "adapters/Adapter-Switch-MCP.md",
+      "x": 1160,
+      "y": 740,
+      "width": 440,
+      "height": 320,
+      "color": "2"
+    },
+    {
+      "id": "Adapter-Kiro-Specs",
+      "type": "file",
+      "file": "adapters/Adapter-Kiro-Specs.md",
+      "x": 1160,
+      "y": 1110,
+      "width": 440,
+      "height": 320,
+      "color": "2"
+    },
+    {
+      "id": "group-benchmark",
+      "type": "group",
+      "label": "Hardware Telemetry Proofs",
+      "x": 1710,
+      "y": -70,
+      "width": 500,
+      "height": 1550,
+      "color": "4"
+    },
+    {
+      "id": "Bench-APFS-Latency",
+      "type": "file",
+      "file": "benchmarks/Bench-APFS-Latency.md",
+      "x": 1740,
+      "y": 0,
+      "width": 440,
+      "height": 320,
+      "color": "4"
+    },
+    {
+      "id": "Bench-ANE-FP16",
+      "type": "file",
+      "file": "benchmarks/Bench-ANE-FP16.md",
+      "x": 1740,
+      "y": 370,
+      "width": 440,
+      "height": 320,
+      "color": "4"
+    },
+    {
+      "id": "Bench-Cedar-Eval",
+      "type": "file",
+      "file": "benchmarks/Bench-Cedar-Eval.md",
+      "x": 1740,
+      "y": 740,
+      "width": 440,
+      "height": 320,
+      "color": "4"
+    },
+    {
+      "id": "Bench-EndToEnd-Rollback",
+      "type": "file",
+      "file": "benchmarks/Bench-EndToEnd-Rollback.md",
+      "x": 1740,
+      "y": 1110,
+      "width": 440,
+      "height": 320,
+      "color": "4"
+    },
+    {
+      "id": "live-telemetry",
+      "type": "text",
+      "text": "# AegisFlow · live telemetry\ncommit `uncommitted-dirty` · bench `not run` · tests — passed / — failed\n\n| Node | Status | p50 |\n|---|---|---|\n| [[Core-APFS-Clonefile]] | ⚪ pending | — |\n| [[Core-Memory-Snapshot]] | ⚪ pending | — |\n| [[Core-ANE-Classifier]] | ⚪ pending | — |\n| [[Core-Cedar-Rules]] | ⚪ pending | — |\n| [[Adapter-Nebius-Nemotron]] | ⚪ pending | — |\n| [[Adapter-PayPal-Commerce]] | ⚪ pending | — |\n| [[Adapter-Switch-MCP]] | ⚪ pending | — |\n| [[Adapter-Kiro-Specs]] | ⚪ pending | — |\n| [[Bench-APFS-Latency]] | ⚪ pending | — |\n| [[Bench-ANE-FP16]] | ⚪ pending | — |\n| [[Bench-Cedar-Eval]] | ⚪ pending | — |\n| [[Bench-EndToEnd-Rollback]] | ⚪ pending | — |",
+      "x": -30,
+      "y": -620,
+      "width": 2240,
+      "height": 520
+    }
+  ],
+  "edges": [
+    {
+      "id": "aegis-e-Agent-Systems-Architect-Core-Cedar-Rules",
+      "fromNode": "Agent-Systems-Architect",
+      "fromSide": "right",
+      "toNode": "Core-Cedar-Rules",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "designs policy"
+    },
+    {
+      "id": "aegis-e-Agent-Systems-Architect-Core-Memory-Snapshot",
+      "fromNode": "Agent-Systems-Architect",
+      "fromSide": "right",
+      "toNode": "Core-Memory-Snapshot",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "designs versioning"
+    },
+    {
+      "id": "aegis-e-Agent-Systems-Architect-Adapter-Kiro-Specs",
+      "fromNode": "Agent-Systems-Architect",
+      "fromSide": "right",
+      "toNode": "Adapter-Kiro-Specs",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "writes specs"
+    },
+    {
+      "id": "aegis-e-Agent-Core-Builder-Core-APFS-Clonefile",
+      "fromNode": "Agent-Core-Builder",
+      "fromSide": "right",
+      "toNode": "Core-APFS-Clonefile",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "builds"
+    },
+    {
+      "id": "aegis-e-Agent-Core-Builder-Core-Memory-Snapshot",
+      "fromNode": "Agent-Core-Builder",
+      "fromSide": "right",
+      "toNode": "Core-Memory-Snapshot",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "builds"
+    },
+    {
+      "id": "aegis-e-Agent-Core-Builder-Core-ANE-Classifier",
+      "fromNode": "Agent-Core-Builder",
+      "fromSide": "right",
+      "toNode": "Core-ANE-Classifier",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "builds"
+    },
+    {
+      "id": "aegis-e-Agent-Core-Builder-Core-Cedar-Rules",
+      "fromNode": "Agent-Core-Builder",
+      "fromSide": "right",
+      "toNode": "Core-Cedar-Rules",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "builds"
+    },
+    {
+      "id": "aegis-e-Agent-QA-Reviewer-Core-APFS-Clonefile",
+      "fromNode": "Agent-QA-Reviewer",
+      "fromSide": "right",
+      "toNode": "Core-APFS-Clonefile",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "tests"
+    },
+    {
+      "id": "aegis-e-Agent-QA-Reviewer-Core-ANE-Classifier",
+      "fromNode": "Agent-QA-Reviewer",
+      "fromSide": "right",
+      "toNode": "Core-ANE-Classifier",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "tests"
+    },
+    {
+      "id": "aegis-e-Agent-Telemetry-UI-Adapter-PayPal-Commerce",
+      "fromNode": "Agent-Telemetry-UI",
+      "fromSide": "right",
+      "toNode": "Adapter-PayPal-Commerce",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "dashboard rows"
+    },
+    {
+      "id": "aegis-e-Core-APFS-Clonefile-Adapter-Nebius-Nemotron",
+      "fromNode": "Core-APFS-Clonefile",
+      "fromSide": "right",
+      "toNode": "Adapter-Nebius-Nemotron",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "verifies patches in CoW branch"
+    },
+    {
+      "id": "aegis-e-Core-APFS-Clonefile-Adapter-Switch-MCP",
+      "fromNode": "Core-APFS-Clonefile",
+      "fromSide": "right",
+      "toNode": "Adapter-Switch-MCP",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "branch tools"
+    },
+    {
+      "id": "aegis-e-Core-Memory-Snapshot-Adapter-Switch-MCP",
+      "fromNode": "Core-Memory-Snapshot",
+      "fromSide": "right",
+      "toNode": "Adapter-Switch-MCP",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "commit / restore"
+    },
+    {
+      "id": "aegis-e-Core-ANE-Classifier-Adapter-Nebius-Nemotron",
+      "fromNode": "Core-ANE-Classifier",
+      "fromSide": "right",
+      "toNode": "Adapter-Nebius-Nemotron",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "tier-0 risk"
+    },
+    {
+      "id": "aegis-e-Core-ANE-Classifier-Adapter-PayPal-Commerce",
+      "fromNode": "Core-ANE-Classifier",
+      "fromSide": "right",
+      "toNode": "Adapter-PayPal-Commerce",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "order risk"
+    },
+    {
+      "id": "aegis-e-Core-Cedar-Rules-Adapter-PayPal-Commerce",
+      "fromNode": "Core-Cedar-Rules",
+      "fromSide": "right",
+      "toNode": "Adapter-PayPal-Commerce",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "budget rules"
+    },
+    {
+      "id": "aegis-e-Core-Cedar-Rules-Adapter-Switch-MCP",
+      "fromNode": "Core-Cedar-Rules",
+      "fromSide": "right",
+      "toNode": "Adapter-Switch-MCP",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "approval gate"
+    },
+    {
+      "id": "aegis-e-Core-Cedar-Rules-Adapter-Nebius-Nemotron",
+      "fromNode": "Core-Cedar-Rules",
+      "fromSide": "right",
+      "toNode": "Adapter-Nebius-Nemotron",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "commit gate"
+    },
+    {
+      "id": "aegis-e-Core-APFS-Clonefile-Bench-APFS-Latency",
+      "fromNode": "Core-APFS-Clonefile",
+      "fromSide": "right",
+      "toNode": "Bench-APFS-Latency",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "measured by"
+    },
+    {
+      "id": "aegis-e-Core-Memory-Snapshot-Bench-APFS-Latency",
+      "fromNode": "Core-Memory-Snapshot",
+      "fromSide": "right",
+      "toNode": "Bench-APFS-Latency",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "measured by"
+    },
+    {
+      "id": "aegis-e-Core-ANE-Classifier-Bench-ANE-FP16",
+      "fromNode": "Core-ANE-Classifier",
+      "fromSide": "right",
+      "toNode": "Bench-ANE-FP16",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "measured by"
+    },
+    {
+      "id": "aegis-e-Core-Cedar-Rules-Bench-Cedar-Eval",
+      "fromNode": "Core-Cedar-Rules",
+      "fromSide": "right",
+      "toNode": "Bench-Cedar-Eval",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "measured by"
+    },
+    {
+      "id": "aegis-e-Adapter-Nebius-Nemotron-Bench-EndToEnd-Rollback",
+      "fromNode": "Adapter-Nebius-Nemotron",
+      "fromSide": "right",
+      "toNode": "Bench-EndToEnd-Rollback",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "tier-0 routing"
+    },
+    {
+      "id": "aegis-e-Adapter-PayPal-Commerce-Bench-EndToEnd-Rollback",
+      "fromNode": "Adapter-PayPal-Commerce",
+      "fromSide": "right",
+      "toNode": "Bench-EndToEnd-Rollback",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "receipt signing"
+    },
+    {
+      "id": "aegis-e-Adapter-Switch-MCP-Bench-EndToEnd-Rollback",
+      "fromNode": "Adapter-Switch-MCP",
+      "fromSide": "right",
+      "toNode": "Bench-EndToEnd-Rollback",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "MCP round-trip"
+    },
+    {
+      "id": "aegis-e-Agent-QA-Reviewer-Bench-EndToEnd-Rollback",
+      "fromNode": "Agent-QA-Reviewer",
+      "fromSide": "right",
+      "toNode": "Bench-EndToEnd-Rollback",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "gates on"
+    },
+    {
+      "id": "aegis-e-Agent-Telemetry-UI-Bench-ANE-FP16",
+      "fromNode": "Agent-Telemetry-UI",
+      "fromSide": "right",
+      "toNode": "Bench-ANE-FP16",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "publishes"
+    }
+  ]
+}

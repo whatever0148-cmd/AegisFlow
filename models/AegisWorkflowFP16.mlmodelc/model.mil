@@ -1,0 +1,20 @@
+program(1.0)
+[buildInfo = dict<tensor<string, []>, tensor<string, []>>({{"coremlc-component-MIL", "3600.16.1"}, {"coremlc-version", "3600.25.2"}, {"coremltools-component-milinternal", ""}, {"coremltools-version", "9.0"}})]
+{
+    func main<ios17>(tensor<fp16, [1, 64]> features) {
+            tensor<fp16, [32, 64]> dense_1_weight_0 = const()[name = tensor<string, []>("dense_1_weight_0"), val = tensor<fp16, [32, 64]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(64)))];
+            tensor<fp16, [32]> dense_1_bias_0 = const()[name = tensor<string, []>("dense_1_bias_0"), val = tensor<fp16, [32]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(4224)))];
+            tensor<fp16, [1, 32]> dense_1 = linear(bias = dense_1_bias_0, weight = dense_1_weight_0, x = features)[name = tensor<string, []>("dense_1")];
+            tensor<fp16, [1, 32]> relu_1 = relu(x = dense_1)[name = tensor<string, []>("relu_1")];
+            tensor<fp16, [16, 32]> dense_2_weight_0 = const()[name = tensor<string, []>("dense_2_weight_0"), val = tensor<fp16, [16, 32]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(4352)))];
+            tensor<fp16, [16]> dense_2_bias_0 = const()[name = tensor<string, []>("dense_2_bias_0"), val = tensor<fp16, [16]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(5440)))];
+            tensor<fp16, [1, 16]> dense_2 = linear(bias = dense_2_bias_0, weight = dense_2_weight_0, x = relu_1)[name = tensor<string, []>("dense_2")];
+            tensor<fp16, [1, 16]> relu_2 = relu(x = dense_2)[name = tensor<string, []>("relu_2")];
+            tensor<fp16, [1, 16]> logit_weight_0 = const()[name = tensor<string, []>("logit_weight_0"), val = tensor<fp16, [1, 16]>(BLOBFILE(path = tensor<string, []>("@model_path/weights/weight.bin"), offset = tensor<uint64, []>(5568)))];
+            tensor<fp16, [1]> logit_bias_0 = const()[name = tensor<string, []>("logit_bias_0"), val = tensor<fp16, [1]>([-0x1.b58p-3])];
+            tensor<fp16, [1, 1]> logit = linear(bias = logit_bias_0, weight = logit_weight_0, x = relu_2)[name = tensor<string, []>("logit")];
+            tensor<fp16, [1, 1]> probability = sigmoid(x = logit)[name = tensor<string, []>("probability")];
+            tensor<fp16, []> risk_score_y_0 = const()[name = tensor<string, []>("risk_score_y_0"), val = tensor<fp16, []>(0x1.9p+6)];
+            tensor<fp16, [1, 1]> risk_score = mul(x = probability, y = risk_score_y_0)[name = tensor<string, []>("risk_score")];
+        } -> (risk_score);
+}

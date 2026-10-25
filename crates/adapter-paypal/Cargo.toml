@@ -1,0 +1,16 @@
+[package]
+name = "adapter-paypal"
+description = "PayPal Sandbox Orders v2 middleware: redaction, ed25519 receipts, Cedar budget rules, dashboard rows"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+aegis-ane-scorer.workspace = true
+aegis-governance.workspace = true
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ureq.workspace = true

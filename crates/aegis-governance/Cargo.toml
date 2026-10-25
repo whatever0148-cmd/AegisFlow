@@ -1,0 +1,18 @@
+[package]
+name = "aegis-governance"
+description = "Deterministic Cedar governance, sensitive-data redaction and ed25519 receipts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+cedar-policy.workspace = true
+ed25519-dalek.workspace = true
+rand_core.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true

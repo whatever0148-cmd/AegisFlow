@@ -1,0 +1,10 @@
+/target/
+/.venv/
+__pycache__/
+/artifacts/*.log
+/artifacts/keys/
+.DS_Store
+# Obsidian per-device UI state
+/brain/.obsidian/workspace.json
+/brain/.obsidian/workspace-mobile.json
+/brain/.obsidian/cache

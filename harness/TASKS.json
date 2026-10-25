@@ -1,0 +1,201 @@
+{
+  "project": "AegisFlow",
+  "phase": "phase-1",
+  "rules": [
+    "A task is passed only when its verify command exits 0 (run by harness/run_tasks.py).",
+    "Metrics come from artifacts/*.json written by real runs; never type a measured number by hand.",
+    "External services (Nebius, Tavily, PayPal Sandbox, Slack, Mattermost) are called only when their credentials are present in the environment."
+  ],
+  "tasks": [
+    {
+      "id": "T00",
+      "title": "Obsidian brain vault, canvas and colour groups",
+      "owner": "systems-architect",
+      "deps": [],
+      "acceptance": [
+        "brain/.obsidian/graph.json defines tag colour groups #agent purple, #core cyan, #adapter orange, #benchmark green",
+        "brain/AegisFlow_Architecture.canvas is valid JSON Canvas linking Sub-Agents -> Core -> Adapters -> Benchmarks",
+        "every node note carries status, latency_ms, last_verified and git_commit frontmatter"
+      ],
+      "verify": "python3 harness/sync_obsidian_brain.py --check",
+      "requirements": ["R8.1", "R8.2"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T01",
+      "title": "Claude Code sub-agents, quality hooks and settings",
+      "owner": "systems-architect",
+      "deps": [],
+      "acceptance": [
+        ".claude/agents defines systems-architect, core-builder, qa-reviewer and telemetry-ui",
+        ".claude/hooks/verify_no_stubs.sh and post_task_brain_sync.sh parse and are wired in .claude/settings.json"
+      ],
+      "verify": "bash -n .claude/hooks/verify_no_stubs.sh && bash -n .claude/hooks/post_task_brain_sync.sh && python3 -c \"import json; s=json.load(open('.claude/settings.json')); assert s['hooks']['PostToolUse'] and s['hooks']['SubagentStop']\" && ls .claude/agents/systems-architect.md .claude/agents/core-builder.md .claude/agents/qa-reviewer.md .claude/agents/telemetry-ui.md",
+      "requirements": ["R8.3"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T02",
+      "title": "Train and export AegisWorkflowFP16.mlpackage -> .mlmodelc",
+      "owner": "core-builder",
+      "deps": [],
+      "acceptance": [
+        "FP16 ML Program with a 64-feature input and a 0..100 risk_score output",
+        "compiled .mlmodelc present; CoreML FP16 output matches the NumPy FP32 reference within 1.0 score point"
+      ],
+      "verify": ".venv/bin/python models/build_model.py --verify-only",
+      "requirements": ["R3.1", "R3.2"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T03",
+      "title": "aegis-storage: clonefile branches, RENAME_SWAP commit, Drop rollback",
+      "owner": "core-builder",
+      "deps": [],
+      "acceptance": [
+        "Workspace::branch uses clonefile(CLONE_NOFOLLOW | CLONE_NOOWNERCOPY) on APFS",
+        "Branch::commit swaps trees with renameatx_np(RENAME_SWAP) and keeps the old tree as a version",
+        "dropping an uncommitted branch leaves the live tree byte-identical"
+      ],
+      "verify": "cargo test --release -p aegis-storage",
+      "requirements": ["R1.1", "R1.2", "R2.1", "R2.2", "R2.3"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T04",
+      "title": "aegis-governance: Cedar 4.x rules, redaction, ed25519 receipts",
+      "owner": "core-builder",
+      "deps": [],
+      "acceptance": [
+        "policies/aegis_rules.cedar validates against policies/aegis.cedarschema",
+        "decision matrix covers low-risk permit, >$50 order without receipt forbid, high-impact without approval forbid",
+        "c2pa:ed25519 receipts verify and fail on tampered payloads"
+      ],
+      "verify": "cargo test --release -p aegis-governance",
+      "requirements": ["R4.1", "R4.2", "R4.3", "R4.4"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T05",
+      "title": "aegis-ane-scorer: Swift @_cdecl CoreML bridge + feature extraction",
+      "owner": "core-builder",
+      "deps": ["T02", "T03", "T04"],
+      "acceptance": [
+        "aegis_ane_score_workflow scores a 64-feature vector through CoreML with .cpuAndNeuralEngine",
+        "scores match models/parity_vectors.json within 1.0 point; MLComputePlan report is readable"
+      ],
+      "verify": "cargo test --release -p aegis-ane-scorer",
+      "requirements": ["R3.2", "R3.3"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T06",
+      "title": "adapter-nebius-nemotron: 3-tier build recovery router",
+      "owner": "core-builder",
+      "deps": ["T05"],
+      "acceptance": [
+        "tier-0 routing uses ANE + Cedar only",
+        "patches are applied and verified inside a fresh CoW branch; failures roll back",
+        "Nebius/Tavily are called only when NEBIUS_API_KEY / TAVILY_API_KEY are set"
+      ],
+      "verify": "cargo test --release -p adapter-nebius-nemotron",
+      "requirements": ["R5.1", "R5.2", "R5.3"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T07",
+      "title": "adapter-paypal: Sandbox Orders v2 middleware + dashboard rows",
+      "owner": "core-builder",
+      "deps": ["T05"],
+      "acceptance": [
+        "outbound order bodies contain [REDACTED] instead of sensitive strings",
+        "custom_id carries a verifiable c2pa:ed25519 signature; Cedar budget rules gate submission",
+        "AG Grid and Bryntum row exports are produced"
+      ],
+      "verify": "cargo test --release -p adapter-paypal",
+      "requirements": ["R6.1", "R6.2", "R6.3"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T08",
+      "title": "adapter-switch-mcp: MCP server + Mattermost/Slack approval cards",
+      "owner": "core-builder",
+      "deps": ["T05"],
+      "acceptance": [
+        "aegis-mcp answers initialize, tools/list and tools/call over stdio JSON-RPC",
+        "approval cards render the workspace diff for Mattermost and Slack; posting happens only with configured webhooks"
+      ],
+      "verify": "cargo test --release -p adapter-switch-mcp && bash harness/mcp_smoke.sh",
+      "requirements": ["R7.1", "R7.2"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T09",
+      "title": "Kiro specs: requirements, design, implementation plan",
+      "owner": "systems-architect",
+      "deps": [],
+      "acceptance": [
+        ".kiro/specs/aegisflow-phase1/requirements.md uses EARS acceptance criteria",
+        "tasks.md mirrors TASKS.json verification state"
+      ],
+      "verify": "test -s .kiro/specs/aegisflow-phase1/requirements.md && test -s .kiro/specs/aegisflow-phase1/design.md && test -s .kiro/specs/aegisflow-phase1/tasks.md",
+      "requirements": ["R8.4"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T10",
+      "title": "No-stub gate: zero TODO/FIXME/unimplemented!/hardcoded metrics",
+      "owner": "qa-reviewer",
+      "deps": ["T03", "T04", "T05", "T06", "T07", "T08"],
+      "acceptance": ["verify_no_stubs.sh exits 0 on the whole tree"],
+      "verify": ".claude/hooks/verify_no_stubs.sh",
+      "requirements": ["R8.3"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T11",
+      "title": "Release test suite",
+      "owner": "qa-reviewer",
+      "deps": ["T10"],
+      "acceptance": ["cargo test --release --workspace exits 0"],
+      "verify": "cargo test --release --workspace",
+      "requirements": ["R8.3"],
+      "status": "pending",
+      "last_result": null
+    },
+    {
+      "id": "T12",
+      "title": "Hardware benchmark suite",
+      "owner": "qa-reviewer",
+      "deps": ["T11"],
+      "acceptance": ["artifacts/aegis_phase1_telemetry.json written from measured runs on this Mac"],
+      "verify": "cargo run --release -q -p aegis-bench -- --out artifacts/aegis_phase1_telemetry.json",
+      "requirements": ["R8.1"],
+      "status": "pending",
+      "last_result": null,
+      "timeout_s": 3600
+    },
+    {
+      "id": "T13",
+      "title": "Sync telemetry into the Obsidian brain",
+      "owner": "telemetry-ui",
+      "deps": ["T12"],
+      "acceptance": ["brain notes, canvas and Telemetry-Log reflect artifacts/aegis_phase1_telemetry.json"],
+      "verify": "python3 harness/sync_obsidian_brain.py",
+      "requirements": ["R8.1", "R8.2"],
+      "status": "pending",
+      "last_result": null
+    }
+  ]
+}

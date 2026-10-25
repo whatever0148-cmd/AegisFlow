@@ -1,0 +1,20 @@
+[package]
+name = "adapter-switch-mcp"
+description = "MCP stdio server and Switch chat bridge (Mattermost/Slack workspace-diff approval cards)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "aegis-mcp"
+path = "src/bin/aegis-mcp.rs"
+
+[dependencies]
+aegis-ane-scorer.workspace = true
+aegis-governance.workspace = true
+aegis-storage.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ureq.workspace = true

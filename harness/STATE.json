@@ -1,0 +1,9 @@
+{
+  "project": "AegisFlow",
+  "phase": "phase-1",
+  "updated_at": null,
+  "current_task": null,
+  "tasks": {"total": 14, "passed": 0, "failed": 0, "blocked": 0, "pending": 14},
+  "last_run": null,
+  "git_commit": null
+}

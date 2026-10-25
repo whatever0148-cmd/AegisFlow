@@ -1,0 +1,3 @@
+[env]
+# The CoreML bridge uses Float16 MLMultiArray access (macOS 15+) and MLComputePlan (macOS 14.4+).
+MACOSX_DEPLOYMENT_TARGET = "15.0"

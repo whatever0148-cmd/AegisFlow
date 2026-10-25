@@ -1,0 +1,12 @@
+[package]
+name = "aegis-storage"
+description = "Transactional APFS copy-on-write workspace versioning (clonefile + renameatx_np RENAME_SWAP)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+libc.workspace = true
+serde.workspace = true
+thiserror.workspace = true

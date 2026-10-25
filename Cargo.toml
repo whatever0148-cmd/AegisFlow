@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aegis-storage",
+    "crates/aegis-governance",
+    "crates/aegis-ane-scorer",
+    "crates/adapter-nebius-nemotron",
+    "crates/adapter-paypal",
+    "crates/adapter-switch-mcp",
+    "crates/aegis-bench",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+publish = false
+
+[workspace.dependencies]
+aegis-storage = { path = "crates/aegis-storage" }
+aegis-governance = { path = "crates/aegis-governance" }
+aegis-ane-scorer = { path = "crates/aegis-ane-scorer" }
+adapter-nebius-nemotron = { path = "crates/adapter-nebius-nemotron" }
+adapter-paypal = { path = "crates/adapter-paypal" }
+adapter-switch-mcp = { path = "crates/adapter-switch-mcp" }
+base64 = "0.22"
+cedar-policy = "4"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+libc = "0.2"
+rand_core = { version = "0.6", features = ["getrandom"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+ureq = { version = "2", features = ["json"] }

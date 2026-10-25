@@ -1,0 +1,16 @@
+[package]
+name = "aegis-ane-scorer"
+description = "CoreML FP16 workflow risk scorer (Swift @_cdecl bridge, .cpuAndNeuralEngine) and 64-feature extraction"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[dependencies]
+aegis-governance.workspace = true
+aegis-storage.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

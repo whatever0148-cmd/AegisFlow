@@ -1,0 +1,37 @@
+// Entity and action schema for policies/aegis_rules.cedar (validated in strict mode at load time).
+
+type AegisContext = {
+  ane_risk_score: Long,
+  has_unformatted_sensitive_fields: Bool,
+  team_approval_granted: Bool,
+  ed25519_receipt_verified: Bool,
+  amount_cents: Long
+};
+
+entity Agent;
+entity Workspace;
+entity Merchant;
+
+action "workspace::branch" appliesTo {
+  principal: [Agent],
+  resource: [Workspace],
+  context: AegisContext
+};
+
+action "workspace::rollback" appliesTo {
+  principal: [Agent],
+  resource: [Workspace],
+  context: AegisContext
+};
+
+action "workspace::speculative_commit" appliesTo {
+  principal: [Agent],
+  resource: [Workspace],
+  context: AegisContext
+};
+
+action "paypal::create_order" appliesTo {
+  principal: [Agent],
+  resource: [Merchant],
+  context: AegisContext
+};

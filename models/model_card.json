@@ -1,0 +1,103 @@
+{
+  "model": "AegisWorkflowFP16.mlpackage",
+  "compiled": "AegisWorkflowFP16.mlmodelc",
+  "batch_model": {
+    "package": "AegisWorkflowFP16Batch.mlpackage",
+    "compiled": "AegisWorkflowFP16Batch.mlmodelc",
+    "input_shape": [
+      1,
+      64,
+      1,
+      16384
+    ],
+    "max_abs_diff_points": 0.34484
+  },
+  "built_at": "2026-10-25T07:48:38Z",
+  "architecture": "linear(64->32) relu linear(32->16) relu linear(16->1) sigmoid x100",
+  "precision": "float16 weights, activations, input and output (ML Program, macOS 14 opset)",
+  "parameters": 2625,
+  "weights_fp16_sha256": "86bf529879626e5691e22f95d12f13161b2af8a46f943f53c9a8b8c3e1a7ef3b",
+  "training": {
+    "seed": 20261025,
+    "train_samples": 80000,
+    "val_samples": 20000,
+    "hidden": [
+      32,
+      16
+    ],
+    "epochs": 45,
+    "batch_size": 256,
+    "lr": 0.003,
+    "lr_late": 0.0008,
+    "lr_switch_epoch": 32,
+    "scenario_mix": {
+      "workspace_edit": 0.4,
+      "build_failure": 0.2,
+      "order": 0.3,
+      "uniform": 0.1
+    }
+  },
+  "metrics": {
+    "val_mae_points": 0.0903,
+    "val_rmse_points": 0.2051,
+    "high_impact_vs_teacher": {
+      "accuracy": 0.9988,
+      "precision": 0.99919,
+      "recall": 0.99802,
+      "positive_rate_teacher": 0.4302
+    },
+    "history": [
+      {
+        "epoch": 5,
+        "val_mae_points": 0.3308
+      },
+      {
+        "epoch": 10,
+        "val_mae_points": 0.4247
+      },
+      {
+        "epoch": 15,
+        "val_mae_points": 0.5348
+      },
+      {
+        "epoch": 20,
+        "val_mae_points": 0.2473
+      },
+      {
+        "epoch": 25,
+        "val_mae_points": 0.2701
+      },
+      {
+        "epoch": 30,
+        "val_mae_points": 0.2189
+      },
+      {
+        "epoch": 35,
+        "val_mae_points": 0.0876
+      },
+      {
+        "epoch": 40,
+        "val_mae_points": 0.0956
+      },
+      {
+        "epoch": 45,
+        "val_mae_points": 0.0903
+      }
+    ]
+  },
+  "parity": {
+    "vectors": 256,
+    "max_abs_diff_points": 0.11548,
+    "mean_abs_diff_points": 0.02825
+  },
+  "toolchain": {
+    "python": "3.9.6",
+    "numpy": "2.0.2",
+    "coremltools": "9.0"
+  },
+  "limitations": [
+    "Labels come from the heuristic teacher in feature_schema.json, not from real incidents.",
+    "Scores are only as meaningful as the feature extraction feeding them."
+  ],
+  "build_seconds": 2.53
+}
