@@ -14,3 +14,4 @@ __pycache__/
 /.env.local
 /.env.tmp-*
 /.env.lock
+/.claude/skills/remotion-video/upstream/

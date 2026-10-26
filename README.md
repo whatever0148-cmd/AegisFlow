@@ -223,11 +223,16 @@ python3 harness/run_tasks.py --only T17,T18                                     
 
 ## Demo recording
 
-`bash harness/demo/record.sh` drives the live console with headless Chrome over the DevTools
-protocol (every scenario, the approval flow, PayPal orders and the stream), captures the
-screencast frames with their timestamps and encodes `artifacts/aegisflow_demo.mp4` at 60 fps with
-AVFoundation (`harness/demo/frames_to_mp4.swift`), plus the three screenshots above. Nothing is
-staged: the daemon runs each scenario for real.
+`bash harness/demo/film/render.sh` makes the product film `artifacts/aegisflow_demo.mp4`
+(1080p60, H.264 CRF 16, voiceover from `artifacts/voiceover.wav`). Headless Chrome loads the
+live console on a virtual clock (`vtime.js`), `stage.js` puts it in a macOS-style window with a
+spring camera, a cursor, word-synced captions and callouts, and every frame is captured at
+3840x2160 and downscaled by ffmpeg. The clicks are real and the daemon runs each scenario while the
+film waits, so every value in the console is the daemon's own. Callout numbers are read from the
+telemetry artifact. Two things are shortened and say so on screen: the live Nemotron call, and the
+order stream. Caption timings come from an on-device Apple speech transcription of the voiceover
+(`harness/demo/film/transcribe.swift`). The older screencast recorder, `harness/demo/record.sh`,
+still makes the three screenshots above.
 
 ## License
 
