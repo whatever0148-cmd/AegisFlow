@@ -5,7 +5,7 @@
 // pass is not a boolean (the bench writes null when the measurement is missing) is not met, exactly
 // as the T18 gate in harness/TASKS.json counts it.
 
-import { h, replace, badge, fmtNum, fmtText, fmtDateTime, fmtTime, unitForKey, withUnit, humanize, isNum, DASH } from './dom.js';
+import { h, replace, badge, fmtNum, fmtText, fmtDateTime, fmtTime, fmtDur, unitForKey, withUnit, humanize, isNum, DASH } from './dom.js';
 import { get, describeError } from './api.js';
 
 const SAMPLE_LABELS = {
@@ -114,12 +114,71 @@ function resultCell(pass, gated) {
   return h('td', { class: 'result', 'data-label': 'Result' }, badge('FAIL', 'fail'), h('span', { class: 'fail-text small', text: ' not measured (no result in the artifact)' }));
 }
 
+/**
+ * Warm-pool acquire vs cold clonefile per fixture, from the bench artifact's rows: a row whose
+ * metric names a "warm hit" and one naming a "cold clonefile" for the same `fixture`, each with
+ * measured_p50_ms. Fixtures missing either side are left out.
+ */
+export function latencyPairs(bench) {
+  const rows = bench ? [
+    ...(Array.isArray(bench.targets_summary) ? bench.targets_summary : []),
+    ...(Array.isArray(bench.informational) ? bench.informational : []),
+  ] : [];
+  const byFixture = new Map();
+  for (const r of rows) {
+    if (!r || typeof r.metric !== 'string' || !r.fixture || !isNum(r.measured_p50_ms)) continue;
+    const kind = /warm hit/i.test(r.metric) ? 'warm' : /cold clonefile/i.test(r.metric) ? 'cold' : null;
+    if (!kind) continue;
+    const label = (r.metric.split(' · ')[1] || String(r.fixture)).trim();
+    const entry = byFixture.get(r.fixture) || { fixture: String(r.fixture), label };
+    if (!entry[kind]) entry[kind] = { p50: r.measured_p50_ms, p95: isNum(r.p95_ms) ? r.p95_ms : null, n: isNum(r.n) ? r.n : null, metric: r.metric };
+    byFixture.set(r.fixture, entry);
+  }
+  return [...byFixture.values()].filter((e) => e.warm && e.cold);
+}
+
+/** "warm 9.8× faster" (or slower), from the two p50s. */
+export function ratioText(warm, cold) {
+  if (!(warm > 0) || !(cold > 0)) return '';
+  const r = cold / warm;
+  const v = (x) => fmtNum(Math.round(x * 10) / 10);
+  return r >= 1 ? `warm ${v(r)}× faster` : `warm ${v(1 / r)}× slower`;
+}
+
+function renderBars(host, bench) {
+  if (!host) return;
+  const pairs = latencyPairs(bench);
+  if (!pairs.length) {
+    replace(host, h('p', { class: 'muted small', text: bench ? 'The artifact has no warm-hit / cold-clonefile rows per fixture.' : 'No benchmark artifact.' }));
+    return;
+  }
+  const max = Math.max(...pairs.flatMap((p) => [p.warm.p50, p.cold.p50])) || 1;
+  const bar = (kind, label, v) => {
+    const fill = h('span', { class: 'bar__fill' });
+    fill.style.width = `${Math.max(1.5, (v.p50 / max) * 100)}%`;
+    return h('div', { class: `bar bar--${kind}`, title: `${v.metric}: p50 ${fmtDur(v.p50)}${isNum(v.p95) ? `, p95 ${fmtDur(v.p95)}` : ''}${isNum(v.n) ? `, n ${fmtNum(v.n)}` : ''}` },
+      h('span', { class: 'bar__label', text: label }),
+      h('span', { class: 'bar__track', role: 'img', 'aria-label': `${label} p50 ${fmtDur(v.p50)}` }, fill),
+      h('span', { class: 'bar__val', text: fmtDur(v.p50) }));
+  };
+  replace(host,
+    h('div', { class: 'bars__legend', 'aria-hidden': 'true' },
+      h('span', { class: 'bars__key' }, h('span', { class: 'bars__swatch bars__swatch--warm' }), 'warm pool acquire · p50'),
+      h('span', { class: 'bars__key' }, h('span', { class: 'bars__swatch' }), 'cold clonefile · p50')),
+    pairs.map((p) => h('div', { class: 'bar-group', dataset: { fixture: p.fixture } },
+      h('div', { class: 'bar-group__head' },
+        h('span', { class: 'bar-group__name', text: p.label }),
+        h('span', { class: 'bar-group__ratio', text: ratioText(p.warm.p50, p.cold.p50) })),
+      bar('warm', 'warm', p.warm),
+      bar('cold', 'cold', p.cold))));
+}
+
 export function createScoreboard() {
   const root = document.getElementById('panel-approvals');
   const $ = (role) => root.querySelector(`[data-role="${role}"]`);
   const els = {
     error: $('bench-error'), meta: $('bench-meta'), table: $('scoreboard'), note: $('bench-note'), reload: $('reload-bench'),
-    live: $('livestats'), counters: $('counters'), updated: $('live-updated'),
+    live: $('livestats'), counters: $('counters'), updated: $('live-updated'), bars: $('bench-bars'),
   };
 
   function setBenchError(msg) {
@@ -131,6 +190,7 @@ export function createScoreboard() {
     setBenchError('');
     const bench = t && t.bench;
     const tbody = els.table.tBodies[0];
+    renderBars(els.bars, bench);
     if (!bench) {
       replace(els.meta, h('p', { class: 'muted', text: `No benchmark artifact${t && t.bench_path ? ` at ${t.bench_path}` : ''}. Run the benchmark to populate the scoreboard.` }));
       replace(tbody, h('tr', null, h('td', { colspan: 4, class: 'muted', text: 'No bench data.' })));

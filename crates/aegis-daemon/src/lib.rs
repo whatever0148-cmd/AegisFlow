@@ -22,6 +22,7 @@
 pub mod api;
 pub mod approvals;
 pub mod demo;
+pub mod diffview;
 pub mod keepwarm;
 pub mod live;
 pub mod paypal;

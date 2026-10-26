@@ -21,7 +21,7 @@ use adapter_paypal::{
 };
 use aegis_ane_scorer::AneScorer;
 use aegis_config::Settings;
-use aegis_governance::{GovernanceEngine, ReceiptSigner};
+use aegis_governance::{scanner, GovernanceEngine, ReceiptSigner};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine as _;
 use serde_json::{json, Value};
@@ -173,6 +173,41 @@ struct Middlewares {
 struct Store {
     rows: VecDeque<TelemetryRow>,
     events: VecDeque<Value>,
+    /// `GET /api/paypal/orders/{id}/receipt` documents, one per kept row (same order).
+    receipts: VecDeque<(String, Value)>,
+}
+
+/// The signed receipt of one order for the console's "Inspect signed receipt JSON" popover: the
+/// Orders v2 body exactly as the middleware signed it, redacted again here for display (it already
+/// is, unless the scenario switched the middleware's redaction off), and the detached receipt.
+/// The `c2pa:ed25519:` signature in `purchase_units[0].custom_id` is a signature, not data: it is
+/// set aside while the body is redacted and put back.
+pub fn receipt_json(row: &TelemetryRow, prepared: &PreparedOrder) -> Value {
+    fn first_unit(body: &mut Value) -> Option<&mut serde_json::Map<String, Value>> {
+        body.get_mut("purchase_units").and_then(|v| v.get_mut(0)).and_then(Value::as_object_mut)
+    }
+    let mut body = prepared.body.clone();
+    let signature = first_unit(&mut body).and_then(|u| u.remove("custom_id"));
+    let report = scanner().redact_json(&mut body);
+    if let (Some(sig), Some(unit)) = (signature, first_unit(&mut body)) {
+        unit.insert("custom_id".to_string(), sig);
+    }
+    json!({
+        "order_id": row.id,
+        "reference": row.reference,
+        "receipt": {
+            "scheme": "c2pa:ed25519",
+            "signature": prepared.receipt.signature,
+            "payload_sha256": prepared.receipt.payload_sha256,
+            "public_key": prepared.receipt.public_key,
+            "verified": prepared.receipt_verified,
+            "attached_at": "purchase_units[0].custom_id",
+        },
+        "redactions": prepared.redactions,
+        "display_redactions": report.total(),
+        "unformatted_sensitive_fields": prepared.has_unformatted_sensitive_fields,
+        "body": body,
+    })
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
@@ -425,6 +460,7 @@ impl PayPalEngine {
             row.submission_detail = text;
         }
         let events = timeline_events(&row, p.started_at, submit_span);
+        let receipt = receipt_json(&row, &p.prepared);
         {
             let mut live = lock(&state.live);
             live.record("paypal_total_us", row.total_us);
@@ -441,9 +477,11 @@ impl PayPalEngine {
             let mut store = lock(&self.store);
             store.rows.push_back(row.clone());
             store.events.extend(events.iter().cloned());
+            store.receipts.push_back((row.id.clone(), receipt));
             while store.rows.len() > ORDERS_KEPT {
                 if let Some(old) = store.rows.pop_front() {
                     store.events.retain(|e| e["orderId"] != old.id.as_str());
+                    store.receipts.retain(|(id, _)| *id != old.id);
                 }
             }
         }
@@ -463,6 +501,11 @@ impl PayPalEngine {
                 Err(actual) => current = actual,
             }
         }
+    }
+
+    /// The signed receipt document of a kept order (`GET /api/paypal/orders/{id}/receipt`).
+    pub fn receipt(&self, id: &str) -> Option<Value> {
+        lock(&self.store).receipts.iter().find(|(rid, _)| rid == id).map(|(_, v)| v.clone())
     }
 
     pub fn row_by_id(&self, id: &str) -> Option<TelemetryRow> {

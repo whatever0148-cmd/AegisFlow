@@ -31,6 +31,7 @@ use serde_json::{json, Value};
 
 use crate::approvals::{Approval, Lookup};
 use crate::demo::{self, EditSummary};
+use crate::diffview;
 use crate::keepwarm::Model;
 use crate::services::{chat_config, nebius_status, router_config, scrub, tavily_status};
 use crate::state::{lock, AppState};
@@ -486,6 +487,15 @@ fn diff_detail(changes: &ChangeSet) -> Value {
     })
 }
 
+/// `diff` stage detail: the counts, plus the redacted, capped unified diff of the branch against
+/// live for the console's diff viewer (rendered after the timed `changes()` call).
+fn diff_stage_detail(state: &AppState, branch: &Branch, changes: &ChangeSet) -> Value {
+    let settings = state.settings();
+    let mut detail = diff_detail(changes);
+    detail["unified_diff"] = diffview::unified(branch.live(), branch.path(), changes, |t| scrub(&settings, t));
+    detail
+}
+
 fn model_name(state: &AppState) -> String {
     state.scorer.model_path().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
@@ -699,7 +709,7 @@ fn pipeline(run: &RunCtx, scenario: Scenario) -> Result<&'static str, String> {
     };
     let elapsed = started.elapsed();
     state.record("diff_ms", ms(elapsed));
-    run.stage("diff", "ok", Some(ms(elapsed)), diff_detail(&changes));
+    run.stage("diff", "ok", Some(ms(elapsed)), diff_stage_detail(state, &branch, &changes));
 
     // features
     let exec = ExecutionContext {
@@ -912,10 +922,21 @@ fn recover(
         Err(e) => return abort(run, branch, format!("opening the recovery workspace: {e}")),
     };
     inner.set_background_reclaim(false);
+    // Untimed copy-on-write snapshot of the branch before any patch: the viewer's repaired-file
+    // diff is this snapshot against the branch after a tier committed its patch into it.
+    let snapshot = inner.branch("pre-recovery").ok();
     let started = Instant::now();
     let result = router.recover(&inner, &failure);
     let elapsed = started.elapsed();
     state.keepwarm.touch(Model::Workspace);
+    let patch_diff = match (&result, &snapshot) {
+        (Ok(o), Some(snap)) if o.recovered => Some(match aegis_storage::diff_trees(snap.path(), branch.path()) {
+            Ok(cs) => diffview::unified(snap.path(), branch.path(), &cs, |t| scrub(&settings, t)),
+            Err(e) => json!({"error": format!("diff of the repaired branch: {}", e.kind())}),
+        }),
+        _ => None,
+    };
+    drop(snapshot);
     drop(inner);
     let _ = fs::remove_dir_all(&inner_store);
     let outcome = match result {
@@ -954,6 +975,11 @@ fn recover(
             "policy_update_valid": attempt.policy_update_valid,
             "risk": attempt.risk_score.map(|r| round6(f64::from(r))),
         });
+        if attempt.committed {
+            if let Some(view) = &patch_diff {
+                detail["patch_diff"] = view.clone();
+            }
+        }
         if tier == 2 {
             detail["tavily"] = match &tavily_note {
                 Some(note) => json!({"enabled": false, "reason": scrub(&settings, note)}),
@@ -977,7 +1003,7 @@ fn recover(
     };
     let elapsed = started.elapsed();
     state.record("diff_ms", ms(elapsed));
-    run.stage("diff", "ok", Some(ms(elapsed)), diff_detail(&changes));
+    run.stage("diff", "ok", Some(ms(elapsed)), diff_stage_detail(state, &branch, &changes));
     let exec = ExecutionContext {
         retry_count: 1,
         escalation_tier: last_tier,

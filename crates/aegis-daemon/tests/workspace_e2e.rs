@@ -15,6 +15,13 @@ use serde_json::{json, Value};
 
 const RUN_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// A quoted 32-character alphanumeric value after `api_key` (what `demo::secret_leak` writes).
+fn regex_free_secret(text: &str) -> Option<String> {
+    text.lines().find(|l| {
+        l.split('"').any(|part| part.len() == 32 && part.chars().all(|c| c.is_ascii_alphanumeric())) && l.contains("api_key")
+    }).map(str::to_string)
+}
+
 fn read(live: &Path, rel: &str) -> String {
     std::fs::read_to_string(live.join(rel)).unwrap_or_default()
 }
@@ -174,6 +181,22 @@ async fn workspace_scenarios_commit_rollback_and_approvals() {
     }
     let edit = stage(&seen, &run, "edit").unwrap();
     assert_eq!(edit["detail"]["files_modified"], 5);
+    // The diff stage carries the branch's unified diff for the console's diff viewer.
+    let view = &stage(&seen, &run, "diff").unwrap()["detail"]["unified_diff"];
+    let text = view["text"].as_str().unwrap();
+    assert_eq!(view["format"], "unified");
+    assert!(text.contains("diff --git a/src/pricing.rs b/src/pricing.rs\n--- a/src/pricing.rs\n+++ b/src/pricing.rs\n@@ -"), "{text}");
+    assert!(text.lines().any(|l| l.starts_with('-') && l.contains("compute_total")), "{text}");
+    assert!(text.lines().any(|l| l.starts_with('+') && l.contains("order_total")), "{text}");
+    assert_eq!(view["files"], 5, "{view}");
+    assert_eq!(view["files_total"], 5);
+    assert_eq!(view["bytes"].as_u64().unwrap() as usize, text.len());
+    assert!(text.len() <= view["cap_bytes"].as_u64().unwrap() as usize);
+    assert_eq!(view["truncated"], false);
+    let (_, history) = fx.json(fx.get("/api/runs")).await;
+    let record = history["runs"].as_array().unwrap().iter().find(|r| r["run_id"] == run.as_str()).unwrap();
+    let kept = record["stages"].as_array().unwrap().iter().find(|s| s["stage"] == "diff").unwrap();
+    assert_eq!(kept["detail"]["unified_diff"], *view, "GET /api/runs keeps the diff as broadcast");
     let score = stage(&seen, &run, "score").unwrap();
     assert!(score["detail"]["risk"].as_f64().unwrap() < 35.0);
     assert_eq!(score["detail"]["units"], "cpuAndNeuralEngine");
@@ -190,6 +213,14 @@ async fn workspace_scenarios_commit_rollback_and_approvals() {
     assert_eq!(policy["detail"]["allowed"], false);
     assert_eq!(policy["detail"]["has_unformatted_sensitive_fields"], true);
     assert_eq!(stage(&seen, &run, "rollback").unwrap()["status"], "ok");
+    // The leaked value never reaches the diff viewer: the same redaction as the approval excerpt.
+    let view = &stage(&seen, &run, "diff").unwrap()["detail"]["unified_diff"];
+    let text = view["text"].as_str().unwrap();
+    assert!(text.contains("+++ b/config/app.toml"), "{text}");
+    assert!(text.contains("[REDACTED]"), "{text}");
+    assert!(view["redactions"].as_u64().unwrap() >= 1, "{view}");
+    let leaked = regex_free_secret(text);
+    assert!(leaked.is_none(), "unredacted api_key in the diff: {leaked:?}");
     assert_eq!(read(&live, "config/app.toml"), config_before, "live config changed by a rolled-back branch");
     assert!(!read(&live, "config/app.toml").contains("api_key"));
     // The detached branch is deleted by the background reaper and reported as a reap stage.
@@ -274,6 +305,9 @@ async fn workspace_scenarios_commit_rollback_and_approvals() {
         assert_eq!(r["detail"]["reason"], "NEBIUS_API_KEY not set");
     }
     assert_eq!(recovers[2]["detail"]["tavily"]["reason"], "TAVILY_API_KEY not set");
+    assert!(recovers.iter().all(|r| r["detail"].get("patch_diff").is_none()), "no patch without a remote tier");
+    let view = &stage(&seen, &run, "diff").unwrap()["detail"]["unified_diff"];
+    assert!(view["text"].as_str().unwrap().contains("+++ b/src/report.rs"), "{view}");
     assert_eq!(read(&live, "src/report.rs"), report_before);
 
     // Counters and live stats come from these runs.
@@ -312,6 +346,16 @@ async fn build_break_recovers_through_local_openai_compatible_endpoint() {
     let remote: Vec<&&Value> = recovers.iter().filter(|r| r["detail"]["enabled"] == true && r["detail"]["tier"] != 0 && r["status"] != "skip").collect();
     assert!(!remote.is_empty(), "{recovers:#?}");
     assert_eq!(remote[0]["detail"]["patch_applied"], true, "{:#?}", remote[0]);
+    // The committed tier carries the repaired-file diff: the branch before the patch against after.
+    let committed = recovers.iter().find(|r| r["detail"]["committed_to_branch"] == true).expect("a tier committed its patch");
+    let patch = &committed["detail"]["patch_diff"];
+    let text = patch["text"].as_str().unwrap_or_else(|| panic!("{committed:#}"));
+    assert!(text.contains("--- a/src/report.rs\n+++ b/src/report.rs\n@@ -"), "{text}");
+    assert!(text.lines().any(|l| l.starts_with('-') && l.contains("format_cents(order_amount(lines), CURRENCY)")), "{text}");
+    assert!(text.lines().any(|l| l.starts_with('+') && l.contains("format_cents(order_amount(lines))")), "{text}");
+    assert_eq!(patch["files"], 1, "{patch}");
+    assert!(!text.contains("test-key-local-only"));
+    assert!(recovers.iter().filter(|r| r["detail"].get("patch_diff").is_some()).count() == 1);
     assert_eq!(finished["outcome"], "recovered", "{:#?}", stages(&seen, &run));
     let verifies: Vec<&Value> = stages(&seen, &run).into_iter().filter(|s| s["stage"] == "verify").collect();
     assert_eq!(verifies.len(), 2);

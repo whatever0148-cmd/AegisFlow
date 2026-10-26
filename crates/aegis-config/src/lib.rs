@@ -445,6 +445,14 @@ fn is_loopback_url(url: &str) -> bool {
 fn validate_value(name: &str, value: &str) -> Result<(), String> {
     match name {
         "NEBIUS_BASE_URL" => validate_base_url(value).map(|_| ()),
+        // Keys pasted into the wrong prompt: a Tavily key is never a Nemotron provider key, and
+        // Tavily issues keys that start with `tvly-`.
+        "NEBIUS_API_KEY" if value.trim().starts_with("tvly-") => {
+            Err("this is a Tavily key (tvly-…); it belongs in TAVILY_API_KEY, not in the Nemotron provider key".to_string())
+        }
+        "TAVILY_API_KEY" if !value.trim().starts_with("tvly-") => {
+            Err("Tavily API keys start with tvly-; this value does not look like one (was another key pasted here?)".to_string())
+        }
         _ if spec(name).is_some_and(|s| !s.secret) && looks_like_credential(value) => Err(
             "this looks like an API key, not a value for this public setting (public settings are shown in the \
              console); paste keys only into secret settings such as NEBIUS_API_KEY"
@@ -745,7 +753,7 @@ mod tests {
         let names = ["NEBIUS_TIER1_MODEL", "NEBIUS_TIER2_MODEL", "AEGIS_APPROVAL_CALLBACK_URL", "TAVILY_API_KEY"];
         for round in 0..8 {
             // Large values make an interleaved write visible as a truncated or stray line.
-            let values: Vec<String> = names.iter().enumerate().map(|(i, _)| format!("vendor/r{round}-{}", char::from(b'a' + i as u8).to_string().repeat(120_000))).collect();
+            let values: Vec<String> = names.iter().enumerate().map(|(i, _)| format!("{}r{round}-{}", if names[i] == "TAVILY_API_KEY" { "tvly-" } else { "vendor/" }, char::from(b'a' + i as u8).to_string().repeat(120_000))).collect();
             let barrier = std::sync::Barrier::new(names.len());
             std::thread::scope(|s| {
                 for (name, value) in names.iter().zip(&values) {

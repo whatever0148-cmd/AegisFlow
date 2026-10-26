@@ -183,3 +183,67 @@ export function debounce(fn, wait) {
     timer = setTimeout(() => fn(...args), wait);
   };
 }
+
+const trimDigits = (v, d) => v.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+
+/**
+ * Compact duration for cockpit readouts from a value in milliseconds: [number text, unit], in µs
+ * below 1 ms and in s from 10 s. Only formats; the value always comes from the daemon.
+ */
+export function durParts(ms) {
+  if (!isNum(ms)) return [DASH, ''];
+  const a = Math.abs(ms);
+  if (a < 1) {
+    const us = ms * 1000;
+    return [trimDigits(us, Math.abs(us) >= 100 ? 1 : 2), 'µs'];
+  }
+  if (a < 10000) return [trimDigits(ms, a >= 100 ? 1 : a >= 10 ? 2 : 3), 'ms'];
+  return [trimDigits(ms / 1000, 2), 's'];
+}
+
+export function fmtDur(ms) {
+  const [n, u] = durParts(ms);
+  return u ? `${n} ${u}` : n;
+}
+
+/** Copies text to the clipboard (Clipboard API, else a hidden textarea); resolves true on success. */
+export async function copyText(text) {
+  try {
+    if (window.navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(String(text));
+      return true;
+    }
+  } catch { /* fall through to the textarea path */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = String(text);
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return Boolean(ok);
+  } catch {
+    return false;
+  }
+}
+
+/** A small copy button: copies `getText()` and flips to a check mark for a moment. */
+export function copyButton(getText, label) {
+  const btn = h('button', { type: 'button', class: 'iconbtn', 'aria-label': label, title: label, text: '⧉' });
+  btn.addEventListener('click', async (ev) => {
+    if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+    const ok = await copyText(getText());
+    btn.dataset.copied = ok ? 'true' : 'false';
+    btn.textContent = ok ? '✓' : '!';
+    btn.setAttribute('aria-label', ok ? `${label}: copied` : `${label}: copy failed`);
+    setTimeout(() => {
+      btn.dataset.copied = '';
+      btn.textContent = '⧉';
+      btn.setAttribute('aria-label', label);
+    }, 1400);
+  });
+  return btn;
+}

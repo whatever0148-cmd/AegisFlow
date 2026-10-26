@@ -10,8 +10,15 @@ import { createPaypalPanel } from './paypal.js';
 import { createApprovalsPanel } from './approvals.js';
 import { createScoreboard } from './scoreboard.js';
 import { createSettings } from './settings.js';
+import { createCockpit } from './cockpit.js';
+import { createPipeline } from './pipeline.js';
 
-const workspace = createWorkspacePanel();
+const cockpit = createCockpit();
+const pipeline = createPipeline();
+const workspace = createWorkspacePanel({
+  onWorkspace: (ws) => cockpit.setWorkspace(ws),
+  onRuns: (list) => pipeline.setRuns(list),
+});
 const paypal = createPaypalPanel();
 const approvals = createApprovalsPanel();
 const scoreboard = createScoreboard();
@@ -20,8 +27,29 @@ const settings = createSettings({
     const services = cfg && cfg.services;
     workspace.setServices(services);
     paypal.setServices(services);
+    cockpit.setServices(services);
+    pipeline.setServices(services);
   },
 });
+
+function noteLive(live) {
+  if (!live) return;
+  scoreboard.setLive(live);
+  workspace.setCounters(live.counters);
+  cockpit.setLive(live);
+  pipeline.setLive(live);
+}
+
+function noteTelemetry(t) {
+  scoreboard.setTelemetry(t);
+  cockpit.setTelemetry(t);
+  if (t && t.live) pipeline.setLive(t.live);
+}
+
+function noteOrders(data) {
+  paypal.setOrders(data);
+  pipeline.setOrders(data);
+}
 
 const reload = { label: 'Reload page', onClick: () => location.reload() };
 let firstStartedAt = null;
@@ -36,6 +64,7 @@ if (TOKEN_MISSING) {
 function noteHealth(health) {
   if (!health || typeof health !== 'object') return;
   setHealth(health);
+  cockpit.setHealth(health);
   if (!health.started_at) return;
   if (firstStartedAt === null) {
     firstStartedAt = health.started_at;
@@ -56,12 +85,12 @@ async function load(path, ok, bad) {
 function loadAll() {
   return Promise.all([
     load('/api/health', noteHealth, () => {}),
-    load('/api/telemetry', scoreboard.setTelemetry, scoreboard.fail),
+    load('/api/telemetry', noteTelemetry, scoreboard.fail),
     load('/api/config', settings.setConfig, settings.fail),
     load('/api/workspace', workspace.setWorkspace, workspace.fail),
     workspace.loadRuns(),
     load('/api/approvals', approvals.setApprovals, approvals.fail),
-    load('/api/paypal/orders', paypal.setOrders, paypal.failOrders),
+    load('/api/paypal/orders', noteOrders, paypal.failOrders),
     load('/api/paypal/scenarios', paypal.setScenarios, paypal.failScenarios),
   ]);
 }
@@ -71,10 +100,7 @@ function onMessage(msg) {
     case 'hello':
       hellos += 1;
       noteHealth(msg.health);
-      if (msg.live) {
-        scoreboard.setLive(msg.live);
-        workspace.setCounters(msg.live.counters);
-      }
+      noteLive(msg.live);
       hideBanner('offline');
       hideBanner('ws-refused');
       if (hellos > 1) {
@@ -85,15 +111,13 @@ function onMessage(msg) {
       }
       break;
     case 'telemetry.live':
-      if (msg.live) {
-        scoreboard.setLive(msg.live);
-        workspace.setCounters(msg.live.counters);
-      }
+      noteLive(msg.live);
       break;
     case 'run.started':
     case 'run.stage':
     case 'run.finished':
       workspace.onMessage(msg);
+      pipeline.onRunMessage(msg);
       break;
     case 'approval.created':
     case 'approval.resolved':
@@ -102,6 +126,7 @@ function onMessage(msg) {
       break;
     case 'paypal.order':
       paypal.onMessage(msg);
+      pipeline.onOrder(msg);
       break;
     case 'config.changed':
       settings.onMessage(msg);
@@ -154,6 +179,7 @@ const socket = new LiveSocket({
   onMessage,
   onState: (state, info) => {
     setConnState(state, info);
+    cockpit.setConnected(state === 'open');
     if (state === 'open') hideBanner('ws-refused');
     // Events broadcast while the socket is down are lost; mark tracked runs partial from this moment.
     if (state === 'waiting' && socketWasOpen) workspace.markGap('disconnect');

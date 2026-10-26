@@ -1,9 +1,10 @@
 // Panel 2: PayPal Agentic Commerce. AG Grid (vendored Community UMD build) with columnDefs from
 // GET /api/paypal/orders, live rows from paypal.order messages, and the built-in SVG timeline.
 
-import { h, replace, badge, riskBar, fmtNum, fmtText, fmtTimeUTC, isNum, DASH, prefersReducedMotion, unitForKey, withUnit } from './dom.js';
+import { h, replace, badge, riskBar, fmtNum, fmtText, fmtTimeUTC, isNum, DASH, prefersReducedMotion, unitForKey, withUnit, copyButton } from './dom.js';
 import { get, post, describeError } from './api.js';
 import { createTimeline } from './timeline.js';
+import { createReceiptViewer } from './receipt.js';
 
 // Rows shown; GET /api/paypal/orders `limit` replaces it (the daemon keeps that many), so the grid
 // shows the same orders before and after a reload.
@@ -14,30 +15,45 @@ function cssVar(name, fallback) {
   return v || fallback;
 }
 
-/** AG Grid theming API (v33+): themeQuartz + colorSchemeDark + console tokens. */
+/** AG Grid theming API (v33+): themeQuartz + colorSchemeDark, tuned to the console's cockpit tokens. */
 function gridTheme(agGrid) {
   const { themeQuartz, colorSchemeDark } = agGrid;
+  const hair = cssVar('--hair', 'rgba(255,255,255,0.08)');
   return themeQuartz.withPart(colorSchemeDark).withParams({
-    backgroundColor: cssVar('--surface', 'black'),
+    backgroundColor: cssVar('--inset', 'black'),
     foregroundColor: cssVar('--text', 'white'),
-    chromeBackgroundColor: cssVar('--surface-2', 'black'),
-    headerBackgroundColor: cssVar('--surface-2', 'black'),
-    headerTextColor: cssVar('--text', 'white'),
-    borderColor: cssVar('--border', 'gray'),
-    accentColor: cssVar('--accent', 'dodgerblue'),
-    rowHoverColor: cssVar('--surface-3', 'black'),
-    oddRowBackgroundColor: cssVar('--surface-odd', 'black'),
-    rangeSelectionBorderColor: cssVar('--focus', 'gold'),
-    focusShadow: { radius: 0, spread: 3, color: cssVar('--focus', 'gold') },
-    fontFamily: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+    textColor: cssVar('--text-2', 'white'),
+    chromeBackgroundColor: cssVar('--card', 'black'),
+    headerBackgroundColor: cssVar('--card', 'black'),
+    headerTextColor: cssVar('--text-3', 'gray'),
+    headerFontSize: 10.5,
     headerFontWeight: 650,
-    fontSize: 13,
-    wrapperBorderRadius: 8,
+    headerHeight: 34,
+    headerRowBorder: { color: hair },
+    headerColumnBorder: false,
+    borderColor: hair,
+    rowBorder: { color: hair },
+    wrapperBorder: { color: hair },
+    wrapperBorderRadius: 9,
+    accentColor: cssVar('--cyan', 'teal'),
+    rowHoverColor: 'rgba(6, 182, 212, 0.06)',
+    selectedRowBackgroundColor: 'rgba(6, 182, 212, 0.1)',
+    oddRowBackgroundColor: 'rgba(255, 255, 255, 0.014)',
+    rangeSelectionBorderColor: cssVar('--focus', 'white'),
+    focusShadow: { radius: 0, spread: 2, color: cssVar('--focus', 'white') },
+    fontFamily: ['-apple-system', 'SF Pro Text', 'Inter', 'system-ui', 'sans-serif'],
+    dataFontSize: 12,
+    fontSize: 12,
+    cellHorizontalPadding: 10,
+    spacing: 6,
+    iconSize: 12,
+    tooltipBackgroundColor: cssVar('--card-3', 'black'),
+    tooltipBorder: { color: cssVar('--hair-2', 'gray') },
     browserColorScheme: 'dark',
   });
 }
 
-function signatureParts(sig) {
+export function signatureParts(sig) {
   if (typeof sig !== 'string' || !sig) return { scheme: null, body: '' };
   const parts = sig.split(':');
   if (parts.length >= 3) return { scheme: parts.slice(0, 2).join(':'), body: parts.slice(2).join(':') };
@@ -51,12 +67,25 @@ function decisionRenderer(p) {
   return h('span', { text: fmtText(p.value) });
 }
 
-function receiptRenderer(p) {
-  const { scheme } = signatureParts(p.data && p.data.signature);
-  const label = scheme || 'receipt';
-  if (p.value === true) return h('span', { class: 'cell-receipt cell-receipt--ok' }, h('span', { 'aria-hidden': 'true', text: '✓ ' }), h('span', { class: 'mono', text: label }), h('span', { class: 'sr-only', text: ' verified' }));
-  if (p.value === false) return h('span', { class: 'cell-receipt cell-receipt--fail' }, h('span', { 'aria-hidden': 'true', text: '✗ ' }), h('span', { class: 'mono', text: label }), h('span', { text: ' not verified' }));
-  return h('span', { class: 'muted', text: DASH });
+/** `abcdef…wxyz`: the start and end of a signature body, for a compact pill. */
+export function truncateMiddle(text, head = 6, tail = 4) {
+  const t = String(text || '');
+  return t.length > head + tail + 1 ? `${t.slice(0, head)}…${t.slice(-tail)}` : t;
+}
+
+/** Receipt cell: a cryptographic pill (✓/✗, scheme, truncated signature) with a copy button. */
+export function receiptRenderer(p) {
+  const d = p.data || {};
+  const { scheme, body } = signatureParts(d.signature);
+  if (p.value !== true && p.value !== false) return h('span', { class: 'muted', text: DASH });
+  const ok = p.value === true;
+  return h('span', { class: 'cell-receipt' },
+    h('span', { class: `crypto crypto--${ok ? 'ok' : 'fail'}` },
+      h('span', { class: 'crypto__glyph', 'aria-hidden': 'true', text: ok ? '✓' : '✗' }),
+      h('span', { class: 'crypto__scheme', text: scheme || 'receipt' }),
+      body ? h('span', { class: 'crypto__body', text: truncateMiddle(body) }) : null,
+      h('span', { class: ok ? 'sr-only' : 'crypto__state', text: ok ? ' verified' : ' not verified' }),
+      d.signature ? copyButton(() => d.signature, `Copy receipt signature of ${fmtText(d.reference)}`) : null));
 }
 
 function receiptTooltip(p) {
@@ -69,11 +98,15 @@ function receiptTooltip(p) {
   return parts.join(' · ');
 }
 
-function redactionsRenderer(p) {
+/** Redactions cell: a `[REDACTED] ×n` pill (or 0), plus a warning for unformatted sensitive data. */
+export function redactionsRenderer(p) {
   const d = p.data || {};
+  const n = p.value;
   return h('span', { class: 'cell-redactions' },
-    h('span', { class: 'mono', text: fmtNum(p.value) }),
-    d.unformatted_sensitive_fields === true ? badge('unformatted secret', 'warn') : null);
+    isNum(n) && n > 0
+      ? h('span', { class: 'redacted', title: `${fmtNum(n)} field(s) replaced by [REDACTED] before signing` }, '[REDACTED]', h('span', { class: 'redacted__n', text: `×${fmtNum(n)}` }))
+      : h('span', { class: 'mono muted', text: fmtNum(n) }),
+    d.unformatted_sensitive_fields === true ? badge('unformatted secret', 'fail') : null);
 }
 
 function riskRenderer(p) {
@@ -135,10 +168,10 @@ export function decorate(defs) {
   return defs.map((def) => {
     const c = { ...def };
     switch (def.field) {
-      case 'decision': c.cellRenderer = decisionRenderer; c.minWidth = 110; break;
-      case 'receipt_verified': c.cellRenderer = receiptRenderer; c.tooltip = receiptTooltip; c.minWidth = 170; break;
-      case 'redactions': c.cellRenderer = redactionsRenderer; c.minWidth = 190; c.tooltip = (p) => `${fmtNum(p.value)} field(s) redacted before signing${p.data && p.data.unformatted_sensitive_fields ? '; unformatted sensitive data detected' : ''}`; break;
-      case 'risk_score': c.cellRenderer = riskRenderer; c.minWidth = 150; break;
+      case 'decision': c.cellRenderer = decisionRenderer; c.minWidth = 96; break;
+      case 'receipt_verified': c.cellRenderer = receiptRenderer; c.tooltip = receiptTooltip; c.minWidth = 236; break;
+      case 'redactions': c.cellRenderer = redactionsRenderer; c.minWidth = 170; c.tooltip = (p) => `${fmtNum(p.value)} field(s) redacted before signing${p.data && p.data.unformatted_sensitive_fields ? '; unformatted sensitive data detected' : ''}`; break;
+      case 'risk_score': c.cellRenderer = riskRenderer; c.minWidth = 136; break;
       case 'submission': c.cellRenderer = submissionRenderer; c.minWidth = 130; c.tooltip = (p) => (p.data && p.data.submission_detail) || null; break;
       case 'timestamp':
         // Rendered in UTC so the cell matches its "(UTC)" header and the timeline's UTC clock.
@@ -168,6 +201,28 @@ export function decorate(defs) {
   });
 }
 
+// Display order: the decision and its cryptographic evidence first, descriptive columns last.
+const COLUMN_ORDER = ['timestamp', 'reference', 'amount', 'currency', 'risk_score', 'decision', 'receipt_verified', 'redactions', 'submission', 'total_us', 'submit_us', 'merchant', 'policies'];
+
+/** Columns reordered by COLUMN_ORDER; fields it does not list keep their order, after the listed ones. */
+export function orderColumns(defs) {
+  const rank = (d) => { const i = COLUMN_ORDER.indexOf(d.field); return i < 0 ? COLUMN_ORDER.length : i; };
+  return defs.map((d, i) => ({ d, i })).sort((a, b) => (rank(a.d) - rank(b.d)) || (a.i - b.i)).map(({ d }) => d);
+}
+
+/** Extra column: one-click "Inspect" of the order's signed receipt JSON (Enter on the cell opens it too). */
+export function inspectColumn(open) {
+  return {
+    colId: 'signed_receipt', headerName: 'Receipt JSON', sortable: false, filter: false, resizable: false, minWidth: 112, maxWidth: 128, pinned: 'right',
+    cellClass: 'cell-inspect',
+    cellRenderer: (p) => (p.data && p.data.id ? h('button', {
+      type: 'button', class: 'btn btn--small', 'aria-label': `Inspect signed receipt JSON of ${fmtText(p.data.reference)}`,
+      onclick: (ev) => open(p.data, ev.currentTarget),
+    }, h('span', { 'aria-hidden': 'true', text: '{ }' }), 'Inspect') : null),
+    suppressKeyboardEvent: (p) => p.event && p.event.key === 'Enter',
+  };
+}
+
 export function createPaypalPanel() {
   const root = document.getElementById('panel-paypal');
   const $ = (role) => root.querySelector(`[data-role="${role}"]`);
@@ -179,6 +234,8 @@ export function createPaypalPanel() {
   };
 
   let gridApi = null;
+  const receipts = createReceiptViewer();
+  const inspect = (row, trigger) => receipts.open(String(row.id), row.reference, trigger);
   let maxRows = DEFAULT_MAX_ROWS;
   let scenarios = null;
   let services = null;
@@ -248,7 +305,10 @@ export function createPaypalPanel() {
     const options = {
       theme: gridTheme(agGrid),
       loadThemeGoogleFonts: false,
-      columnDefs: decorate(defs),
+      columnDefs: [...orderColumns(decorate(defs)), inspectColumn(inspect)],
+      onCellKeyDown: (e) => {
+        if (e.event && e.event.key === 'Enter' && e.column && e.column.getColId && e.column.getColId() === 'signed_receipt' && e.data) inspect(e.data, null);
+      },
       rowData: rows,
       getRowId: (p) => String(p.data.id),
       defaultColDef: { resizable: true, sortable: true, flex: 1, minWidth: 96 },
@@ -256,7 +316,7 @@ export function createPaypalPanel() {
       ensureDomOrder: true,
       tooltipShowDelay: 250,
       overlayNoRowsTemplate: '<span class="grid-empty">No orders yet. Run a scenario or start the stream.</span>',
-      rowHeight: 40,
+      rowHeight: 38,
     };
     if (gridApi) gridApi.destroy();
     replace(els.grid);
@@ -452,6 +512,7 @@ export function createPaypalPanel() {
   }
 
   return {
+    inspect,
     setOrders,
     setScenarios,
     setServices,

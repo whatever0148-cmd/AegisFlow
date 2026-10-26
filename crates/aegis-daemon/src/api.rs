@@ -44,6 +44,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/approvals/{id}/approve", post(post_approve))
         .route("/api/approvals/{id}/reject", post(post_reject))
         .route("/api/paypal/orders", get(get_orders))
+        .route("/api/paypal/orders/{id}/receipt", get(get_receipt))
         .route("/api/paypal/order", post(post_order))
         .route("/api/paypal/scenarios", get(get_paypal_scenarios))
         .route("/api/paypal/stream", post(post_stream))
@@ -306,6 +307,16 @@ async fn post_reject(State(state): State<Arc<AppState>>, Path(id): Path<String>,
 
 async fn get_orders(State(state): State<Arc<AppState>>) -> Json<Value> {
     Json(state.paypal.orders_json())
+}
+
+async fn get_receipt(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+    match state.paypal.receipt(&id) {
+        Some(v) => Json(v).into_response(),
+        None => error(
+            StatusCode::NOT_FOUND,
+            format!("order {} is not among the newest {} orders", clean_text(&id, 64), crate::paypal::ORDERS_KEPT),
+        ),
+    }
 }
 
 async fn get_paypal_scenarios(State(state): State<Arc<AppState>>) -> Json<Value> {

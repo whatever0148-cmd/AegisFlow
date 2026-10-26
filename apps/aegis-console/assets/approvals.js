@@ -4,6 +4,8 @@ import { h, replace, badge, riskBar, chips, kvList, fmtMs, fmtNum, fmtText, fmtD
 import { post, describeError } from './api.js';
 
 const MAX_RESOLVED = 50;
+export const APPROVE_LABEL = 'Approve · RENAME_SWAP';
+export const REJECT_LABEL = 'Reject · rollback';
 const APPROVER_KEY = 'aegis.console.approver';
 
 function cardStatus(value) {
@@ -82,10 +84,14 @@ export function createApprovalsPanel() {
         h('summary', { text: 'Redacted excerpt' }),
         h('pre', { class: 'mono', text: a.excerpt })) : null,
       h('div', { class: 'approval__actions' },
-        h('button', { type: 'button', class: 'btn btn--ok', disabled: Boolean(action), dataset: { focusKey: `${a.id}:approve` }, onclick: () => resolve(a, 'approve') },
-          action === 'approve' ? 'Approving…' : 'Approve'),
-        h('button', { type: 'button', class: 'btn btn--danger', disabled: Boolean(action), dataset: { focusKey: `${a.id}:reject` }, onclick: () => resolve(a, 'reject') },
-          action === 'reject' ? 'Rejecting…' : 'Reject'),
+        h('button', {
+          type: 'button', class: 'btn btn--ok', disabled: Boolean(action), dataset: { focusKey: `${a.id}:approve` }, onclick: () => resolve(a, 'approve'),
+          'aria-label': `Approve ${fmtText(a.title)}: Cedar re-checks with team approval, then RENAME_SWAP commit`,
+        }, action === 'approve' ? 'Approving…' : APPROVE_LABEL),
+        h('button', {
+          type: 'button', class: 'btn btn--danger', disabled: Boolean(action), dataset: { focusKey: `${a.id}:reject` }, onclick: () => resolve(a, 'reject'),
+          'aria-label': `Reject ${fmtText(a.title)}: roll the branch back`,
+        }, action === 'reject' ? 'Rejecting…' : REJECT_LABEL),
         err ? h('span', { class: 'error-text small', role: 'alert', text: err }) : null));
   }
 

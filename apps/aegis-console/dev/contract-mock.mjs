@@ -387,6 +387,20 @@ function reapSoon() {
   }, 900);
 }
 
+// UnifiedDiff (API.md): a synthetic diff text in the daemon's shape, labelled as mock data. The real
+// daemon renders the branch against live, redacted and capped at cap_bytes.
+const MOCK_DIFF_CAP = 24 * 1024;
+function mockDiff(scenario, patch = false) {
+  const file = patch || scenario === 'build_break' ? 'src/report.rs' : scenario === 'secret_leak' ? 'config/app.toml' : 'src/mock.rs';
+  const body = patch
+    ? ['@@ -1,3 +1,3 @@', ' // contract mock: synthetic repaired file', '-    format_cents(order_amount(lines), CURRENCY)', '+    format_cents(order_amount(lines))', ' }']
+    : scenario === 'secret_leak'
+      ? ['@@ -1,1 +1,3 @@', ' # contract mock', '+[upstream]', '+[REDACTED]"']
+      : ['@@ -1,3 +1,3 @@', ' // contract mock: synthetic diff, not a real branch', `-pub fn mock_${synthInt(1, 99)}() {}`, `+pub fn mock_${synthInt(100, 199)}() {}`, ' fn unchanged() {}'];
+  const text = [`diff --git a/${file} b/${file}`, `--- a/${file}`, `+++ b/${file}`, ...body, ''].join('\n');
+  return { format: 'unified', text, bytes: text.length, bytes_total: text.length, cap_bytes: MOCK_DIFF_CAP, truncated: false, files: 1, files_total: 1, files_omitted: 0, redactions: text.includes('[REDACTED]') ? 1 : 0 };
+}
+
 async function runScenario(run_id, scenario, requestedAt) {
   const sc = WS_SCENARIOS.find((s) => s.id === scenario);
   const t0 = Date.now();
@@ -415,7 +429,7 @@ async function runScenario(run_id, scenario, requestedAt) {
   if (!fromPool) record('branch_cold_ms', branchMs);
   await stage('branch', 'ok', branchMs, { source: fromPool ? 'pool' : 'cold' });
   await stage('edit', 'ok', record('edit_ms', synth(0.05, 0.6)), { files: synthInt(1, 12) });
-  await stage('diff', 'ok', record('diff_ms', synth(0.5, 4)), { files_changed: scenario === 'mass_delete' ? synthInt(30, 60) : synthInt(1, 8) });
+  await stage('diff', 'ok', record('diff_ms', synth(0.5, 4)), { files_changed: scenario === 'mass_delete' ? synthInt(30, 60) : synthInt(1, 8), unified_diff: mockDiff(scenario) });
   await stage('features', 'ok', synth(0.002, 0.02), { count: 64 });
   const riskRange = { safe_refactor: [5, 25], secret_leak: [30, 60], mass_delete: [65, 95], build_break: [10, 30] }[scenario];
   const risk = synth(riskRange[0], riskRange[1]);
@@ -478,7 +492,10 @@ async function runScenario(run_id, scenario, requestedAt) {
   } else if (scenario === 'build_break') {
     await stage('verify', 'fail', synth(5, 40), { errors: synthInt(1, 3) });
     const patched = rand() < 0.5;
-    await stage('recover', patched ? 'ok' : 'fail', synth(0.1, 2), { tier: 0, model: null, enabled: true, reason: 'local deterministic patch (mock)', patch_applied: patched });
+    await stage('recover', patched ? 'ok' : 'fail', synth(0.1, 2), {
+      tier: 0, model: null, enabled: true, reason: 'local deterministic patch (mock)', patch_applied: patched, committed_to_branch: patched,
+      ...(patched ? { patch_diff: mockDiff(scenario, true) } : {}),
+    });
     if (patched) {
       await stage('verify', 'ok', synth(5, 40), { checks: synthInt(2, 6) });
       await commit();
@@ -530,6 +547,9 @@ const orders = [];
 const timelineEvents = [];
 let orderSeq = 0;
 let streamTimer = null;
+
+// GET /api/paypal/orders/{id}/receipt documents (synthetic), kept with their rows.
+const receipts = new Map();
 
 function makeOrder(scenario) {
   const n = ++orderSeq;
@@ -599,9 +619,17 @@ function makeOrder(scenario) {
     return ev;
   });
   orders.push(row);
+  receipts.set(row.id, {
+    order_id: row.id, reference,
+    receipt: { scheme: 'c2pa:ed25519', signature: row.signature, payload_sha256: sha, public_key: crypto.randomBytes(32).toString('hex'), verified: row.receipt_verified, attached_at: 'purchase_units[0].custom_id' },
+    redactions: row.redactions, display_redactions: 0, unformatted_sensitive_fields: row.unformatted_sensitive_fields,
+    body: { intent: 'CAPTURE', purchase_units: [{ reference_id: reference, description: 'contract mock order | note [REDACTED]',
+      amount: { currency_code: 'USD', value: row.amount }, custom_id: row.signature }] },
+  });
   timelineEvents.push(...events);
   while (orders.length > ORDERS_KEPT) {
     const dropped = orders.shift();
+    receipts.delete(dropped.id);
     for (let i = timelineEvents.length - 1; i >= 0; i -= 1) if (timelineEvents[i].orderId === dropped.id) timelineEvents.splice(i, 1);
   }
   if (scenario === 'new_payee_large' && rand() < 0.5) {
@@ -738,7 +766,15 @@ async function route(req, res) {
       case '/api/runs': return sendJson(res, 200, { runs: [...runHistory].reverse(), limit: RUNS_KEPT });
       case '/api/paypal/orders': return sendJson(res, 200, { rows: orders, columnDefs: COLUMN_DEFS, timeline: { resources: RESOURCES, events: timelineEvents }, limit: ORDERS_KEPT });
       case '/api/paypal/scenarios': return sendJson(res, 200, { scenarios: PP_SCENARIOS, stream: { ...stream }, sandbox: paypalService() });
-      default: throw new HttpError(404, 'not found');
+      default: {
+        const rm = /^\/api\/paypal\/orders\/([^/]+)\/receipt$/.exec(p);
+        if (rm) {
+          const doc = receipts.get(decodeURIComponent(rm[1]));
+          if (!doc) throw new HttpError(404, `order ${decodeURIComponent(rm[1]).slice(0, 64)} is not among the newest ${ORDERS_KEPT} orders`);
+          return sendJson(res, 200, doc);
+        }
+        throw new HttpError(404, 'not found');
+      }
     }
   }
 

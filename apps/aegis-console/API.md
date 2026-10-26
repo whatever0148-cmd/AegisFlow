@@ -126,6 +126,39 @@ Example values below are type placeholders (`<number>`, `<integer>`), never meas
   "last_seq": <integer>                  // highest seq broadcast for this run
 }
 
+// UnifiedDiff: run.stage detail.unified_diff (diff stage) and detail.patch_diff (recover stage)
+{
+  "format": "unified",
+  "text": "diff --git a/src/pricing.rs b/src/pricing.rs\n--- a/…\n+++ b/…\n@@ -<l>,<n> +<l>,<n> @@\n …",
+  "bytes": <integer>,          // length of text
+  "bytes_total": <integer>,    // length of the whole redacted diff before the cap
+  "cap_bytes": <integer>,      // the cap (24 KiB); text is cut at a line boundary at or below it
+  "truncated": <boolean>,      // text was cut, or files were left out (files_omitted)
+  "files": <integer>,          // files whose header is in text
+  "files_total": <integer>,    // files in the change set
+  "files_omitted": <integer>,  // files not rendered because the full text passed 512 KiB
+  "redactions": <integer>      // values replaced by [REDACTED]
+}
+// Rendered by aegis-daemon (crates/aegis-daemon/src/diffview.rs) from the two trees on disk, with
+// three context lines. Each file's old and new contents go through the approval excerpt's redaction
+// (aegis_governance::scanner, plus removal of configured secret values) before they are split into
+// lines, and the assembled text is redacted again, so secrets never reach the text. Binary files,
+// symlinks and files over 256 KiB are listed with a note instead of their lines. Building it is not
+// part of the stage's measured ms. On error (recover only) the object is {"error": "<message>"}.
+
+// SignedReceipt: GET /api/paypal/orders/{id}/receipt
+{
+  "order_id": "agent-0001-<12 hex>", "reference": "agent-0001",
+  "receipt": { "scheme": "c2pa:ed25519", "signature": "c2pa:ed25519:<base64url>", "payload_sha256": "<64 hex>",
+               "public_key": "<64 hex>", "verified": <boolean>, "attached_at": "purchase_units[0].custom_id" },
+  "redactions": <integer>,           // fields the middleware redacted before signing (OrderRow.redactions)
+  "display_redactions": <integer>,   // values masked again for this document (non-zero only when the
+                                     // scenario switched the middleware's redaction off)
+  "unformatted_sensitive_fields": <boolean>,
+  "body": { /* the Orders v2 request body exactly as signed, redacted for display; the signature stays
+               in purchase_units[0].custom_id (it is a signature, not data, and is not scanned) */ }
+}
+
 // PayPalService: GET /api/config services.paypal and GET /api/paypal/scenarios sandbox (same fields)
 {
   "enabled": <boolean>,                       // mode != "disabled"
@@ -180,6 +213,7 @@ Example values below are type placeholders (`<number>`, `<integer>`), never meas
 | `POST /api/approvals/{id}/approve` | `{by}` | `Approval` |
 | `POST /api/approvals/{id}/reject` | `{by}` | `Approval` |
 | `GET /api/paypal/orders` | — | `{rows:[OrderRow], columnDefs:[…], timeline:{resources:[{id,name}], events:[TimelineEvent]}, limit}`: the newest `limit` (20) orders, oldest first, and the timeline events of exactly those orders |
+| `GET /api/paypal/orders/{id}/receipt` | — | `SignedReceipt` of a kept order (`id` = `OrderRow.id`); `404` when the order is not among the newest `limit` (20) |
 | `POST /api/paypal/order` | `{scenario}` (ids from `GET /api/paypal/scenarios`) | `{order_id}`; result arrives on the WebSocket |
 | `GET /api/paypal/scenarios` | — | `{scenarios:[{id, title, description}], stream:{enabled, interval_ms}, sandbox:PayPalService}` |
 | `POST /api/paypal/stream` | `{enabled, interval_ms}` | `{enabled, interval_ms}` |
@@ -303,7 +337,7 @@ Server → client JSON messages; every message has `type` and `ts` (ISO8601).
 |---|---|
 | `hello` | `health`, `live` (LiveStats) |
 | `run.started` | `run_id`, `scenario`, `title`, `seq` (always `1`) |
-| `run.stage` | `run_id`, `stage` (`branch`\|`edit`\|`diff`\|`features`\|`score`\|`policy`\|`verify`\|`recover`\|`approval`\|`commit`\|`rollback`\|`reap`), `status` (`ok`\|`fail`\|`skip`\|`pending`), `ms` (number or null), `detail` (object; e.g. branch `{source:"pool"\|"cold"}`, score `{risk, units}`, policy `{allowed, determining_policies, eval_us}`, recover `{tier, model, enabled, reason, patch_applied}`), `seq` |
+| `run.stage` | `run_id`, `stage` (`branch`\|`edit`\|`diff`\|`features`\|`score`\|`policy`\|`verify`\|`recover`\|`approval`\|`commit`\|`rollback`\|`reap`), `status` (`ok`\|`fail`\|`skip`\|`pending`), `ms` (number or null), `detail` (object; e.g. branch `{source:"pool"\|"cold"}`, score `{risk, units}`, policy `{allowed, determining_policies, eval_us}`, recover `{tier, model, enabled, reason, patch_applied}`), `seq`. The `diff` stage's detail also carries `unified_diff` (UnifiedDiff); the `recover` stage of the tier whose patch was committed into the branch (`status: "ok"`, `committed_to_branch: true`) carries `patch_diff` (UnifiedDiff of the branch before the patch against after it: the repaired files) |
 | `run.finished` | `run_id`, `outcome` (`committed`\|`rolled_back`\|`pending_approval`\|`recovered`\|`error`), `total_ms`, `queued_ms` (number, or `null` after an approval resolution), `seq` |
 | `approval.created` / `approval.resolved` | `approval` |
 | `paypal.order` | `row` (OrderRow), `events` ([TimelineEvent]) |
@@ -360,5 +394,9 @@ messages it missed. Treat `dropped` as the signal (older daemons sent only the m
   the triage completed. Tiers 1 and 2 are `skip` with `enabled: false` and a `reason` while
   `NEBIUS_API_KEY` is not set, `NEBIUS_BASE_URL` is refused, or a tier model is unset (`model`
   is then `null`); tier-2 events carry `detail.tavily: {enabled, reason}`.
+- Diff viewer: every `diff` stage (including the one after a recovery patch) has `detail.unified_diff`;
+  the committed remote tier's `recover` stage has `detail.patch_diff`. Tier 0 never patches, so a
+  `build_break` run without remote tiers has no `patch_diff`. Both are kept in `GET /api/runs` as
+  broadcast.
 - Every `ms` is the duration of the real call the stage reports (`Instant` around it); `commit`
   reports the `RENAME_SWAP` time and `rollback` the detach time, with totals in `detail`.

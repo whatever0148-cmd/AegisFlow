@@ -120,6 +120,10 @@ async fn orders_keep_the_newest_twenty_rows_with_their_timeline_events() {
     let expected: usize = placed[total - ORDERS_KEPT..].iter().map(|(_, n)| n).sum();
     assert_eq!(events.len(), expected, "every kept row keeps all of its timeline events");
     assert_eq!(fx.state.live_json()["counters"]["orders"], total as u64, "counters still count every order");
+    let (dropped, _) = fx.send(fx.get(&format!("/api/paypal/orders/{}/receipt", placed[0].0))).await;
+    assert_eq!(dropped, StatusCode::NOT_FOUND, "receipts are kept with their rows");
+    let (newest, _) = fx.send(fx.get(&format!("/api/paypal/orders/{}/receipt", placed[total - 1].0))).await;
+    assert_eq!(newest, StatusCode::OK);
 }
 
 fn submit_steps(row: &adapter_paypal::TelemetryRow) -> Vec<String> {
@@ -274,4 +278,48 @@ async fn real_or_mixed_credentials_select_remote_or_disabled() {
         assert_eq!(row.submission, "not_sent", "{name}");
         assert_eq!(fx.state.paypal_gateway.stats_json()["create_requests"], 0, "{name}");
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn signed_receipt_endpoint_returns_only_the_redacted_body() {
+    let fx = Fixture::new("paypal-receipt", "").await;
+    let state = fx.state.clone();
+    let rows = tokio::task::spawn_blocking(move || {
+        [OrderScenario::KnownPayee42, OrderScenario::RedactionDisabled25]
+            .into_iter()
+            .map(|scenario| {
+                let prepared = state.paypal.prepare(scenario).unwrap();
+                state.paypal.complete(&state, prepared).0
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .unwrap();
+    for row in &rows {
+        let (status, doc) = fx.json(fx.get(&format!("/api/paypal/orders/{}/receipt", row.id))).await;
+        assert_eq!(status, StatusCode::OK, "{doc}");
+        assert_eq!(doc["order_id"], row.id.as_str());
+        assert_eq!(doc["reference"], row.reference.as_str());
+        assert_eq!(doc["receipt"]["scheme"], "c2pa:ed25519");
+        assert_eq!(doc["receipt"]["signature"], row.signature.as_str());
+        assert_eq!(doc["receipt"]["payload_sha256"], row.receipt_sha256.as_str());
+        assert_eq!(doc["receipt"]["verified"], row.receipt_verified);
+        assert_eq!(doc["body"]["purchase_units"][0]["custom_id"], row.signature.as_str(), "the signature stays attached");
+        let text = doc["body"].to_string();
+        let scan = aegis_governance::scanner().scan(&text.replace(&row.signature, ""));
+        assert!(!scan.any(), "sensitive data in the receipt body: {scan:?} {text}");
+        assert!(text.contains("[REDACTED]"), "{text}");
+    }
+    // known_payee_42: the middleware redacted before signing; redaction_disabled_25: the card
+    // number it left in the signed body is masked for display, and the document says so.
+    let (_, first) = fx.json(fx.get(&format!("/api/paypal/orders/{}/receipt", rows[0].id))).await;
+    assert_eq!(first["redactions"], 2);
+    assert_eq!(first["display_redactions"], 0);
+    let (_, second) = fx.json(fx.get(&format!("/api/paypal/orders/{}/receipt", rows[1].id))).await;
+    assert_eq!(second["unformatted_sensitive_fields"], true);
+    assert!(second["display_redactions"].as_u64().unwrap() >= 1, "{second}");
+
+    let (status, body) = fx.json(fx.get("/api/paypal/orders/agent-9999-000000000000/receipt")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    assert!(body["error"].as_str().unwrap().contains("newest 20"));
 }

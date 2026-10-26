@@ -16,52 +16,93 @@
 <body>
   <a class="skip-link" href="#main">Skip to panels</a>
 
-  <div id="banners" class="banners"></div>
+  <div class="chrome">
+    <div id="banners" class="banners"></div>
 
-  <header class="topbar">
-    <div class="brand">
-      <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-        <path d="M16 2 4 6.5v8.2c0 7.4 5 13.4 12 15.3 7-1.9 12-7.9 12-15.3V6.5L16 2Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
-        <path d="m10.5 16.2 3.8 3.8 7.4-8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <div>
-        <h1 class="brand__title">Aegis Console</h1>
-        <p class="brand__sub">AegisFlow governed agent runtime</p>
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <path d="M16 2 4 6.5v8.2c0 7.4 5 13.4 12 15.3 7-1.9 12-7.9 12-15.3V6.5L16 2Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="m10.5 16.2 3.8 3.8 7.4-8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="brand__text">
+          <h1 class="brand__title">Aegis Console</h1>
+          <p class="brand__sub">governed agent runtime</p>
+        </div>
       </div>
-    </div>
 
-    <div class="topbar__status">
-      <div class="conn" id="conn" data-state="connecting">
-        <span class="conn__dot" aria-hidden="true"></span>
-        <span class="conn__label" id="conn-label" role="status">Connecting…</span>
-        <button type="button" class="btn btn--small" id="conn-retry" hidden>Retry now</button>
+      <!-- Hardware strip: every value is filled at runtime from /api/health, live stats, /api/telemetry and /api/config. -->
+      <div class="hwstrip" id="hwstrip" role="group" aria-label="Hardware and services">
+        <span class="hw" id="hw-ane" data-state="idle" tabindex="0">
+          <span class="hw__dot" aria-hidden="true"></span><span class="hw__k">ANE</span>
+          <span class="hw__v" data-role="value">—</span><span class="hw__src" data-role="source"></span>
+        </span>
+        <span class="hw" id="hw-pool" data-state="idle" tabindex="0">
+          <span class="hw__dot" aria-hidden="true"></span><span class="hw__k">CoW pool</span>
+          <span class="hw__v" data-role="value">—</span><span class="hw__src" data-role="source"></span>
+        </span>
+        <span class="hw" id="hw-cedar" data-state="idle" tabindex="0">
+          <span class="hw__dot" aria-hidden="true"></span><span class="hw__k">Cedar</span>
+          <span class="hw__v" data-role="value">—</span><span class="hw__src" data-role="source"></span>
+        </span>
+        <span class="hw" id="hw-ai" data-state="idle" tabindex="0">
+          <span class="hw__dot" aria-hidden="true"></span><span class="hw__k">Nemotron</span>
+          <span class="hw__v" data-role="value">—</span><span class="hw__src" data-role="source"></span>
+        </span>
+        <span class="hw" id="hw-paypal" data-state="idle" tabindex="0">
+          <span class="hw__dot" aria-hidden="true"></span><span class="hw__k">PayPal</span>
+          <span class="hw__v" data-role="value">—</span><span class="hw__src" data-role="source"></span>
+        </span>
       </div>
+
+      <div class="topbar__end">
+        <div class="conn" id="conn" data-state="connecting">
+          <span class="conn__dot" aria-hidden="true"></span>
+          <span class="conn__label" id="conn-label" role="status">Connecting…</span>
+          <button type="button" class="btn btn--small" id="conn-retry" hidden>Retry now</button>
+        </div>
+        <button type="button" class="btn btn--ghost" id="open-settings" aria-haspopup="dialog" aria-controls="settings">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.5"/><circle cx="10" cy="17" r="2.5"/></svg>
+          <span>Settings</span>
+        </button>
+      </div>
+    </header>
+  </div>
+
+  <main id="main" class="bento" tabindex="-1">
+    <!-- Hero: the five-stage signal path, lit by run.stage events and paypal.order messages. -->
+    <section class="card hero" id="hero" aria-labelledby="h-hero">
+      <header class="hero__head">
+        <div class="hero__title">
+          <h2 id="h-hero">Signal path</h2>
+          <p class="hero__ctx mono" data-role="context" role="status">idle</p>
+        </div>
+        <div class="seg" role="group" aria-label="Pipeline shown in the signal path">
+          <button type="button" class="seg__btn" data-mode="workspace" aria-pressed="true">Workspace run</button>
+          <button type="button" class="seg__btn" data-mode="paypal" aria-pressed="false">PayPal order</button>
+        </div>
+      </header>
+      <div class="sigpath" data-role="path"></div>
+      <p class="hero__caption small" data-role="caption"></p>
       <dl class="facts" id="health-facts">
         <div class="fact"><dt>Commit</dt><dd class="mono" id="hf-commit">—</dd></div>
         <div class="fact"><dt>Version</dt><dd class="mono" id="hf-version">—</dd></div>
         <div class="fact fact--wide"><dt>Model</dt><dd id="hf-model">—</dd></div>
         <div class="fact fact--wide"><dt>MLComputePlan</dt><dd id="hf-plan">—</dd></div>
       </dl>
-    </div>
+    </section>
 
-    <button type="button" class="btn btn--primary" id="open-settings" aria-haspopup="dialog" aria-controls="settings">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.5"/><circle cx="10" cy="17" r="2.5"/></svg>
-      <span>Settings</span>
-    </button>
-  </header>
-
-  <main id="main" class="panels" tabindex="-1">
     <!-- Panel 1 -->
-    <section class="panel" id="panel-workspace" aria-labelledby="h-workspace">
+    <section class="card panel" id="panel-workspace" aria-labelledby="h-workspace">
       <header class="panel__head">
-        <h2 id="h-workspace"><span class="panel__num" aria-hidden="true">1</span>Live Speculative Workspace &amp; Self-Healing</h2>
+        <h2 id="h-workspace"><span class="panel__num" aria-hidden="true">01</span>Live Speculative Workspace &amp; Self-Healing</h2>
         <div class="panel__tools">
           <button type="button" class="btn btn--small" data-role="reset">Reset workspace</button>
         </div>
       </header>
       <p class="panel__error" data-role="error" role="alert" hidden></p>
 
-      <div class="panel__body">
+      <div class="panel__body ws-grid">
         <div class="col">
           <div class="ws-summary" data-role="summary" aria-label="Workspace summary"></div>
 
@@ -70,68 +111,31 @@
           <p class="action-status" data-role="action-status" role="status"></p>
 
           <div class="split">
-            <div>
-              <h3 class="sub">Warm branch pool</h3>
+            <div class="well">
+              <h3 class="sub sub--well">Warm branch pool</h3>
               <dl class="kv" data-role="pool"><div><dt>Status</dt><dd>—</dd></div></dl>
             </div>
-            <div>
-              <h3 class="sub">Background reaper</h3>
+            <div class="well">
+              <h3 class="sub sub--well">Background reaper</h3>
               <dl class="kv" data-role="reaper"><div><dt>Status</dt><dd>—</dd></div></dl>
             </div>
           </div>
 
-          <h3 class="sub" id="h-eventlog">Event log</h3>
+          <h3 class="sub" id="h-eventlog">Live tail</h3>
           <ol class="eventlog" data-role="eventlog" role="log" aria-live="polite" aria-relevant="additions" aria-labelledby="h-eventlog"></ol>
         </div>
 
         <div class="col">
-          <h3 class="sub">Runs <span class="muted small">(newest first, last 6)</span></h3>
-          <div class="runs" data-role="runs"><p class="muted" data-role="runs-empty">No runs yet. The daemon keeps its most recent runs and shows them here after a reload. Pick a scenario.</p></div>
+          <h3 class="sub">Runs <span class="sub__aside">newest first · branch diff and self-heal patch per run</span></h3>
+          <div class="runs" data-role="runs"><p class="muted empty" data-role="runs-empty">No runs yet. The daemon keeps its most recent runs and shows them here after a reload. Pick a scenario.</p></div>
         </div>
       </div>
     </section>
 
-    <!-- Panel 2 -->
-    <section class="panel" id="panel-paypal" aria-labelledby="h-paypal">
-      <header class="panel__head">
-        <h2 id="h-paypal"><span class="panel__num" aria-hidden="true">2</span>PayPal Agentic Commerce</h2>
-        <div class="panel__tools sandbox" data-role="sandbox" aria-label="PayPal Sandbox status">—</div>
-      </header>
-      <p class="panel__error" data-role="error" role="alert" hidden></p>
-
-      <h3 class="sub">Order scenarios</h3>
-      <div class="scenario-grid scenario-grid--compact" data-role="scenarios"><p class="muted">Loading scenarios…</p></div>
-
-      <form class="stream" data-role="stream" aria-label="Order stream">
-        <button type="button" class="btn" data-role="stream-toggle" aria-pressed="false">Stream: —</button>
-        <label class="field field--inline">
-          <span>Interval (ms)</span>
-          <input type="number" inputmode="numeric" min="1" step="1" data-role="stream-interval" required>
-        </label>
-        <button type="submit" class="btn btn--small" data-role="stream-apply">Apply interval</button>
-      </form>
-      <p class="action-status" data-role="action-status" role="status"></p>
-
-      <h3 class="sub">Orders <span class="muted small" data-role="row-count"></span></h3>
-      <div class="grid-wrap" data-role="grid" aria-label="PayPal orders grid"></div>
-
-      <h3 class="sub" id="h-timeline">Pipeline timeline</h3>
-      <p class="caption">Bryntum-compatible event store · rendered by the built-in timeline (Bryntum Scheduler is not bundled)</p>
-      <div class="timeline-tools">
-        <button type="button" class="btn btn--small" data-role="scale-toggle" aria-pressed="true">Scale: shared across orders</button>
-        <span class="muted small" data-role="timeline-note"></span>
-      </div>
-      <div class="timeline" data-role="timeline"></div>
-      <details class="timeline-table">
-        <summary>Timeline data as a table</summary>
-        <div class="table-scroll" data-role="timeline-table"></div>
-      </details>
-    </section>
-
     <!-- Panel 3 -->
-    <section class="panel" id="panel-approvals" aria-labelledby="h-approvals">
+    <section class="card panel" id="panel-approvals" aria-labelledby="h-approvals">
       <header class="panel__head">
-        <h2 id="h-approvals"><span class="panel__num" aria-hidden="true">3</span>Team Approval &amp; Hardware Scoreboard</h2>
+        <h2 id="h-approvals"><span class="panel__num" aria-hidden="true">03</span>Team Approval &amp; Hardware Scoreboard</h2>
         <div class="panel__tools">
           <label class="field field--inline">
             <span>Approver</span>
@@ -153,17 +157,22 @@
 
         <div class="col">
           <div class="sub-row">
+            <h3 class="sub">Warm pool vs cold clonefile <span class="tag">bench</span></h3>
+          </div>
+          <div class="bars" data-role="bench-bars"><p class="muted small">Waiting for the benchmark artifact…</p></div>
+
+          <div class="sub-row">
             <h3 class="sub">Benchmark scoreboard <span class="tag">bench</span></h3>
             <button type="button" class="btn btn--small" data-role="reload-bench">Reload</button>
           </div>
           <p class="error-text" data-role="bench-error" role="alert" hidden></p>
           <div class="bench-meta" data-role="bench-meta"></div>
-          <div class="table-scroll"><table class="data stack scoreboard" data-role="scoreboard">
+          <div class="table-scroll table-scroll--tall"><table class="data stack scoreboard" data-role="scoreboard">
             <caption class="sr-only">Benchmark targets from the telemetry artifact</caption>
             <thead><tr><th scope="col">Metric</th><th scope="col">Target</th><th scope="col">Measured</th><th scope="col">Result</th></tr></thead>
             <tbody><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
           </table></div>
-          <p class="note" data-role="bench-note" hidden></p>
+          <details class="note-wrap"><summary>How the artifact reads these rows</summary><p class="note" data-role="bench-note" hidden></p></details>
 
           <div class="sub-row">
             <h3 class="sub">Live stats <span class="tag tag--live">live · this daemon</span></h3>
@@ -178,7 +187,62 @@
         </div>
       </div>
     </section>
+
+    <!-- Panel 2 -->
+    <section class="card panel" id="panel-paypal" aria-labelledby="h-paypal">
+      <header class="panel__head">
+        <h2 id="h-paypal"><span class="panel__num" aria-hidden="true">02</span>PayPal Agentic Commerce</h2>
+        <div class="panel__tools sandbox" data-role="sandbox" aria-label="PayPal Sandbox status">—</div>
+      </header>
+      <p class="panel__error" data-role="error" role="alert" hidden></p>
+
+      <div class="pp-controls">
+        <div class="pp-controls__scenarios">
+          <h3 class="sub">Order scenarios</h3>
+          <div class="scenario-grid scenario-grid--compact" data-role="scenarios"><p class="muted">Loading scenarios…</p></div>
+        </div>
+        <form class="stream" data-role="stream" aria-label="Order stream">
+          <button type="button" class="btn" data-role="stream-toggle" aria-pressed="false">Stream: —</button>
+          <label class="field field--inline">
+            <span>Interval (ms)</span>
+            <input type="number" inputmode="numeric" min="1" step="1" data-role="stream-interval" required>
+          </label>
+          <button type="submit" class="btn btn--small" data-role="stream-apply">Apply interval</button>
+        </form>
+      </div>
+      <p class="action-status" data-role="action-status" role="status"></p>
+
+      <h3 class="sub">Orders <span class="sub__aside" data-role="row-count"></span></h3>
+      <div class="grid-wrap" data-role="grid" aria-label="PayPal orders grid"></div>
+
+      <h3 class="sub" id="h-timeline">Pipeline waterfall</h3>
+      <p class="caption">Bryntum-compatible event store · rendered by the built-in timeline (Bryntum Scheduler is not bundled)</p>
+      <div class="timeline-tools">
+        <button type="button" class="btn btn--small" data-role="scale-toggle" aria-pressed="true">Scale: shared across orders</button>
+        <span class="muted small" data-role="timeline-note"></span>
+      </div>
+      <div class="timeline" data-role="timeline"></div>
+      <details class="timeline-table">
+        <summary>Timeline data as a table</summary>
+        <div class="table-scroll" data-role="timeline-table"></div>
+      </details>
+    </section>
   </main>
+
+  <dialog id="receipt-dialog" class="popover" aria-labelledby="receipt-title">
+    <div class="popover__inner">
+      <header class="popover__head">
+        <h2 id="receipt-title">Signed receipt</h2>
+        <div class="popover__tools">
+          <button type="button" class="btn btn--small" data-role="copy">Copy JSON</button>
+          <button type="button" class="btn btn--small" data-role="close">Close</button>
+        </div>
+      </header>
+      <p class="small muted" data-role="meta"></p>
+      <p class="action-status" data-role="status" role="status"></p>
+      <pre class="json mono" data-role="body" tabindex="0" aria-label="Signed receipt JSON"></pre>
+    </div>
+  </dialog>
 
   <dialog id="settings" class="drawer" aria-labelledby="settings-title">
     <div class="drawer__inner">

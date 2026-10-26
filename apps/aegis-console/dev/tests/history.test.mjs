@@ -380,7 +380,10 @@ test('pending and resolved approvals render from GET /api/approvals after a relo
   assert.equal(text(doc.querySelector('[data-role="pending-count"]')), '(1)');
   const card = doc.querySelector('[data-role="pending"] article');
   assert.match(text(card), /Mass delete in demo workspace/);
-  assert.ok(card.querySelectorAll('button').some((b) => text(b) === 'Approve'));
+  const buttons = card.querySelectorAll('button').map(text);
+  assert.ok(buttons.includes('Approve · RENAME_SWAP'), JSON.stringify(buttons));
+  assert.ok(buttons.includes('Reject · rollback'), JSON.stringify(buttons));
+  assert.equal(text(card.querySelector('button')), approvalsMod.APPROVE_LABEL);
   const resolved = doc.querySelector('[data-role="resolved"]').children;
   assert.equal(resolved.length, 1);
   assert.match(text(resolved[0]), /approved/);

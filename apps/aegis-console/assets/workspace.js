@@ -5,6 +5,7 @@
 
 import { h, replace, badge, riskBar, chips, kvList, fmtMs, fmtUs, fmtNum, fmtText, fmtTime, fmtValue, humanize, isNum, DASH, debounce } from './dom.js';
 import { get, post, describeError } from './api.js';
+import { diffBlock } from './diffview.js';
 
 const SLOTS = [
   { key: 'branch', label: 'Branch', stages: ['branch'] },
@@ -17,6 +18,19 @@ const SLOTS = [
   { key: 'decision', label: 'Approval / commit / rollback', stages: ['approval', 'commit', 'rollback'] },
   { key: 'reap', label: 'Reap', stages: ['reap'] },
 ];
+// Detail fields shown on the stage tile itself (others sit under "+N fields").
+const PRIMARY_DETAIL = {
+  edit: ['files_modified', 'files_added', 'files_deleted'],
+  diff: ['files_changed', 'lines_added', 'lines_removed'],
+  features: ['nonzero', 'unformatted_sensitive_fields'],
+  score: ['window_events', 'single_event_risk'],
+  verify: ['errors', 'warnings', 'reason', 'first_error', 'attempt'],
+  recover: ['risk', 'build_passed', 'committed_to_branch'],
+  commit: ['conflict', 'version', 'rollback'],
+  rollback: ['reason'],
+  approval: ['approval_id', 'status', 'by'],
+  reap: ['kind'],
+};
 const STAGE_TO_SLOT = new Map(SLOTS.flatMap((slot) => slot.stages.map((st) => [st, slot.key])));
 
 const STATUS = {
@@ -27,7 +41,7 @@ const STATUS = {
 };
 const OUTCOME = {
   committed: ['Committed', 'ok'],
-  rolled_back: ['Rolled back', 'warn'],
+  rolled_back: ['Rolled back', 'fail'],
   pending_approval: ['Pending approval', 'pending'],
   recovered: ['Recovered', 'ok'],
   error: ['Error', 'fail'],
@@ -145,7 +159,34 @@ export function runOutcome(run) {
   return ['running', 'pending'];
 }
 
-export function createWorkspacePanel() {
+/**
+ * Why a build_break run has no self-heal patch, from its recover events (tier 0 always runs; tiers
+ * 1-2 are skipped with a reason while the remote tiers are disabled, or fail without a verified
+ * patch). Null while no recover event explains it.
+ */
+export function noPatchReason(recovers, finished) {
+  const remote = recovers.filter((e) => e.detail && isNum(e.detail.tier) && e.detail.tier >= 1);
+  const t0 = recovers.find((e) => e.detail && e.detail.tier === 0);
+  const disabled = remote.find((e) => e.status === 'skip' && e.detail.enabled === false);
+  if (disabled) return `tier 0 triage only; remote tiers disabled: ${fmtText(disabled.detail.reason)}`;
+  const failed = remote.filter((e) => e.status === 'fail');
+  if (failed.length) {
+    const last = failed[failed.length - 1];
+    return `no tier produced a verified, allowed patch (tier ${fmtText(last.detail.tier)}: ${fmtText(last.detail.reason || last.detail.error)})`;
+  }
+  if (t0 && t0.status === 'fail') return `tier-0 triage failed: ${fmtText(t0.detail.error)}`;
+  if (!finished) return 'waiting for the recovery tiers…';
+  return remote.length ? 'no patch was committed' : 'tier 0 triage only';
+}
+
+/** The last three segments of a long path ("…/demo/live"); the full path goes in the title. */
+export function shortPath(path) {
+  if (typeof path !== 'string' || !path) return fmtText(path);
+  const parts = path.split('/').filter(Boolean);
+  return parts.length > 3 ? `…/${parts.slice(-3).join('/')}` : path;
+}
+
+export function createWorkspacePanel(opts = {}) {
   const root = document.getElementById('panel-workspace');
   const $ = (role) => root.querySelector(`[data-role="${role}"]`);
   const els = {
@@ -183,7 +224,7 @@ export function createWorkspacePanel() {
     const versions = Array.isArray(workspace.versions) ? workspace.versions : [];
     const latest = versions.reduce((best, v) => (best === null || (isNum(v.number) && v.number > best.number) ? v : best), null);
     replace(els.summary, kvList([
-      ['Live tree', h('span', { class: 'mono break', text: fmtText(workspace.live) })],
+      ['Live tree', h('span', { class: 'mono', title: fmtText(workspace.live), text: shortPath(workspace.live) })],
       ['Files', fmtNum(workspace.files)],
       ['Versions', versions.length ? `${versions.length} (latest #${fmtText(latest && latest.number)} at ${fmtTime(latest && latest.created_at)})` : DASH],
     ], 'kv kv--inline'));
@@ -296,6 +337,7 @@ export function createWorkspacePanel() {
       run = {
         run_id: runId, scenario: init.scenario || null, title: init.title || null, events: [], outcome: null, total_ms: null, queued_ms: null,
         started: init.ts || null, observedStart: false, gap: null, el: null, seqs: new Set(), outcomeSeq: 0, lastSeq: null,
+        diffOpen: new Set(),
       };
       runs.set(runId, run);
       order.push(runId);
@@ -313,6 +355,12 @@ export function createWorkspacePanel() {
     const rows = [];
     const used = new Set();
     const use = (k) => { used.add(k); return d[k]; };
+    if (stage === 'diff' && 'unified_diff' in d) {
+      use('unified_diff'); // drawn by the diff viewer under the stages
+    }
+    if (stage === 'recover' && 'patch_diff' in d) {
+      use('patch_diff'); // drawn by the diff viewer under the stages
+    }
     if (stage === 'branch' && 'source' in d) {
       const src = use('source');
       rows.push(['Source', src === 'pool' ? badge('warm pool', 'ok') : src === 'cold' ? badge('cold clonefile', 'warn') : fmtText(src)]);
@@ -352,10 +400,19 @@ export function createWorkspacePanel() {
         rows.push(['Patch', p === true ? badge('applied', 'ok') : p === false ? badge('not applied', 'skip') : DASH]);
       }
     }
+    // Headline fields stay visible; the rest of the daemon's detail is one click away.
+    const primary = PRIMARY_DETAIL[stage] || [];
+    const more = [];
     for (const [k, v] of Object.entries(d)) {
-      if (!used.has(k)) rows.push([humanize(k), fmtValue(k, v)]);
+      if (used.has(k)) continue;
+      (primary.includes(k) ? rows : more).push([humanize(k), fmtValue(k, v)]);
     }
-    return rows.length ? kvList(rows, 'kv kv--stage') : null;
+    if (!rows.length && !more.length) return null;
+    return h('div', { class: 'stage__detail' },
+      rows.length ? kvList(rows, 'kv kv--stage') : null,
+      more.length ? h('details', { class: 'stage__more' },
+        h('summary', { text: `+${more.length} field${more.length === 1 ? '' : 's'}` }),
+        kvList(more, 'kv kv--stage')) : null);
   }
 
   function partialNote(run) {
@@ -365,6 +422,38 @@ export function createWorkspacePanel() {
     else if (run.observedStart && !seqComplete(run)) parts.push('Some of this run\'s messages were not received (its seq numbers have gaps).');
     parts.push('Stages without events read “not observed”, not “not run”.');
     return h('p', { class: 'run__note small muted', role: 'note', text: parts.join(' ') });
+  }
+
+  // ---- diff viewer ------------------------------------------------------
+  function toggler(run, key) {
+    return (open) => { if (open) run.diffOpen.add(key); else run.diffOpen.delete(key); };
+  }
+
+  function patchSection(run, recovers) {
+    const committed = recovers.find((e) => e.status === 'ok' && e.detail && e.detail.patch_diff);
+    if (committed) {
+      const d = committed.detail;
+      const pd = d.patch_diff;
+      const model = h('span', { class: 'chip mono', text: `tier ${fmtText(d.tier)} · ${fmtText(d.model)}` });
+      if (pd && typeof pd.text === 'string') {
+        return diffBlock({ title: 'Self-heal patch (repaired files: before → after)', view: pd, open: run.diffOpen.has('patch'), onToggle: toggler(run, 'patch'), extra: model });
+      }
+      return h('div', { class: 'diffview diffview--empty', dataset: { role: 'patch-none' } },
+        h('span', { class: 'diffview__title', text: 'Self-heal patch' }), model, badge('applied', 'ok'),
+        h('span', { text: pd && pd.error ? `diff unavailable: ${pd.error}` : 'diff unavailable' }));
+    }
+    return h('div', { class: 'diffview diffview--empty', dataset: { role: 'patch-none' } },
+      h('span', { class: 'diffview__title', text: 'Self-heal patch' }), badge('none', 'skip'),
+      h('span', { text: noPatchReason(recovers, Boolean(run.outcome)) }));
+  }
+
+  function diffSection(run) {
+    const blocks = [];
+    const diff = run.events.find((e) => e.stage === 'diff' && e.detail && e.detail.unified_diff && typeof e.detail.unified_diff.text === 'string');
+    if (diff) blocks.push(diffBlock({ title: 'Branch diff', view: diff.detail.unified_diff, open: run.diffOpen.has('branch'), onToggle: toggler(run, 'branch') }));
+    const recovers = run.events.filter((e) => e.stage === 'recover');
+    if (recovers.length) blocks.push(patchSection(run, recovers));
+    return blocks.length ? h('div', { class: 'diffs' }, blocks) : null;
   }
 
   function renderRun(run) {
@@ -393,7 +482,8 @@ export function createWorkspacePanel() {
         h('span', { class: 'run__total mono', text: `total ${fmtMs(run.total_ms)}` }),
         h('span', { class: 'run__queued mono muted', title: 'time the run waited behind earlier runs or a reset before it started (not part of total)', text: `queued ${fmtMs(run.queued_ms)}` })),
       complete ? null : partialNote(run),
-      pipeline);
+      pipeline,
+      diffSection(run));
     if (run.el) run.el.replaceWith(el);
     else {
       const idx = order.indexOf(run.run_id);
@@ -508,6 +598,7 @@ export function createWorkspacePanel() {
     sortAndTrim();
     for (const run of touched) renderRun(run);
     els.runsEmpty.hidden = runs.size > 0;
+    if (opts.onRuns) opts.onRuns(list);
   }
 
   function failRuns(err) {
@@ -526,6 +617,7 @@ export function createWorkspacePanel() {
 
   function setWorkspace(ws) {
     workspace = ws;
+    if (opts.onWorkspace) opts.onWorkspace(ws);
     showError('');
     renderSummary();
     renderScenarios();
