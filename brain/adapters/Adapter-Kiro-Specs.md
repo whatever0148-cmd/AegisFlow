@@ -3,13 +3,13 @@ tags:
   - adapter
 status: verified
 latency_ms: null
-last_verified: 2026-10-26T06:51:41Z
-git_commit: 7cb1a10-dirty
+last_verified: 2026-10-26T07:03:04Z
+git_commit: c3ad550
 ---
 
 # Adapter-Kiro-Specs
 
-**Status:** 🟢 verified · **p50:** — · **commit:** `7cb1a10-dirty`
+**Status:** 🟢 verified · **p50:** — · **commit:** `c3ad550`
 
 > Kiro spec-driven development: requirements (EARS), design and an implementation plan whose checkboxes mirror harness/TASKS.json verification results.
 
@@ -21,7 +21,7 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-26T06:51:41Z · bench 2026-10-26T06:51:38Z · tests 2026-10-25T08:10:13Z · commit `7cb1a10-dirty`_
+_Synced 2026-10-26T07:03:04Z · bench 2026-10-26T07:03:00Z · tests 2026-10-25T08:10:13Z · commit `c3ad550`_
 
 | Metric | Measured |
 |---|---|

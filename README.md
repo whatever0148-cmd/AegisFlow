@@ -39,32 +39,32 @@ Generated from `artifacts/aegis_phase1_telemetry.json` by `harness/readme_teleme
 number below comes from a benchmark run, none is typed by hand.
 
 <!-- aegis:telemetry:start -->
-**11/11 gated targets met** · run verified (full scale, quiet machine) · generated 2026-10-26T06:51:38Z · Apple M2
+**11/11 gated targets met** · run verified (full scale, quiet machine) · generated 2026-10-26T07:03:00Z · Apple M2
 
 | Target | Threshold | Measured | Result |
 |---|---|---|---|
-| branch acquire (WarmBranchPool warm hit) · tiny (9 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 99.2 µs · p95 116.7 µs · n=400 | ✅ PASS |
-| branch acquire (WarmBranchPool warm hit) · small (129 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 106.0 µs · p95 120.2 µs · n=300 | ✅ PASS |
-| branch acquire (WarmBranchPool warm hit) · medium (1025 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 135.7 µs · p95 159.3 µs · n=60 | ✅ PASS |
-| branch acquire (WarmBranchPool warm hit) · aegisflow_src (118 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 110.8 µs · p95 170.7 µs · n=200 | ✅ PASS |
-| renameatx_np RENAME_SWAP commit (syscall only) · small | < 0.5 ms | p50 128.1 µs · p95 147.8 µs · n=300 | ✅ PASS |
-| rollback · caller-visible (background reap) · small | < 0.15 ms | p50 88.3 µs · p95 98.3 µs · n=300 | ✅ PASS |
-| CoreML FP16 online window model · cpuAndNeuralEngine · back-to-back calls | < 0.6 ms | p50 193.8 µs · p95 228.8 µs · n=2400 | ✅ PASS |
+| branch acquire (WarmBranchPool warm hit) · tiny (9 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 103.2 µs · p95 130.0 µs · n=400 | ✅ PASS |
+| branch acquire (WarmBranchPool warm hit) · small (129 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 106.0 µs · p95 122.3 µs · n=300 | ✅ PASS |
+| branch acquire (WarmBranchPool warm hit) · medium (1025 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 119.0 µs · p95 150.2 µs · n=60 | ✅ PASS |
+| branch acquire (WarmBranchPool warm hit) · aegisflow_src (118 files) | < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | p50 106.4 µs · p95 137.2 µs · n=200 | ✅ PASS |
+| renameatx_np RENAME_SWAP commit (syscall only) · small | < 0.5 ms | p50 126.1 µs · p95 140.2 µs · n=300 | ✅ PASS |
+| rollback · caller-visible (background reap) · small | < 0.15 ms | p50 88.9 µs · p95 103.1 µs · n=300 | ✅ PASS |
+| CoreML FP16 online window model · cpuAndNeuralEngine · back-to-back calls | < 0.6 ms | p50 194.4 µs · p95 221.2 µs · n=2400 | ✅ PASS |
 | online model executes on the Neural Engine (MLComputePlan) | all ops on ANE | ANE 36 · CPU 0 · GPU 0 | ✅ PASS |
-| online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50) | 1.15× (193.8 µs vs 222.8 µs cpuOnly) | ✅ PASS |
+| online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly | speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50) | 1.14× (194.4 µs vs 222.3 µs cpuOnly) | ✅ PASS |
 | batch model executes on the Neural Engine (MLComputePlan) | all ops on ANE | ANE 36 · CPU 0 · GPU 0 | ✅ PASS |
-| tier-0 route (ANE + Cedar) | < 0.4 ms | p50 199.8 µs · p95 239.0 µs · n=5000 | ✅ PASS |
+| tier-0 route (ANE + Cedar) | < 0.4 ms | p50 195.3 µs · p95 235.2 µs · n=5000 | ✅ PASS |
 
 Cold `clonefile` for comparison (informational, not gated):
 
 | Fixture | Cold clonefile p50 |
 |---|---|
-| tiny (9 files) | 174.6 µs |
-| small (129 files) | 1.003 ms |
-| medium (1025 files) | 7.698 ms |
-| aegisflow_src (118 files) | 1.249 ms |
+| tiny (9 files) | 169.4 µs |
+| small (129 files) | 997.9 µs |
+| medium (1025 files) | 6.500 ms |
+| aegisflow_src (118 files) | 1.376 ms |
 
-Run conditions: other programs averaged 1.06 cores during the run (busy threshold 2.0); start load 3.96.
+Run conditions: other programs averaged 0.92 cores during the run (busy threshold 2.0); start load 3.78.
 <!-- aegis:telemetry:end -->
 
 | | |

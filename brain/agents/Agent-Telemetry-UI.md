@@ -2,14 +2,14 @@
 tags:
   - agent
 status: verified
-latency_ms: 322.5
-last_verified: 2026-10-26T06:51:41Z
-git_commit: 7cb1a10-dirty
+latency_ms: 444.1
+last_verified: 2026-10-26T07:03:04Z
+git_commit: c3ad550
 ---
 
 # Agent-Telemetry-UI
 
-**Status:** 🟢 verified · **p50:** 322.5 ms · **commit:** `7cb1a10-dirty`
+**Status:** 🟢 verified · **p50:** 444.1 ms · **commit:** `c3ad550`
 
 > Publishes measured telemetry into this vault (frontmatter, canvas, log) and the AG Grid / Bryntum row exports from the PayPal adapter.
 
@@ -21,12 +21,12 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-26T06:51:41Z · bench 2026-10-26T06:51:38Z · tests 2026-10-25T08:10:13Z · commit `7cb1a10-dirty`_
+_Synced 2026-10-26T07:03:04Z · bench 2026-10-26T07:03:00Z · tests 2026-10-25T08:10:13Z · commit `c3ad550`_
 
 | Metric | Measured |
 |---|---|
-| T13 · Sync telemetry into the Obsidian brain | passed · 156.4 ms |
-| T20 · Sync phase-2 telemetry into the Obsidian brain | passed · 166.1 ms |
+| T13 · Sync telemetry into the Obsidian brain | passed · 159.1 ms |
+| T20 · Sync phase-2 telemetry into the Obsidian brain | passed · 285.0 ms |
 
 > `latency_ms` for an agent = summed wall time of its tasks' verify commands (harness/run_tasks.py).
 <!-- aegis:telemetry:end -->

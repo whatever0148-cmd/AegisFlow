@@ -3,13 +3,13 @@ tags:
   - benchmark
 status: verified
 latency_ms: 0.004208
-last_verified: 2026-10-26T06:51:38Z
-git_commit: 7cb1a10-dirty
+last_verified: 2026-10-26T07:03:00Z
+git_commit: c3ad550
 ---
 
 # Bench-Cedar-Eval
 
-**Status:** 🟢 verified · **p50:** 0.0042 ms · **commit:** `7cb1a10-dirty`
+**Status:** 🟢 verified · **p50:** 0.0042 ms · **commit:** `c3ad550`
 
 > Cedar `is_authorized` latency and the policy decision matrix (expected vs actual).
 
@@ -21,12 +21,12 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-26T06:51:41Z · bench 2026-10-26T06:51:38Z · tests 2026-10-25T08:10:13Z · commit `7cb1a10-dirty`_
+_Synced 2026-10-26T07:03:04Z · bench 2026-10-26T07:03:00Z · tests 2026-10-25T08:10:13Z · commit `c3ad550`_
 
 | Metric | Measured |
 |---|---|
-| is_authorized | p50 4.208 µs · p95 4.708 µs · n=20000 |
-| build request + authorize | p50 7.667 µs · p95 8.542 µs · n=20000 |
+| is_authorized | p50 4.208 µs · p95 4.667 µs · n=20000 |
+| build request + authorize | p50 7.584 µs · p95 8.125 µs · n=20000 |
 | ✔ speculative commit, risk 12 | Allow (permit-low-risk) |
 | ✔ commit with unredacted sensitive fields, risk 5 | Deny (default deny) |
 | ✔ high-impact commit without approval, risk 61 | Deny (forbid-high-impact-without-team-approval) |

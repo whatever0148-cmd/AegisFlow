@@ -27,8 +27,8 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 126.7,
-        "finished_at": "2026-10-26T06:42:52Z",
+        "duration_ms": 128.1,
+        "finished_at": "2026-10-26T06:55:42Z",
         "output_tail": [
           "check: OK"
         ]
@@ -50,8 +50,8 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 56.8,
-        "finished_at": "2026-10-26T06:42:52Z",
+        "duration_ms": 61.7,
+        "finished_at": "2026-10-26T06:55:42Z",
         "output_tail": [
           ".claude/agents/core-builder.md",
           ".claude/agents/qa-reviewer.md",
@@ -78,8 +78,8 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 5030.5,
-        "finished_at": "2026-10-26T06:42:57Z",
+        "duration_ms": 4583.5,
+        "finished_at": "2026-10-26T06:55:47Z",
         "output_tail": [
           "verify: history probe '3 identical orders, velocity counters 0': CoreML FP16 10.328, FP32 10.132, teacher 9.294 (newest event alone 8.236) -> agrees with the teacher at 35",
           "verify: history probe '12 identical orders, velocity counters 0': CoreML FP16 68.938, FP32 69.097, teacher 69.458 (newest event alone 8.236) -> agrees with the teacher at 35",
@@ -114,18 +114,18 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 1069.9,
-        "finished_at": "2026-10-26T06:42:58Z",
+        "duration_ms": 1007.6,
+        "finished_at": "2026-10-26T06:55:48Z",
         "output_tail": [
           "test tests::rename_excl_never_clobbers ... ok",
-          "test tests::reclaim_trash_removes_crash_leftovers ... ok",
+          "test pool::tests::swap_events_of_an_own_commit_do_not_invalidate ... ok",
           "test tests::reaper_eventually_empties_trash ... ok",
           "test tests::restore_brings_back_an_earlier_version ... ok",
-          "test tests::retention_prunes_old_versions ... ok",
           "test tests::stale_branch_commit_is_a_conflict ... ok",
-          "test tests::synchronous_mode_reclaims_inline ... ok",
+          "test tests::retention_prunes_old_versions ... ok",
+          "test pool::tests::own_commits_do_not_trigger_fsevents_invalidation ... ok",
           "test tests::workspace_is_on_apfs ... ok",
-          "test pool::tests::swap_events_of_an_own_commit_do_not_invalidate ... ok",
+          "test tests::synchronous_mode_reclaims_inline ... ok",
           "test tests::rollback_returns_before_reclaim_in_background_mode ... ok",
           "test pool::tests::max_standby_age_expires_standbys ... ok",
           "test pool::tests::acquire_waits_for_in_flight_replenish_instead_of_cloning_cold ... ok",
@@ -139,7 +139,7 @@
           "",
           "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
           "",
-          "    Finished `release` profile [optimized] target(s) in 0.17s",
+          "    Finished `release` profile [optimized] target(s) in 0.15s",
           "     Running unittests src/lib.rs (target/release/deps/aegis_storage-dc6008f076516029)",
           "   Doc-tests aegis_storage"
         ]
@@ -165,19 +165,19 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 44775.2,
-        "finished_at": "2026-10-26T06:43:43Z",
+        "duration_ms": 37807.0,
+        "finished_at": "2026-10-26T06:56:25Z",
         "output_tail": [
-          "test tests::orders_over_fifty_dollars_need_verified_receipt ... ok",
-          "test tests::branch_and_rollback_always_allowed ... ok",
-          "test tests::high_risk_order_is_denied_even_with_receipt ... ok",
-          "test tests::order_of_exactly_fifty_dollars_is_standard ... ok",
           "test tests::high_impact_commit_needs_team_approval ... ok",
-          "test tests::invalid_policy_update_is_rejected ... ok",
           "test time::tests::formats_known_instants ... ok",
+          "test tests::low_risk_commit_is_permitted ... ok",
+          "test tests::order_of_exactly_fifty_dollars_is_standard ... ok",
+          "test tests::branch_and_rollback_always_allowed ... ok",
+          "test tests::policies_validate_in_strict_mode ... ok",
+          "test tests::high_risk_order_is_denied_even_with_receipt ... ok",
           "test tests::sensitive_fields_block_low_risk_commit ... ok",
           "",
-          "test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+          "test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
           "",
           "",
           "running 0 tests",
@@ -190,7 +190,7 @@
           "   Compiling cedar-policy-formatter v4.14.0",
           "   Compiling cedar-policy v4.14.0",
           "   Compiling aegis-governance v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-governance)",
-          "    Finished `release` profile [optimized] target(s) in 43.77s",
+          "    Finished `release` profile [optimized] target(s) in 37.28s",
           "     Running unittests src/lib.rs (target/release/deps/aegis_governance-a158579a36c2232c)",
           "   Doc-tests aegis_governance"
         ]
@@ -217,14 +217,14 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 2856.3,
-        "finished_at": "2026-10-26T06:43:46Z",
+        "duration_ms": 2605.4,
+        "finished_at": "2026-10-26T06:56:28Z",
         "output_tail": [
-          "test tests::rejects_wrong_length ... ok",
+          "test tests::paypal_bench_orders_keep_phase1_decisions ... ok",
           "test tests::compute_plan_lists_every_op_with_its_preferred_device ... ok",
           "test tests::online_model_is_planned_entirely_on_the_neural_engine ... ok",
+          "test tests::rejects_wrong_length ... ok",
           "test tests::risky_change_outscores_benign_change ... ok",
-          "test tests::paypal_bench_orders_keep_phase1_decisions ... ok",
           "test tests::scores_are_bounded_and_deterministic ... ok",
           "test tests::session_history_raises_risk ... ok",
           "test tests::window_sees_only_the_newest_window_len_events ... ok",
@@ -234,7 +234,7 @@
           "test tests::matches_fp32_reference_on_parity_set ... ok",
           "test tests::concurrent_scoring_is_consistent ... ok",
           "",
-          "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s",
+          "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s",
           "",
           "",
           "running 0 tests",
@@ -242,7 +242,7 @@
           "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
           "",
           "   Compiling aegis-ane-scorer v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-ane-scorer)",
-          "    Finished `release` profile [optimized] target(s) in 1.79s",
+          "    Finished `release` profile [optimized] target(s) in 1.74s",
           "     Running unittests src/lib.rs (target/release/deps/aegis_ane_scorer-79945c06b6b7c25e)",
           "   Doc-tests aegis_ane_scorer"
         ]
@@ -269,12 +269,12 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 47432.4,
-        "finished_at": "2026-10-26T06:44:33Z",
+        "duration_ms": 41720.6,
+        "finished_at": "2026-10-26T06:57:10Z",
         "output_tail": [
           "test tests::triage_is_local_and_routes ... ok",
-          "test tests::refused_endpoint_gets_no_request_from_recover ... ok",
           "test tests::without_key_remote_tiers_are_unavailable ... ok",
+          "test tests::refused_endpoint_gets_no_request_from_recover ... ok",
           "test tests::recovers_through_local_openai_compatible_endpoint ... ok",
           "",
           "test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
@@ -294,7 +294,7 @@
           "   Compiling aegis-governance v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-governance)",
           "   Compiling aegis-ane-scorer v0.1.0 (/Users/ahmed/AegisFlow/crates/aegis-ane-scorer)",
           "   Compiling adapter-nebius-nemotron v0.1.0 (/Users/ahmed/AegisFlow/crates/adapter-nebius-nemotron)",
-          "    Finished `release` profile [optimized] target(s) in 46.50s",
+          "    Finished `release` profile [optimized] target(s) in 41.06s",
           "     Running unittests src/lib.rs (target/release/deps/adapter_nebius_nemotron-f1943539473819cf)",
           "   Doc-tests adapter_nebius_nemotron"
         ]
@@ -321,21 +321,21 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 2546.5,
-        "finished_at": "2026-10-26T06:44:36Z",
+        "duration_ms": 2642.7,
+        "finished_at": "2026-10-26T06:57:12Z",
         "output_tail": [
           "running 11 tests",
           "test tests::loopback_base_urls ... ok",
           "test tests::over_fifty_dollars_without_verified_receipt_is_forbidden ... ok",
-          "test tests::sensitive_customer_strings_are_redacted_before_signing ... ok",
           "test tests::dashboard_exports_have_expected_shapes ... ok",
-          "test tests::custom_id_signature_verifies_and_detects_tampering ... ok",
-          "test tests::standard_order_follows_risk_policy ... ok",
           "test tests::nothing_is_sent_without_credentials ... ok",
+          "test tests::standard_order_follows_risk_policy ... ok",
+          "test tests::custom_id_signature_verifies_and_detects_tampering ... ok",
           "test tests::submit_and_capture_times_each_call ... ok",
+          "test tests::sensitive_customer_strings_are_redacted_before_signing ... ok",
           "test tests::submits_to_local_orders_v2_mock ... ok",
-          "test tests::unredacted_payload_is_blocked ... ok",
           "test tests::local_sandbox_credentials_never_leave_loopback ... ok",
+          "test tests::unredacted_payload_is_blocked ... ok",
           "",
           "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s",
           "",
@@ -345,7 +345,7 @@
           "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
           "",
           "   Compiling adapter-paypal v0.1.0 (/Users/ahmed/AegisFlow/crates/adapter-paypal)",
-          "    Finished `release` profile [optimized] target(s) in 1.82s",
+          "    Finished `release` profile [optimized] target(s) in 2.03s",
           "     Running unittests src/lib.rs (target/release/deps/adapter_paypal-acf2f041c52f14cb)",
           "   Doc-tests adapter_paypal"
         ]
@@ -370,12 +370,12 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 5414.8,
-        "finished_at": "2026-10-26T06:44:41Z",
+        "duration_ms": 4325.5,
+        "finished_at": "2026-10-26T06:57:17Z",
         "output_tail": [
           "test mcp::tests::lists_tools_and_evaluates_policy ... ok",
-          "test mcp::tests::workspace_open_reclaims_trash_left_by_an_earlier_session ... ok",
           "test mcp::tests::synchronous_reclaim_reports_measured_time ... ok",
+          "test mcp::tests::workspace_open_reclaims_trash_left_by_an_earlier_session ... ok",
           "test mcp::tests::approval_error_never_returns_the_webhook_url ... ok",
           "test mcp::tests::shutdown_rolls_back_open_branches_and_drains_the_reaper ... ok",
           "test mcp::tests::branch_diff_approve_commit_and_rollback ... ok",
@@ -394,7 +394,7 @@
           "",
           "mcp smoke: 9 tools; $120 order without verified receipt -> Deny (forbid-order-over-50-usd-without-receipt)",
           "   Compiling adapter-switch-mcp v0.1.0 (/Users/ahmed/AegisFlow/crates/adapter-switch-mcp)",
-          "    Finished `release` profile [optimized] target(s) in 1.95s",
+          "    Finished `release` profile [optimized] target(s) in 2.22s",
           "     Running unittests src/lib.rs (target/release/deps/adapter_switch_mcp-da9b49fb2b93373b)",
           "     Running unittests src/bin/aegis-mcp.rs (target/release/deps/aegis_mcp-2d74be95ca71c5e9)",
           "   Doc-tests adapter_switch_mcp"
@@ -420,7 +420,7 @@
       "last_result": {
         "exit_code": 0,
         "duration_ms": 4.1,
-        "finished_at": "2026-10-26T06:51:41Z",
+        "finished_at": "2026-10-26T07:03:04Z",
         "output_tail": []
       }
     },
@@ -446,8 +446,8 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 232.1,
-        "finished_at": "2026-10-26T06:44:41Z",
+        "duration_ms": 236.8,
+        "finished_at": "2026-10-26T06:57:17Z",
         "output_tail": [
           "verify_no_stubs: clean"
         ]
@@ -470,8 +470,8 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 96728.1,
-        "finished_at": "2026-10-26T06:46:18Z",
+        "duration_ms": 91753.1,
+        "finished_at": "2026-10-26T06:58:49Z",
         "output_tail": [
           "     Running unittests src/lib.rs (target/release/deps/adapter_paypal-d46f1090d35d92a1)",
           "     Running unittests src/lib.rs (target/release/deps/adapter_switch_mcp-77f17497d41d6c36)",
@@ -521,13 +521,13 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 571.6,
-        "finished_at": "2026-10-26T06:51:41Z",
+        "duration_ms": 1239.2,
+        "finished_at": "2026-10-26T07:03:04Z",
         "output_tail": [
-          "artifact /Users/ahmed/AegisFlow/artifacts/aegis_phase1_telemetry.json \u00b7 schema \"aegisflow.telemetry.v2\" \u00b7 scale 1.0 \u00b7 generated \"2026-10-26T06:51:38Z\" \u00b7 commit 7cb1a10 (dirty) \u00b7 preliminary false",
+          "artifact /Users/ahmed/AegisFlow/artifacts/aegis_phase1_telemetry.json \u00b7 schema \"aegisflow.telemetry.v2\" \u00b7 scale 1.0 \u00b7 generated \"2026-10-26T07:03:00Z\" \u00b7 commit c3ad550 \u00b7 preliminary false",
           "ok   schema \"aegisflow.telemetry.v2\" (expected aegisflow.telemetry.v2)",
           "ok   scale 1.0 (a full run has scale >= 1)",
-          "ok   sources fingerprint 328493c05bdc vs current 328493c05bdc over 94 files",
+          "ok   sources fingerprint e8a5ebf12b08 vs current e8a5ebf12b08 over 94 files",
           "ok   APFS fixtures [\"tiny\", \"small\", \"medium\", \"aegisflow_src\"] (expected [\"tiny\", \"small\", \"medium\", \"aegisflow_src\"])",
           "ok   apfs \u00b7 tiny: clonefile_ms n=400, renameatx_swap_ms n=400, rollback_detach_ms n=400, rollback_reclaim_ms n=400 \u00b7 integrity all_ok true",
           "ok   apfs \u00b7 small: clonefile_ms n=300, renameatx_swap_ms n=300, rollback_detach_ms n=300, rollback_reclaim_ms n=300 \u00b7 integrity all_ok true",
@@ -565,10 +565,10 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 156.4,
-        "finished_at": "2026-10-26T06:51:41Z",
+        "duration_ms": 159.1,
+        "finished_at": "2026-10-26T07:03:04Z",
         "output_tail": [
-          "brain sync: verified=16 \u00b7 commit 7cb1a10-dirty \u00b7 log unchanged"
+          "brain sync: verified=16 \u00b7 commit c3ad550 \u00b7 log unchanged"
         ]
       }
     },
@@ -597,28 +597,28 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 594.2,
-        "finished_at": "2026-10-26T06:46:19Z",
+        "duration_ms": 608.8,
+        "finished_at": "2026-10-26T06:58:49Z",
         "output_tail": [
           "test tests::explicit_rollback_reports_timings ... ok",
           "test tests::generation_is_shared_between_instances ... ok",
-          "test pool::tests::own_commits_do_not_trigger_fsevents_invalidation ... ok",
-          "test tests::rename_excl_never_clobbers ... ok",
           "test tests::reclaim_trash_removes_crash_leftovers ... ok",
-          "test pool::tests::swap_events_of_an_own_commit_do_not_invalidate ... ok",
+          "test tests::rename_excl_never_clobbers ... ok",
           "test tests::reaper_eventually_empties_trash ... ok",
+          "test pool::tests::own_commits_do_not_trigger_fsevents_invalidation ... ok",
           "test tests::restore_brings_back_an_earlier_version ... ok",
-          "test tests::retention_prunes_old_versions ... ok",
-          "test tests::synchronous_mode_reclaims_inline ... ok",
           "test tests::stale_branch_commit_is_a_conflict ... ok",
+          "test pool::tests::swap_events_of_an_own_commit_do_not_invalidate ... ok",
+          "test tests::retention_prunes_old_versions ... ok",
           "test tests::workspace_is_on_apfs ... ok",
+          "test tests::synchronous_mode_reclaims_inline ... ok",
           "test tests::rollback_returns_before_reclaim_in_background_mode ... ok",
           "test pool::tests::max_standby_age_expires_standbys ... ok",
           "test pool::tests::acquire_waits_for_in_flight_replenish_instead_of_cloning_cold ... ok",
           "test pool::tests::replenisher_yields_to_foreground_operations ... ok",
           "test pool::tests::replenish_delay_postpones_the_clone_after_an_acquire ... ok",
           "",
-          "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s",
+          "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s",
           "",
           "   Doc-tests aegis_storage",
           "",
@@ -651,13 +651,13 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 5387.4,
-        "finished_at": "2026-10-26T06:46:24Z",
+        "duration_ms": 5526.3,
+        "finished_at": "2026-10-26T06:58:55Z",
         "output_tail": [
           "test tests::matches_fp32_reference_on_parity_set ... ok",
           "test tests::concurrent_scoring_is_consistent ... ok",
           "",
-          "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s",
+          "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s",
           "",
           "",
           "running 0 tests",
@@ -673,10 +673,10 @@
           "test_fp16_block_is_labelled_and_compared_with_fp32 (__main__.Validation) ... ok",
           "",
           "----------------------------------------------------------------------",
-          "Ran 6 tests in 0.015s",
+          "Ran 6 tests in 0.014s",
           "",
           "OK",
-          "    Finished `release` profile [optimized] target(s) in 0.18s",
+          "    Finished `release` profile [optimized] target(s) in 0.23s",
           "     Running unittests src/lib.rs (target/release/deps/aegis_ane_scorer-79945c06b6b7c25e)",
           "   Doc-tests aegis_ane_scorer"
         ]
@@ -709,12 +709,12 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 3298.5,
-        "finished_at": "2026-10-26T06:46:27Z",
+        "duration_ms": 3530.7,
+        "finished_at": "2026-10-26T06:58:59Z",
         "output_tail": [
-          "\u2714 a mode change from settings re-reads the scenarios before trusting the badge (2.501417ms)",
-          "\u2714 older daemons without mode map enabled to remote / disabled (0.116ms)",
-          "\u2714 the Submission cell shows the local order id, status and target (0.246625ms)",
+          "\u2714 a mode change from settings re-reads the scenarios before trusting the badge (3.807666ms)",
+          "\u2714 older daemons without mode map enabled to remote / disabled (0.12675ms)",
+          "\u2714 the Submission cell shows the local order id, status and target (0.249042ms)",
           "\u2139 tests 50",
           "\u2139 suites 0",
           "\u2139 pass 50",
@@ -722,11 +722,11 @@
           "\u2139 cancelled 0",
           "\u2139 skipped 0",
           "\u2139 todo 0",
-          "\u2139 duration_ms 451.83975",
+          "\u2139 duration_ms 464.406042",
           "    Finished `release` profile [optimized] target(s) in 0.02s",
           "     Running unittests src/lib.rs (target/release/deps/aegis_config-ec0086b4fa5b831b)",
           "   Doc-tests aegis_config",
-          "    Finished `release` profile [optimized] target(s) in 0.18s",
+          "    Finished `release` profile [optimized] target(s) in 0.20s",
           "     Running unittests src/lib.rs (target/release/deps/aegis_daemon-e740d2bff3d6596d)",
           "     Running unittests src/main.rs (target/release/deps/aegis_daemon-c2f4b60a9765dfd2)",
           "     Running tests/api.rs (target/release/deps/api-791182cb7a3cb0e6)",
@@ -767,24 +767,24 @@
       "timeout_s": 3600,
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 311066.9,
-        "finished_at": "2026-10-26T06:51:38Z",
+        "duration_ms": 241952.8,
+        "finished_at": "2026-10-26T07:03:01Z",
         "output_tail": [
-          "aegis-bench: 1-min load average 7.96 above 4; waiting for a quiet machine (155 of 300 s)",
-          "aegis-bench: 1-min load average 7.41 above 4; waiting for a quiet machine (160 of 300 s)",
-          "aegis-bench: 1-min load average 7.13 above 4; waiting for a quiet machine (165 of 300 s)",
-          "aegis-bench: 1-min load average 6.80 above 4; waiting for a quiet machine (170 of 300 s)",
-          "aegis-bench: 1-min load average 6.50 above 4; waiting for a quiet machine (175 of 300 s)",
-          "aegis-bench: 1-min load average 6.54 above 4; waiting for a quiet machine (180 of 300 s)",
-          "aegis-bench: 1-min load average 6.01 above 4; waiting for a quiet machine (185 of 300 s)",
-          "aegis-bench: 1-min load average 5.85 above 4; waiting for a quiet machine (190 of 300 s)",
-          "aegis-bench: 1-min load average 5.46 above 4; waiting for a quiet machine (195 of 300 s)",
-          "aegis-bench: 1-min load average 5.19 above 4; waiting for a quiet machine (200 of 300 s)",
-          "aegis-bench: 1-min load average 4.93 above 4; waiting for a quiet machine (205 of 300 s)",
-          "aegis-bench: 1-min load average 4.62 above 4; waiting for a quiet machine (210 of 300 s)",
-          "aegis-bench: 1-min load average 4.25 above 4; waiting for a quiet machine (216 of 300 s)",
-          "aegis-bench: 1-min load average 4.31 above 4; waiting for a quiet machine (221 of 300 s)",
-          "aegis-bench: 1-min load average 4.04 above 4; waiting for a quiet machine (226 of 300 s)",
+          "aegis-bench: 1-min load average 9.50 above 4; waiting for a quiet machine (85 of 300 s)",
+          "aegis-bench: 1-min load average 8.82 above 4; waiting for a quiet machine (90 of 300 s)",
+          "aegis-bench: 1-min load average 8.59 above 4; waiting for a quiet machine (95 of 300 s)",
+          "aegis-bench: 1-min load average 8.07 above 4; waiting for a quiet machine (100 of 300 s)",
+          "aegis-bench: 1-min load average 7.66 above 4; waiting for a quiet machine (105 of 300 s)",
+          "aegis-bench: 1-min load average 7.13 above 4; waiting for a quiet machine (110 of 300 s)",
+          "aegis-bench: 1-min load average 6.80 above 4; waiting for a quiet machine (115 of 300 s)",
+          "aegis-bench: 1-min load average 6.25 above 4; waiting for a quiet machine (120 of 300 s)",
+          "aegis-bench: 1-min load average 6.07 above 4; waiting for a quiet machine (125 of 300 s)",
+          "aegis-bench: 1-min load average 5.58 above 4; waiting for a quiet machine (130 of 300 s)",
+          "aegis-bench: 1-min load average 5.14 above 4; waiting for a quiet machine (135 of 300 s)",
+          "aegis-bench: 1-min load average 4.89 above 4; waiting for a quiet machine (140 of 300 s)",
+          "aegis-bench: 1-min load average 4.65 above 4; waiting for a quiet machine (145 of 300 s)",
+          "aegis-bench: 1-min load average 4.28 above 4; waiting for a quiet machine (150 of 300 s)",
+          "aegis-bench: 1-min load average 4.02 above 4; waiting for a quiet machine (155 of 300 s)",
           "aegis-bench: APFS (cold clonefile, kernel time, WarmBranchPool, commit, rollback, reaper)",
           "  apfs \u00b7 tiny (9 files) x 400",
           "  apfs \u00b7 small (129 files) x 300",
@@ -824,28 +824,28 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 1573.3,
-        "finished_at": "2026-10-26T06:51:40Z",
+        "duration_ms": 1631.7,
+        "finished_at": "2026-10-26T07:03:02Z",
         "output_tail": [
-          "artifact /Users/ahmed/AegisFlow/artifacts/aegis_phase1_telemetry.json \u00b7 schema \"aegisflow.telemetry.v2\" \u00b7 scale 1.0 \u00b7 generated \"2026-10-26T06:51:38Z\" \u00b7 commit 7cb1a10 (dirty) \u00b7 preliminary false",
-          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 tiny (9 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.0992 ms; hit rate 1.000; p95 0.1167 ms; n=400",
-          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 small (129 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.1060 ms; hit rate 1.000; p95 0.1202 ms; n=300",
-          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 medium (1025 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.1357 ms; hit rate 1.000; p95 0.1593 ms; n=60",
-          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 aegisflow_src (118 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.1108 ms; hit rate 1.000; p95 0.1707 ms; n=200",
-          "PASS | renameatx_np RENAME_SWAP commit (syscall only) \u00b7 small | target < 0.5 ms | measured 0.1281 ms; p95 0.1478 ms; n=300",
-          "PASS | rollback \u00b7 caller-visible (background reap) \u00b7 small | target < 0.15 ms | measured 0.0883 ms; p95 0.0983 ms; n=300",
-          "PASS | CoreML FP16 online window model \u00b7 cpuAndNeuralEngine \u00b7 back-to-back calls | target < 0.6 ms | measured 0.1938 ms; p95 0.2288 ms; n=2400",
+          "artifact /Users/ahmed/AegisFlow/artifacts/aegis_phase1_telemetry.json \u00b7 schema \"aegisflow.telemetry.v2\" \u00b7 scale 1.0 \u00b7 generated \"2026-10-26T07:03:00Z\" \u00b7 commit c3ad550 \u00b7 preliminary false",
+          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 tiny (9 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.1032 ms; hit rate 1.000; p95 0.1300 ms; n=400",
+          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 small (129 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.1060 ms; hit rate 1.000; p95 0.1223 ms; n=300",
+          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 medium (1025 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.1190 ms; hit rate 1.000; p95 0.1502 ms; n=60",
+          "PASS | branch acquire (WarmBranchPool warm hit) \u00b7 aegisflow_src (118 files) | target < 0.5 ms p50 on warm hits, hit rate >= 1 (pool settled before each acquire) | measured 0.1064 ms; hit rate 1.000; p95 0.1373 ms; n=200",
+          "PASS | renameatx_np RENAME_SWAP commit (syscall only) \u00b7 small | target < 0.5 ms | measured 0.1261 ms; p95 0.1402 ms; n=300",
+          "PASS | rollback \u00b7 caller-visible (background reap) \u00b7 small | target < 0.15 ms | measured 0.0889 ms; p95 0.1031 ms; n=300",
+          "PASS | CoreML FP16 online window model \u00b7 cpuAndNeuralEngine \u00b7 back-to-back calls | target < 0.6 ms | measured 0.1944 ms; p95 0.2212 ms; n=2400",
           "PASS | online model executes on the Neural Engine (MLComputePlan) | target all ops on ANE | measured {\"neural_engine\":36,\"cpu\":0,\"gpu\":0}",
-          "PASS | online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly | target speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50) | measured {\"cpuAndNeuralEngine p50 ms\":0.19375,\"cpuOnly p50 ms\":0.222791,\"speedup\":1.149889}; n=2400",
+          "PASS | online model, back-to-back calls: cpuAndNeuralEngine faster than cpuOnly | target speedup > 1 (cpuOnly p50 / cpuAndNeuralEngine p50) | measured {\"cpuAndNeuralEngine p50 ms\":0.194416,\"cpuOnly p50 ms\":0.222333,\"speedup\":1.143594}; n=2400",
           "PASS | batch model executes on the Neural Engine (MLComputePlan) | target all ops on ANE | measured {\"neural_engine\":36,\"cpu\":0,\"gpu\":0}",
-          "PASS | tier-0 route (ANE + Cedar) | target < 0.4 ms | measured 0.1998 ms; p95 0.2390 ms; n=5000",
+          "PASS | tier-0 route (ANE + Cedar) | target < 0.4 ms | measured 0.1953 ms; p95 0.2352 ms; n=5000",
           "ok   schema \"aegisflow.telemetry.v2\" (expected aegisflow.telemetry.v2)",
           "ok   scale 1.0 (a full run has scale >= 1)",
-          "ok   sources fingerprint 328493c05bdc vs current 328493c05bdc over 94 files",
+          "ok   sources fingerprint e8a5ebf12b08 vs current e8a5ebf12b08 over 94 files",
           "ok   11 gated rows (expected exactly 11)",
           "ok   gate: 11 of 11 gated rows passed",
           "ok   live-tree integrity: {\"checks passed\":30,\"checks\":30,\"stores clean\":true}",
-          "ok   run conditions: quiet full-scale run; start load1 3.96 (busy above 4.0); attributable CPU contention mean 1.06 cores, p95 1.85, max 2.40, n=75 (busy at or above 2.00 cores); external CPU total mean 3.29 cores, p95 4.85, max 5.08, unattributed 168.55 core-seconds (informational: includes root and system services responding to the benchmark); end load1 6.06 (informational: mostly the benchmark's own threads)",
+          "ok   run conditions: quiet full-scale run; start load1 3.78 (busy above 4.0); attributable CPU contention mean 0.92 cores, p95 1.48, max 1.85, n=76 (busy at or above 2.00 cores); external CPU total mean 3.03 cores, p95 4.17, max 4.79, unattributed 160.61 core-seconds (informational: includes root and system services responding to the benchmark); end load1 4.24 (informational: mostly the benchmark's own threads)",
           "gate: all 7 checks passed"
         ]
       }
@@ -870,8 +870,8 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 50.1,
-        "finished_at": "2026-10-26T06:51:41Z",
+        "duration_ms": 55.4,
+        "finished_at": "2026-10-26T07:03:04Z",
         "output_tail": [
           "missing: none | tasks.md generated: True"
         ]
@@ -897,10 +897,10 @@
       "status": "passed",
       "last_result": {
         "exit_code": 0,
-        "duration_ms": 166.1,
-        "finished_at": "2026-10-26T06:51:40Z",
+        "duration_ms": 285.0,
+        "finished_at": "2026-10-26T07:03:03Z",
         "output_tail": [
-          "brain sync: verified=16 \u00b7 commit 7cb1a10-dirty \u00b7 log updated"
+          "brain sync: verified=16 \u00b7 commit c3ad550 \u00b7 log updated"
         ]
       }
     }
