@@ -285,10 +285,12 @@ fn tests_failed_ratio(output: &str) -> f64 {
 pub struct ModelReply {
     pub patch: Option<String>,
     pub cedar_policy: Option<String>,
+    /// Complete replacement contents from ```file <path> blocks, in reply order.
+    pub files: Vec<(String, String)>,
 }
 
-/// Extracts the first ```diff (or ```patch) block and the first ```cedar block, ignoring any
-/// `<think>…</think>` reasoning trace.
+/// Extracts the first ```diff (or ```patch) block, every ```file <path> block (complete file
+/// contents) and the first ```cedar block, ignoring any `<think>…</think>` reasoning trace.
 pub fn parse_reply(text: &str) -> ModelReply {
     static THINK: OnceLock<Regex> = OnceLock::new();
     let think = THINK.get_or_init(|| Regex::new(r"(?s)<think>.*?</think>").expect("static regex"));
@@ -301,11 +303,16 @@ pub fn parse_reply(text: &str) -> ModelReply {
         if let Some(rest) = trimmed.strip_prefix("```") {
             match lang.take() {
                 None => {
-                    lang = Some(rest.trim().to_lowercase());
+                    lang = Some(rest.trim().to_string());
                     body.clear();
                 }
-                Some(l) => {
-                    if (l == "diff" || l == "patch") && reply.patch.is_none() {
+                Some(info) => {
+                    let l = info.to_lowercase();
+                    if let Some(path) = info.strip_prefix("file ").or_else(|| info.strip_prefix("file:")).map(str::trim) {
+                        if !path.is_empty() {
+                            reply.files.push((path.to_string(), body.clone()));
+                        }
+                    } else if (l == "diff" || l == "patch") && reply.patch.is_none() {
                         reply.patch = Some(body.clone());
                     } else if l == "cedar" && reply.cedar_policy.is_none() {
                         reply.cedar_policy = Some(body.clone());
@@ -346,24 +353,130 @@ pub fn apply_patch(dir: &Path, patch: &str) -> Result<Vec<PathBuf>, RouterError>
     if touched.is_empty() {
         return Err(RouterError::Patch("diff has no file headers".into()));
     }
-    let mut child = Command::new("/usr/bin/patch")
-        .args(["-p1", "-N", "-t", "-s", "-V", "none", "-d"])
-        .arg(dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    child.stdin.take().expect("stdin is piped").write_all(patch.as_bytes())?;
-    let out = child.wait_with_output()?;
-    if !out.status.success() {
-        return Err(RouterError::Patch(format!(
-            "patch exited {}: {}{}",
-            out.status.code().unwrap_or(-1),
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        )));
+    // Dry run first so a failing diff leaves the tree untouched for the content-matching fallback.
+    let dry = run_patch(dir, patch, true)?;
+    if dry.status.success() {
+        let out = run_patch(dir, patch, false)?;
+        if out.status.success() {
+            return Ok(touched);
+        }
+        return Err(patch_error(&out));
     }
+    // Model-written diffs often carry wrong line numbers or slightly different context. Place each
+    // hunk by its content instead; the result is still verified by the build, the risk score and
+    // Cedar before anything is committed.
+    apply_hunks_by_content(dir, patch).map_err(|why| {
+        RouterError::Patch(format!("{}; content match: {why}", patch_error(&dry).to_string().trim_start_matches("patch rejected: ")))
+    })?;
     Ok(touched)
+}
+
+/// Writes complete replacement files from a model reply inside `dir`, refusing absolute paths,
+/// `..` components and new files (a repair edits existing sources). Returns the paths written.
+pub fn apply_files(dir: &Path, files: &[(String, String)]) -> Result<Vec<PathBuf>, RouterError> {
+    let mut checked = Vec::new();
+    for (rel, content) in files {
+        let path = Path::new(rel.strip_prefix("./").unwrap_or(rel));
+        if path.as_os_str().is_empty() || path.is_absolute() || path.components().any(|c| matches!(c, Component::ParentDir)) {
+            return Err(RouterError::Patch(format!("unsafe path in file block: {rel}")));
+        }
+        if !dir.join(path).is_file() {
+            return Err(RouterError::Patch(format!("file block names a file that does not exist: {rel}")));
+        }
+        if content.trim().is_empty() {
+            return Err(RouterError::Patch(format!("file block for {rel} is empty")));
+        }
+        checked.push((path.to_path_buf(), content));
+    }
+    for (path, content) in &checked {
+        std::fs::write(dir.join(path), content)?;
+    }
+    Ok(checked.into_iter().map(|(p, _)| p).collect())
+}
+
+fn run_patch(dir: &Path, patch: &str, dry_run: bool) -> Result<std::process::Output, RouterError> {
+    let mut cmd = Command::new("/usr/bin/patch");
+    cmd.args(["-p1", "-N", "-t", "-s", "-l", "-F", "3", "-V", "none"]);
+    if dry_run {
+        cmd.arg("--dry-run");
+    }
+    let mut child = cmd.arg("-d").arg(dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    child.stdin.take().expect("stdin is piped").write_all(patch.as_bytes())?;
+    Ok(child.wait_with_output()?)
+}
+
+fn patch_error(out: &std::process::Output) -> RouterError {
+    RouterError::Patch(format!(
+        "patch exited {}: {}{}",
+        out.status.code().unwrap_or(-1),
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    ))
+}
+
+/// Applies each hunk of a unified diff by locating its old lines (context and removals, compared
+/// with surrounding whitespace trimmed) as a block that occurs exactly once in the target file,
+/// ignoring the hunk's line numbers. All files are checked before any is written.
+fn apply_hunks_by_content(dir: &Path, patch: &str) -> Result<(), String> {
+    let mut files: Vec<(PathBuf, Vec<(Vec<String>, Vec<String>)>)> = Vec::new();
+    let mut lines = patch.lines().peekable();
+    while let Some(line) = lines.next() {
+        if let Some(rest) = line.strip_prefix("+++ ") {
+            let raw = rest.split('\t').next().unwrap_or("").trim();
+            let rel = raw.strip_prefix("b/").unwrap_or(raw);
+            files.push((PathBuf::from(rel), Vec::new()));
+        } else if line.starts_with("@@") {
+            let Some((_, hunks)) = files.last_mut() else { return Err("hunk before any file header".into()) };
+            let (mut old, mut new) = (Vec::new(), Vec::new());
+            while let Some(&l) = lines.peek() {
+                if l.starts_with("@@") || l.starts_with("--- ") || l.starts_with("+++ ") {
+                    break;
+                }
+                lines.next();
+                if let Some(t) = l.strip_prefix('-') {
+                    old.push(t.to_string());
+                } else if let Some(t) = l.strip_prefix('+') {
+                    new.push(t.to_string());
+                } else if !l.starts_with('\\') {
+                    let t = l.strip_prefix(' ').unwrap_or(l);
+                    old.push(t.to_string());
+                    new.push(t.to_string());
+                }
+            }
+            hunks.push((old, new));
+        }
+    }
+    let mut results = Vec::new();
+    for (rel, hunks) in &files {
+        let path = dir.join(rel);
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", rel.display()))?;
+        let trailing_newline = text.ends_with('\n');
+        let mut body: Vec<String> = text.lines().map(str::to_string).collect();
+        for (old, new) in hunks {
+            let old: Vec<&String> = old.iter().filter(|l| !l.trim().is_empty()).collect();
+            if old.is_empty() {
+                return Err(format!("{}: hunk without old lines", rel.display()));
+            }
+            let body_idx: Vec<usize> = (0..body.len()).filter(|&i| !body[i].trim().is_empty()).collect();
+            let starts: Vec<usize> = (0..body_idx.len().saturating_sub(old.len() - 1))
+                .filter(|&s| old.iter().enumerate().all(|(k, o)| body[body_idx[s + k]].trim() == o.trim()))
+                .collect();
+            let [start] = starts[..] else {
+                return Err(format!("{}: hunk matches {} places", rel.display(), starts.len()));
+            };
+            let (first, last) = (body_idx[start], body_idx[start + old.len() - 1]);
+            body.splice(first..=last, new.iter().cloned());
+        }
+        let mut out = body.join("\n");
+        if trailing_newline {
+            out.push('\n');
+        }
+        results.push((path, out));
+    }
+    for (path, out) in results {
+        std::fs::write(&path, out).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -561,11 +674,17 @@ impl RecoveryRouter {
         let mut attempt = Attempt::new(tier, model);
         attempt.patch = reply.patch.clone();
         let branch = ws.branch(&format!("recovery-t{}", tier.level()))?;
-        let Some(patch) = &reply.patch else {
-            attempt.detail = "model returned no ```diff block".to_string();
+        // Prefer complete files (models get unified-diff line numbers and context wrong often);
+        // fall back to the diff when the reply has no file blocks.
+        let applied = if !reply.files.is_empty() {
+            apply_files(branch.path(), &reply.files)
+        } else if let Some(patch) = &reply.patch {
+            apply_patch(branch.path(), patch)
+        } else {
+            attempt.detail = "model returned neither a ```file block nor a ```diff block".to_string();
             return Ok(attempt);
         };
-        if let Err(e) = apply_patch(branch.path(), patch) {
+        if let Err(e) = applied {
             attempt.detail = e.to_string();
             return Ok(attempt);
         }
@@ -723,6 +842,24 @@ pub fn list_models(base_url: &str, api_key: &str, timeout: Duration) -> Result<V
     Ok(data.iter().filter_map(|m| m["id"].as_str().map(str::to_owned)).collect())
 }
 
+/// Checks the API key itself where the provider offers a key endpoint that needs no model call:
+/// OpenRouter's `GET {base}/key` answers 401 for an unknown or deleted key. Public model listings
+/// (OpenRouter, NVIDIA NIM) answer without a valid key, so `list_models` alone proves nothing about
+/// it. Returns `Ok(false)` when the provider has no such endpoint (the key is then unchecked).
+pub fn check_key(base_url: &str, api_key: &str, timeout: Duration) -> Result<bool, RouterError> {
+    if let Some(problem) = endpoint_problem(base_url) {
+        return Err(RouterError::Endpoint(problem));
+    }
+    let base = base_url.trim().trim_end_matches('/');
+    if aegis_config::nemotron_provider(base).map(|p| p.id) != Some("openrouter") {
+        return Ok(false);
+    }
+    let url = format!("{base}/key");
+    let agent = ureq::AgentBuilder::new().timeout(timeout).build();
+    read_json(agent.get(&url).set("Authorization", &format!("Bearer {api_key}")).call(), &url)?;
+    Ok(true)
+}
+
 fn tail_chars(text: &str, max: usize) -> String {
     let count = text.chars().count();
     text.chars().skip(count.saturating_sub(max)).collect()
@@ -765,9 +902,10 @@ fn referenced_files(root: &Path, stderr: &str) -> Vec<PathBuf> {
 pub fn build_prompt(tier: Tier, root: &Path, failure: &BuildFailure, docs: Option<&str>) -> (String, String) {
     let thinking = if tier == Tier::TavilyNemotronUltra { "detailed thinking on" } else { "detailed thinking off" };
     let system = format!(
-        "{thinking}\nYou repair failing builds in a sandboxed copy-on-write branch. Reply with exactly one \
-         ```diff fenced block containing a minimal unified diff whose paths are relative to the workspace \
-         root with a/ and b/ prefixes. Add a ```cedar block with the complete new policies/aegis_rules.cedar \
+        "{thinking}\nYou repair failing builds in a sandboxed copy-on-write branch. For each file you change, \
+         reply with a fenced block whose info string is `file <path>` (path relative to the workspace root, \
+         e.g. ```file src/report.rs) containing the COMPLETE corrected file, with the smallest change that \
+         fixes the error and everything else unchanged. Add a ```cedar block with the complete new policies/aegis_rules.cedar \
          only if the failure is caused by that policy file. Do not add prose outside the fenced blocks."
     );
     let mut user = format!(
@@ -1061,6 +1199,47 @@ mod tests {
             std::fs::read_dir(fx.live()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         names.sort();
         assert_eq!(names, vec!["report.rs".to_string(), "status.txt".to_string()]);
+    }
+
+    #[test]
+    fn complete_file_blocks_are_parsed_and_applied_safely() {
+        let reply = parse_reply("<think>x</think>\n```file src/report.rs\nfn fixed() {}\n```\nbye\n");
+        assert_eq!(reply.files, vec![("src/report.rs".to_string(), "fn fixed() {}\n".to_string())]);
+        let fx = Fixture::new("files");
+        std::fs::create_dir_all(fx.live().join("src")).unwrap();
+        std::fs::write(fx.live().join("src/report.rs"), "fn broken() {}\n").unwrap();
+        assert_eq!(apply_files(&fx.live(), &reply.files).unwrap(), vec![PathBuf::from("src/report.rs")]);
+        assert_eq!(std::fs::read_to_string(fx.live().join("src/report.rs")).unwrap(), "fn fixed() {}\n");
+        for bad in ["../escape.rs", "/etc/hosts", "src/new_file.rs"] {
+            assert!(apply_files(&fx.live(), &[(bad.to_string(), "x\n".to_string())]).is_err(), "{bad} must be refused");
+        }
+        assert!(apply_files(&fx.live(), &[("src/report.rs".to_string(), "  \n".to_string())]).is_err());
+    }
+
+    #[test]
+    fn hunk_with_wrong_line_numbers_and_indentation_applies_by_content() {
+        let fx = Fixture::new("content");
+        let src = "pub fn a() {}\n\npub fn summary(c: u64) -> String {\n    format_cents(c, true)\n}\n";
+        std::fs::write(fx.live().join("report.rs"), src).unwrap();
+        // Line numbers are far off and the context is indented differently, as model output often is.
+        let patch = "--- a/report.rs\n+++ b/report.rs\n@@ -40,3 +40,3 @@\n pub fn summary(c: u64) -> String {\n-  format_cents(c, true)\n+    format_cents(c)\n }\n";
+        apply_patch(&fx.live(), patch).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(fx.live().join("report.rs")).unwrap(),
+            "pub fn a() {}\n\npub fn summary(c: u64) -> String {\n    format_cents(c)\n}\n"
+        );
+    }
+
+    #[test]
+    fn ambiguous_hunk_is_rejected_and_leaves_the_file_unchanged() {
+        let fx = Fixture::new("ambiguous");
+        let src = "x();\ny();\nx();\ny();\n";
+        std::fs::write(fx.live().join("report.rs"), src).unwrap();
+        let patch = "--- a/report.rs\n+++ b/report.rs\n@@ -9,2 +9,2 @@\n x();\n-y();\n+z();\n";
+        // patch(1) would place this by offset; the content fallback must refuse to guess.
+        let err = apply_hunks_by_content(&fx.live(), patch).unwrap_err();
+        assert!(err.contains("matches 2 places"), "{err}");
+        assert_eq!(std::fs::read_to_string(fx.live().join("report.rs")).unwrap(), src);
     }
 
     #[test]

@@ -39,13 +39,23 @@ while IFS=$'\t' read -r mark id url label signup tier1 tier2; do
   if [ "$mark" = "*" ]; then current="$label"; fi
 done < <("$BIN" config providers </dev/null)
 if [ "$current" = "-" ]; then current="a loopback test endpoint or an unrecognised value"; fi
+# Discards anything typed before the next prompt, so a pasted value can never land under the wrong
+# name. macOS ships bash 3.2, whose `read -t` rejects fractional timeouts, so flush the terminal's
+# input queue with tcflush(3) instead (python3 comes with the Command Line Tools).
+flush_typeahead() {
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import os, termios; fd = os.open("/dev/tty", os.O_RDONLY); termios.tcflush(fd, termios.TCIFLUSH); os.close(fd)' 2>/dev/null && return
+  fi
+  while IFS= read -rs -t 1 -n 10000 _ </dev/tty; do :; done
+}
+
 echo "Nemotron provider for recovery tiers 1-2 (NEBIUS_BASE_URL; currently $current):"
 for i in "${!ids[@]}"; do
   printf '  %d) %s  %s\n' "$((i + 1))" "${labels[$i]}" "${urls[$i]}"
 done
 echo "  d) default (remove NEBIUS_BASE_URL: ${labels[0]})"
 echo "  l) loopback test endpoint (http(s)://127.0.0.1, localhost or [::1])"
-while IFS= read -rs -t 0.05 _ </dev/tty; do :; done
+flush_typeahead
 printf 'Choice [Enter keeps the current provider]: '
 choice=""
 IFS= read -r choice </dev/tty || choice=""
@@ -87,7 +97,7 @@ while read -r name kind; do
   if [ "$name" = "NEBIUS_BASE_URL" ]; then continue; fi
   state="$("$BIN" config status </dev/null | grep "^${name}: " | sed "s/^${name}: //")"
   # Drop anything typed before this prompt, so a value can never land under the wrong name.
-  while IFS= read -rs -t 0.05 _ </dev/tty; do :; done
+  flush_typeahead
   printf '%s [%s, currently %s]: ' "$name" "$kind" "$state"
   value=""
   IFS= read -rs value </dev/tty || value=""

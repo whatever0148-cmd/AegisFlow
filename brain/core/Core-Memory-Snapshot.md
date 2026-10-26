@@ -2,15 +2,15 @@
 tags:
   - core
 status: verified
-latency_ms: 0.12425
-last_verified: 2026-10-25T18:15:32Z
-git_commit: 3bfc312-dirty
+latency_ms: 0.130333
+last_verified: 2026-10-26T03:52:53Z
+git_commit: 4403ab4-dirty
 crate: aegis_storage
 ---
 
 # Core-Memory-Snapshot
 
-**Status:** 🟢 verified · **p50:** 0.1242 ms · **commit:** `3bfc312-dirty`
+**Status:** 🟢 verified · **p50:** 0.1303 ms · **commit:** `4403ab4-dirty` · **bench run: PRELIMINARY**
 
 > Atomic commit + version memory: `renameatx_np(..., RENAME_SWAP)` exchanges branch and live trees in one syscall; the previous live tree is kept as a CoW version snapshot that `restore()` can bring back. A persisted generation number makes stale branches and standbys conflict instead of overwriting newer trees. Workspace state is snapshotted on disk only (no process-memory snapshots).
 
@@ -23,28 +23,30 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-25T18:15:35Z · bench 2026-10-25T18:15:32Z · tests 2026-10-25T08:10:13Z · commit `3bfc312-dirty`_
+_Synced 2026-10-26T03:52:56Z · bench 2026-10-26T03:52:53Z · tests 2026-10-25T08:10:13Z · commit `4403ab4-dirty`_
+
+> **PRELIMINARY: mean attributable CPU contention 2.25 cores over 79 samples at or above the busy threshold 2.00 cores (25% of 8 logical CPUs).** Only a quiet full-scale benchmark run decides the phase result.
 
 | Metric | Measured |
 |---|---|
 | cargo test --release | 9 passed, 0 failed (2 suites) |
-| renameatx_np RENAME_SWAP · tiny | p50 0.1168 ms · p95 0.1271 ms · n=400 |
-| renameatx_np RENAME_SWAP · small | p50 0.1242 ms · p95 0.1368 ms · n=300 |
-| renameatx_np RENAME_SWAP · medium | p50 0.1403 ms · p95 0.1521 ms · n=60 |
-| renameatx_np RENAME_SWAP · aegisflow_src | p50 0.1270 ms · p95 0.1389 ms · n=200 |
-| commit total (lock + checks + swap + version) · small | p50 0.3044 ms · p95 0.3407 ms · n=300 |
-| commit caller-visible · tiny | p50 0.4346 ms · p95 0.4789 ms · n=400 |
-| commit caller-visible · small | p50 0.4468 ms · p95 0.4961 ms · n=300 |
-| commit caller-visible · medium | p50 0.4680 ms · p95 0.5361 ms · n=60 |
-| commit caller-visible · aegisflow_src | p50 0.4370 ms · p95 0.5068 ms · n=200 |
-| acquire right after commit · tiny | p50 0.4780 ms · p95 0.5463 ms · n=400 · pool 0 / waited for refill 391 / cold 9 |
-| acquire right after commit · small | p50 1.428 ms · p95 1.733 ms · n=300 · pool 0 / waited for refill 123 / cold 177 |
-| acquire right after commit · medium | p50 10.036 ms · p95 10.656 ms · n=60 · pool 0 / waited for refill 59 / cold 1 |
-| acquire right after commit · aegisflow_src | p50 1.798 ms · p95 2.082 ms · n=200 · pool 0 / waited for refill 108 / cold 92 |
-| commit right after acquire (refill clone in flight) · small | p50 1.397 ms · p95 1.568 ms · n=150 |
-| rollback right after acquire (refill clone in flight) · small | p50 1.085 ms · p95 1.240 ms · n=150 |
-| rollback caller-visible (background reap) · small | p50 0.0879 ms · p95 0.0988 ms · n=300 |
-| rollback synchronous (detach + delete) · small | p50 4.872 ms · p95 5.181 ms · n=300 |
+| renameatx_np RENAME_SWAP · tiny | p50 0.1197 ms · p95 0.2925 ms · n=400 |
+| renameatx_np RENAME_SWAP · small | p50 0.1303 ms · p95 0.3031 ms · n=300 |
+| renameatx_np RENAME_SWAP · medium | p50 0.1467 ms · p95 0.1968 ms · n=60 |
+| renameatx_np RENAME_SWAP · aegisflow_src | p50 0.1330 ms · p95 0.3041 ms · n=200 |
+| commit total (lock + checks + swap + version) · small | p50 0.3242 ms · p95 0.7050 ms · n=300 |
+| commit caller-visible · tiny | p50 0.4522 ms · p95 0.9930 ms · n=400 |
+| commit caller-visible · small | p50 0.4717 ms · p95 0.9522 ms · n=300 |
+| commit caller-visible · medium | p50 0.5020 ms · p95 0.9726 ms · n=60 |
+| commit caller-visible · aegisflow_src | p50 0.4704 ms · p95 0.7825 ms · n=200 |
+| acquire right after commit · tiny | p50 0.4288 ms · p95 0.9321 ms · n=400 · pool 0 / waited for refill 298 / cold 102 |
+| acquire right after commit · small | p50 1.589 ms · p95 2.240 ms · n=300 · pool 0 / waited for refill 189 / cold 111 |
+| acquire right after commit · medium | p50 10.158 ms · p95 11.998 ms · n=60 · pool 0 / waited for refill 52 / cold 8 |
+| acquire right after commit · aegisflow_src | p50 1.946 ms · p95 2.546 ms · n=200 · pool 0 / waited for refill 166 / cold 34 |
+| commit right after acquire (refill clone in flight) · small | p50 1.463 ms · p95 2.311 ms · n=150 |
+| rollback right after acquire (refill clone in flight) · small | p50 1.072 ms · p95 1.268 ms · n=150 |
+| rollback caller-visible (background reap) · small | p50 0.0932 ms · p95 0.2145 ms · n=300 |
+| rollback synchronous (detach + delete) · small | p50 5.116 ms · p95 7.067 ms · n=300 |
 <!-- aegis:telemetry:end -->
 
 ## Notes

@@ -7,7 +7,7 @@
 
 use std::time::{Duration, Instant};
 
-use adapter_nebius_nemotron::{list_models, missing_models, RouterConfig, DEFAULT_BASE_URL, TAVILY_URL};
+use adapter_nebius_nemotron::{check_key, list_models, missing_models, RouterConfig, DEFAULT_BASE_URL, TAVILY_URL};
 use adapter_paypal::{PayPalConfig, DEFAULT_BUDGET_CENTS, SANDBOX_BASE_URL};
 use adapter_switch_mcp::ChatConfig;
 use aegis_config::{Endpoint, Settings, Source, KEYS, NEMOTRON_PROVIDERS};
@@ -303,7 +303,12 @@ pub fn test_service(settings: &Settings, service: &str) -> Value {
                         .map(|(tier, id)| format!("tier {tier} model {id}"))
                         .collect();
                     if missing.is_empty() && unset.is_none() {
-                        (true, started, format!("{listed}; tier 1 and tier 2 models are served"))
+                        // The listing is public on OpenRouter and NIM, so it says nothing about the key.
+                        match check_key(&base, &key, TEST_TIMEOUT) {
+                            Ok(true) => (true, started, format!("{listed}; tier 1 and tier 2 models are served; API key accepted")),
+                            Ok(false) => (true, started, format!("{listed}; tier 1 and tier 2 models are served (this provider has no key check without a model call)")),
+                            Err(e) => (false, started, format!("{listed}; tier 1 and tier 2 models are served; API key rejected: {e}")),
+                        }
                     } else {
                         // Name what the provider does serve, so the tier ids can be picked from it.
                         let nemotron: Vec<&str> =

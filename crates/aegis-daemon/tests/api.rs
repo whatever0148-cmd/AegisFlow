@@ -248,7 +248,7 @@ async fn concurrent_config_saves_all_land_intact() {
     let dotenv = fx.root.join(".env");
     let names = ["NEBIUS_TIER1_MODEL", "NEBIUS_TIER2_MODEL", "AEGIS_APPROVAL_CALLBACK_URL", "TAVILY_API_KEY"];
     for round in 0..6 {
-        let values: Vec<String> = (0..names.len()).map(|i| format!("r{round}-{}", char::from(b'a' + i as u8).to_string().repeat(50_000))).collect();
+        let values: Vec<String> = (0..names.len()).map(|i| format!("vendor/r{round}-{}", char::from(b'a' + i as u8).to_string().repeat(50_000))).collect();
         let barrier = Arc::new(tokio::sync::Barrier::new(names.len()));
         let mut saves = Vec::new();
         for (name, value) in names.iter().zip(&values) {

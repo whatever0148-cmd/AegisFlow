@@ -445,8 +445,25 @@ fn is_loopback_url(url: &str) -> bool {
 fn validate_value(name: &str, value: &str) -> Result<(), String> {
     match name {
         "NEBIUS_BASE_URL" => validate_base_url(value).map(|_| ()),
+        _ if spec(name).is_some_and(|s| !s.secret) && looks_like_credential(value) => Err(
+            "this looks like an API key, not a value for this public setting (public settings are shown in the \
+             console); paste keys only into secret settings such as NEBIUS_API_KEY"
+                .to_string(),
+        ),
         _ => Ok(()),
     }
+}
+
+/// Whether a value pasted into a public setting (shown in the console and `config status`) is
+/// probably a credential: a known key prefix, or a long single token with no `/`, `:` or `.` (model
+/// ids and URLs always have one of those).
+pub fn looks_like_credential(value: &str) -> bool {
+    let v = value.trim();
+    const PREFIXES: [&str; 8] = ["sk-", "sk_", "nvapi-", "tvly-", "pk_", "ghp_", "xoxb-", "Bearer "];
+    PREFIXES.iter().any(|p| v.starts_with(p))
+        || (v.len() >= 32
+            && !v.contains(['/', ':', '.'])
+            && v.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'))
 }
 
 /// Orders writers inside this process (the `flock` below orders processes).
@@ -613,6 +630,28 @@ mod tests {
     }
 
     #[test]
+    fn api_keys_are_refused_in_public_settings_without_echoing_them() {
+        let path = scratch("credential-guard");
+        let fake = format!("sk-or-v1-{}", "0".repeat(64));
+        let fake = fake.as_str();
+        for name in ["NEBIUS_TIER1_MODEL", "NEBIUS_TIER2_MODEL"] {
+            let err = write_dotenv(&path, &[(name, Some(fake))]).unwrap_err().to_string();
+            assert!(err.contains("looks like an API key"), "{err}");
+            assert!(!err.contains(fake), "the refused value must not be echoed");
+        }
+        assert!(looks_like_credential("nvapi-abcdef"));
+        assert!(looks_like_credential("tvly-dev-abc"));
+        assert!(looks_like_credential("Zm9vYmFyYmF6cXV4cXV1eHF1dXhxdXV4cXV1eA"));
+        // Model ids and URLs pass.
+        write_dotenv(&path, &[("NEBIUS_TIER1_MODEL", Some("nvidia/nemotron-3-super-120b-a12b:free"))]).unwrap();
+        write_dotenv(&path, &[("NEBIUS_TIER2_MODEL", Some("nvidia/Llama-3_1-Nemotron-Ultra-253B-v1"))]).unwrap();
+        write_dotenv(&path, &[("AEGIS_APPROVAL_CALLBACK_URL", Some("https://example.test/aegis/approve"))]).unwrap();
+        // Secret settings accept keys, of course.
+        write_dotenv(&path, &[("NEBIUS_API_KEY", Some(fake))]).unwrap();
+        let _ = fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
     fn parses_quotes_comments_and_export() {
         let parsed = parse_dotenv(
             "# comment\nexport A_KEY=plain # trailing\nB_KEY=\"with \\\"quote\\\" and # hash\"\nC_KEY='single # kept'\nlower=skip\n9BAD=x\n",
@@ -706,7 +745,7 @@ mod tests {
         let names = ["NEBIUS_TIER1_MODEL", "NEBIUS_TIER2_MODEL", "AEGIS_APPROVAL_CALLBACK_URL", "TAVILY_API_KEY"];
         for round in 0..8 {
             // Large values make an interleaved write visible as a truncated or stray line.
-            let values: Vec<String> = names.iter().enumerate().map(|(i, _)| format!("r{round}-{}", char::from(b'a' + i as u8).to_string().repeat(120_000))).collect();
+            let values: Vec<String> = names.iter().enumerate().map(|(i, _)| format!("vendor/r{round}-{}", char::from(b'a' + i as u8).to_string().repeat(120_000))).collect();
             let barrier = std::sync::Barrier::new(names.len());
             std::thread::scope(|s| {
                 for (name, value) in names.iter().zip(&values) {
