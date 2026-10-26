@@ -2,14 +2,14 @@
 tags:
   - agent
 status: verified
-latency_ms: 374.2
-last_verified: 2026-10-26T03:52:55Z
-git_commit: 4403ab4-dirty
+latency_ms: 326.7
+last_verified: 2026-10-26T04:52:49Z
+git_commit: b5edd4f
 ---
 
 # Agent-Telemetry-UI
 
-**Status:** 🟢 verified · **p50:** 374.2 ms · **commit:** `4403ab4-dirty`
+**Status:** 🟢 verified · **p50:** 326.7 ms · **commit:** `b5edd4f`
 
 > Publishes measured telemetry into this vault (frontmatter, canvas, log) and the AG Grid / Bryntum row exports from the PayPal adapter.
 
@@ -21,14 +21,12 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-26T03:52:56Z · bench 2026-10-26T03:52:53Z · tests 2026-10-25T08:10:13Z · commit `4403ab4-dirty`_
-
-> **PRELIMINARY: mean attributable CPU contention 2.25 cores over 79 samples at or above the busy threshold 2.00 cores (25% of 8 logical CPUs).** Only a quiet full-scale benchmark run decides the phase result.
+_Synced 2026-10-26T04:52:49Z · bench 2026-10-26T04:52:47Z · tests 2026-10-25T08:10:13Z · commit `b5edd4f`_
 
 | Metric | Measured |
 |---|---|
-| T13 · Sync telemetry into the Obsidian brain | passed · 167.4 ms |
-| T20 · Sync phase-2 telemetry into the Obsidian brain | passed · 206.8 ms |
+| T13 · Sync telemetry into the Obsidian brain | passed · 161.1 ms |
+| T20 · Sync phase-2 telemetry into the Obsidian brain | passed · 165.6 ms |
 
 > `latency_ms` for an agent = summed wall time of its tasks' verify commands (harness/run_tasks.py).
 <!-- aegis:telemetry:end -->

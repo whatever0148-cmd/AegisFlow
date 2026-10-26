@@ -3,13 +3,13 @@ tags:
   - adapter
 status: verified
 latency_ms: null
-last_verified: 2026-10-26T03:52:56Z
-git_commit: 4403ab4-dirty
+last_verified: 2026-10-26T04:52:49Z
+git_commit: b5edd4f
 ---
 
 # Adapter-Kiro-Specs
 
-**Status:** 🟢 verified · **p50:** — · **commit:** `4403ab4-dirty` · **bench run: PRELIMINARY**
+**Status:** 🟢 verified · **p50:** — · **commit:** `b5edd4f`
 
 > Kiro spec-driven development: requirements (EARS), design and an implementation plan whose checkboxes mirror harness/TASKS.json verification results.
 
@@ -21,15 +21,13 @@ Hub: [[00-AegisFlow-Index]] · History: [[Telemetry-Log]]
 
 <!-- aegis:telemetry:start -->
 ## Live telemetry
-_Synced 2026-10-26T03:52:56Z · bench 2026-10-26T03:52:53Z · tests 2026-10-25T08:10:13Z · commit `4403ab4-dirty`_
-
-> **PRELIMINARY: mean attributable CPU contention 2.25 cores over 79 samples at or above the busy threshold 2.00 cores (25% of 8 logical CPUs).** Only a quiet full-scale benchmark run decides the phase result.
+_Synced 2026-10-26T04:52:49Z · bench 2026-10-26T04:52:47Z · tests 2026-10-25T08:10:13Z · commit `b5edd4f`_
 
 | Metric | Measured |
 |---|---|
 | spec files · aegisflow-phase1 | 3/3 present |
 | spec files · aegisflow-phase2 | 3/3 present |
-| tasks verified by harness | 20/21 |
+| tasks verified by harness | 21/21 |
 <!-- aegis:telemetry:end -->
 
 ## Notes
